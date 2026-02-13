@@ -11,7 +11,6 @@ import { History } from "./pages/History";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { Result } from "./pages/Result";
-import { Review } from "./pages/Review";
 import { Signup } from "./pages/Signup";
 
 function App() {
@@ -29,7 +28,6 @@ function App() {
             <Route path="/disclaimer" element={<Disclaimer />} />
             <Route element={<RequireDisclaimer />}>
               <Route path="/capture" element={<Capture />} />
-              <Route path="/review" element={<Review />} />
               <Route path="/history" element={<History />} />
               <Route path="/result" element={<Result />} />
             </Route>
