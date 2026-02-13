@@ -18,12 +18,27 @@ export function Disclaimer() {
     setSubmitting(true);
     setMessage(null);
 
-    const { error } = await supabase.from("disclaimer_acceptance").upsert({
-      user_id: user.id,
-      accepted_at: new Date().toISOString(),
-    });
+    // Try to insert first, if unique constraint violation, update instead
+    const { error: insertError } = await supabase
+      .from("disclaimer_acceptance")
+      .insert({
+        user_id: user.id,
+        accepted_at: new Date().toISOString(),
+      });
 
-    if (error) {
+    if (insertError && insertError.code === "23505") {
+      // Unique constraint violation, update instead
+      const { error: updateError } = await supabase
+        .from("disclaimer_acceptance")
+        .update({ accepted_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        setMessage("Unable to save your acknowledgment. Try again soon.");
+        setSubmitting(false);
+        return;
+      }
+    } else if (insertError) {
       setMessage("Unable to save your acknowledgment. Try again soon.");
       setSubmitting(false);
       return;
