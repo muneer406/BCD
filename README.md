@@ -100,9 +100,10 @@ Follow **SUPABASE_SETUP_GUIDE.md** (15 minutes):
 
 1. **Sign up** at http://localhost:5173/signup
 2. **Accept disclaimer** to access capture
-3. **Capture 5-6 images** using webcam or file upload
-4. **Review & save** session
-5. **View history** to confirm data persisted
+3. **Capture all 6 angles** using webcam or file upload (you can add multiple images per angle)
+4. **Upload session** directly from Capture page
+5. **View results** with session summary and comparison data
+6. **View history** to confirm data persisted
 
 ---
 
@@ -224,20 +225,17 @@ See **SUPABASE_MIGRATIONS.sql** for full CREATE TABLE syntax.
 Landing Page (/)
   ↓
 [Authenticated?]
-  No → Sign Up (/signup) → Confirm Email (if required) → Disclaimer
+  No → Sign Up (/signup) → Confirm Email → Disclaimer (/disclaimer)
   Yes → [Disclaimer accepted?]
         No → Disclaimer (/disclaimer)
         Yes ↓
-          Capture (/capture)
-            ↓ [5+ images captured?]
-            No → Stay on Capture
+          Capture (/capture) — All 6 angles
+            ↓ [All 6 angles captured?]
+            No → Stay on Capture, add images
             Yes ↓
-          Review (/review)
-            ↓ [Confirm save?]
-            Yes ↓
-          Save to DB + Upload to Storage
+          Upload Session → Save to DB + Upload to Storage
             ↓
-          Result (/result)
+          Result (/result) — Session summary
             ↓
           History (/history) — View all prior sessions
 ```
@@ -246,18 +244,20 @@ Landing Page (/)
 
 ## 🎥 Image Capture Protocol
 
-Each session requires **5 required + 1 optional** images:
+Each session requires **all 6 angles** (at least 1 image per angle; more images = better results):
 
-| Angle           | Required | Description                                |
-| --------------- | -------- | ------------------------------------------ |
-| **Front**       | ✅       | Centered, shoulders relaxed, arms at sides |
-| **Left side**   | ✅       | 90° left turn, steady posture              |
-| **Right side**  | ✅       | 90° right turn, steady posture             |
-| **Up angle**    | ✅       | Camera tilted slightly upward              |
-| **Down angle**  | ✅       | Camera from above, angled down             |
-| **Arms raised** | ❌       | Optional — arms raised, camera level       |
+| Angle              | Required | Description                                    |
+| ------------------ | -------- | ---------------------------------------------- |
+| **Front view**     | ✅       | Centered, shoulders relaxed, arms at sides     |
+| **Left side**      | ✅       | 90° left turn, steady posture                  |
+| **Right side**     | ✅       | 90° right turn, steady posture                 |
+| **Upward angle**   | ✅       | Camera tilted slightly upward at chest level   |
+| **Downward angle** | ✅       | Camera from above, angle downward              |
+| **Full body view** | ✅       | Step back or raise camera to show full torso   |
 
-**Consistency is key:** Same distance, lighting, and pose per session enables accurate time-series comparison.
+**Key for accuracy:** Consistent distance, lighting, and positioning per session enables accurate time-series comparisons.
+
+**Note:** You can capture multiple images per angle for improved detection confidence. The more images, the better the results.
 
 ---
 

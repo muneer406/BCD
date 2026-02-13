@@ -234,24 +234,19 @@ Open http://localhost:5173 in your browser.
   ```
 - You should see an entry with your user's ID
 
-### 4.4 Test Image Capture
+### 4.4 Test Image Capture & Upload
 
 1. You're now on `/capture`
-2. For each angle (Front, Left, Right, Up, Down):
-   - Click **Add image**
+2. For each of the 6 required angles (Front, Left, Right, Up, Down, Full body):
+   - Click the **Add image** box
    - Use your webcam OR upload a photo
    - After uploading, you'll see a preview
-3. Once all 5 required images are added, the **Review session** button activates
-4. Click **Review session**
-
-### 4.5 Test Review & Upload
-
-1. You should see all images on `/review`
-2. Click **Save session**
-3. During save, images are:
-   - Uploaded to `bcd-images` storage
-   - Session is created in `sessions` table
-   - Image metadata is saved to `images` table
+   - Click the image to see it full-screen (modal view)
+   - You can add more images per angle for better results
+3. Once all 6 angles have at least 1 image, the **Upload session** button activates
+4. Click **Upload session**
+5. All images are uploaded to `bcd-images` storage and metadata saved to database
+6. You're redirected to `/result` with session summary and comparison data
 
 **Check Supabase:**
 
@@ -259,7 +254,7 @@ Open http://localhost:5173 in your browser.
   - Go to **Storage** > **bcd-images**
   - You should see a folder with your user ID
   - Inside: a folder with session ID
-  - Inside that: 5-6 image files (front.jpg, left.jpg, etc.)
+  - Inside that: 6 image files (front.jpg, left.jpg, right.jpg, up.jpg, down.jpg, raised.jpg)
 
 - **Database - Sessions:**
   - SQL Editor, run:
@@ -273,13 +268,19 @@ Open http://localhost:5173 in your browser.
     ```sql
     select * from public.images where session_id = '{session-id}';
     ```
-  - You should see 5-6 image metadata entries
+  - You should see 6 image metadata entries
 
-### 4.6 Test History View
+### 4.5 Test Result & History View
 
-1. Click **History** in the header
-2. You should see your session listed with a thumbnail
-3. The date/time should display correctly
+1. On `/result`, you should see:
+   - Session complete confirmation
+   - Image quality metrics
+   - Comparison to previous sessions (dummy data)
+   - Health reminder
+2. Click **View all sessions** or **Capture another session**
+3. Click **History** in the header
+4. You should see your session listed with a thumbnail
+5. The date/time should display correctly
 
 ---
 
