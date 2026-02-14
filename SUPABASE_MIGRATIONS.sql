@@ -31,7 +31,7 @@ create table if not exists public.images (
   session_id uuid not null references public.sessions(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   image_type text not null, -- 'front', 'left', 'right', 'up', 'down', 'raised'
-  image_url text not null, -- public URL from storage
+  storage_path text not null, -- storage object path
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   
   constraint image_type_valid check (image_type in ('front', 'left', 'right', 'up', 'down', 'raised'))
@@ -96,6 +96,48 @@ create policy images_insert_own on public.images
 
 create policy images_delete_own on public.images
   for delete using (auth.uid() = user_id);
+
+
+-- ============================================================================
+-- 4b. Storage Bucket & Policies (Supabase Storage)
+-- ============================================================================
+
+-- Ensure bucket exists and is private
+insert into storage.buckets (id, name, public)
+values ('bcd-images', 'bcd-images', false)
+on conflict (id) do update set public = false;
+
+-- Drop conflicting or legacy policies
+drop policy if exists "allow_public_read" on storage.objects;
+drop policy if exists "allow_upload_own_folder" on storage.objects;
+drop policy if exists "allow_read_own_images" on storage.objects;
+
+-- Users can upload to their own folder
+create policy "Users can upload to own folder"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'bcd-images'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- Users can read their own images
+create policy "Users can read own images"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'bcd-images'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- Users can delete their own images
+create policy "Users can delete own images"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'bcd-images'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
 
 -- Disclaimer acceptance: users can only see and modify their own
 create policy disclaimer_select_own on public.disclaimer_acceptance

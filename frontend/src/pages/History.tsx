@@ -8,13 +8,24 @@ import { supabase } from "../lib/supabaseClient";
 type SessionRow = {
   id: string;
   created_at: string;
-  images?: { image_url: string; image_type: string }[];
+  images?: { storage_path: string; image_type: string }[];
+  previewUrl?: string | null;
 };
 
 export function History() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const pageSize = 6;
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setSessions([]);
+    setHasMore(true);
+    setPage(1);
+  }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -24,33 +35,73 @@ export function History() {
         if (!active) return;
         setSessions([]);
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
+      const isInitialLoad = page === 1;
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const from = (page - 1) * pageSize;
+      const to = page * pageSize - 1;
+
       const { data, error } = await supabase
         .from("sessions")
-        .select("id, created_at, images (image_url, image_type)")
+        .select("id, created_at, images (storage_path, image_type)")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (!active) return;
 
       if (error) {
         setSessions([]);
         setLoading(false);
+        setLoadingMore(false);
         return;
       }
 
-      setSessions((data as SessionRow[]) ?? []);
+      const rows = (data as SessionRow[]) ?? [];
+
+      const rowsWithPreviews = await Promise.all(
+        rows.map(async (session) => {
+          const previewPath = session.images?.[0]?.storage_path;
+          if (!previewPath) {
+            return { ...session, previewUrl: null };
+          }
+
+          const { data: signedUrlData, error: urlError } =
+            await supabase.storage
+              .from("bcd-images")
+              .createSignedUrl(previewPath, 3600);
+
+          return {
+            ...session,
+            previewUrl: urlError ? null : (signedUrlData?.signedUrl ?? null),
+          };
+        }),
+      );
+
+      setSessions((prev) =>
+        page === 1 ? rowsWithPreviews : [...prev, ...rowsWithPreviews],
+      );
+      setHasMore(rows.length === pageSize);
       setLoading(false);
+      setLoadingMore(false);
     };
 
-    loadSessions();
+    if (hasMore) {
+      loadSessions();
+    }
 
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, hasMore, page, pageSize]);
 
   return (
     <PageShell className="space-y-10">
@@ -73,17 +124,17 @@ export function History() {
       ) : (
         <div className="grid gap-6">
           {sessions.map((session) => {
-            const preview = session.images?.[0]?.image_url;
             const dateLabel = new Date(session.created_at).toLocaleString();
 
             return (
               <Card key={session.id} className="flex flex-wrap gap-6">
                 <div className="h-28 w-40 overflow-hidden rounded-2xl bg-sand-100">
-                  {preview ? (
+                  {session.previewUrl ? (
                     <img
-                      src={preview}
+                      src={session.previewUrl}
                       alt="Session preview"
                       className="h-full w-full object-cover"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-ink-700">
@@ -105,6 +156,18 @@ export function History() {
               </Card>
             );
           })}
+          {hasMore ? (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                className="rounded-full border border-ink-700 px-5 py-2 text-sm font-semibold text-ink-900 hover:bg-sand-100"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Loading more..." : "Load more"}
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </PageShell>

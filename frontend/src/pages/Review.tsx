@@ -60,21 +60,11 @@ export function Review() {
         return;
       }
 
-      const { data: signedUrlData, error: urlError } = await supabase.storage
-        .from("bcd-images")
-        .createSignedUrl(path, 3600); // 1 hour expiration
-
-      if (urlError || !signedUrlData) {
-        setMessage("Unable to generate secure URL. Try again soon.");
-        setSaving(false);
-        return;
-      }
-
       const { error: imageError } = await supabase.from("images").insert({
         user_id: user.id,
         session_id: sessionId,
         image_type: image.type,
-        image_url: signedUrlData.signedUrl,
+        storage_path: path,
       });
 
       if (imageError) {
