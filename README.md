@@ -1,4 +1,4 @@
-# BCD — Breast Changes Detection
+# BCD - Breast Changes Detection
 
 [![React](https://img.shields.io/badge/React-18-blue?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
@@ -17,7 +17,7 @@
 BCD (Breast Changes Detection) is a time-series visual tracking system that empowers individuals to:
 
 - **Monitor** visual changes through consistent photo documentation
-- **Compare** current sessions with personal history using 6-angle captures  
+- **Compare** current sessions with personal history using 6-angle captures 
 - **Detect** subtle changes that might otherwise go unnoticed
 - **Decide** when to seek professional medical consultation
 
@@ -28,7 +28,7 @@ Many breast health concerns are detected late because:
 - Changes happen gradually and are easy to dismiss
 - People lack a systematic way to track visual differences over time
 
-BCD provides a **structured, consistent framework** for awareness—bridging the gap between irregular self-checks and clinical screenings.
+BCD provides a **structured, consistent framework** for awareness, bridging the gap between irregular self-checks and clinical screenings.
 
 ---
 
@@ -73,7 +73,7 @@ Each session requires captures from **all 6 standardized angles**:
 | ⬇️ **Downward angle** | Camera above, tilted down | Top-down view |
 | 🧍 **Full body** | Step back for full torso | Overall proportions |
 
-**Pro Tip**: Capture **multiple images per angle** for better accuracy—the system uses all images for comparison.
+**Pro Tip**: Capture **multiple images per angle** for better accuracy, the system uses all images for comparison.
 
 ---
 
@@ -126,16 +126,16 @@ npm run dev
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **React 18** + **TypeScript** — Type-safe UI components
-- **Vite** — Lightning-fast development
-- **Tailwind CSS** — Utility-first styling
-- **React Router** — Client-side navigation
-- **Supabase JS** — Authentication & storage client
+- **React 18** + **TypeScript** : Type-safe UI components
+- **Vite** : Lightning-fast development
+- **Tailwind CSS** : Utility-first styling
+- **React Router** : Client-side navigation
+- **Supabase JS** : Authentication & storage client
 
 ### Backend (Phase 2)
-- **FastAPI** — Python async web framework
-- **ML Models** — Anomaly detection pipeline
-- **PostgreSQL** — Time-series data storage
+- **FastAPI** : Python async web framework
+- **ML Models** : Anomaly detection pipeline
+- **PostgreSQL** : Time-series data storage
 
 ### Hosting
 - Frontend: Vercel
@@ -146,7 +146,7 @@ npm run dev
 
 ## 📊 Current Status
 
-### ✅ Phase 1 — Complete (February 2026)
+### ✅ Phase 1 - Complete (February 2026)
 
 - [x] User authentication & authorization
 - [x] Disclaimer acceptance flow
@@ -155,14 +155,14 @@ npm run dev
 - [x] Secure image storage with RLS
 - [x] Responsive UI for mobile & desktop
 
-### 🚧 Phase 2 — In Progress
+### 🚧 Phase 2 - In Progress
 
 - [ ] Backend API for image processing
 - [ ] ML anomaly detection model
 - [ ] Session comparison algorithm
 - [ ] Change visualization dashboard
 
-### 🔮 Phase 3 — Future
+### 🔮 Phase 3 - Future
 
 - [ ] Mobile app (React Native)
 - [ ] Export reports for doctors
@@ -175,18 +175,18 @@ npm run dev
 
 ```
 BCD/
-├── frontend/               # React + TypeScript UI
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/         # Route pages
-│   │   ├── context/       # Auth & state management
-│   │   └── lib/           # Supabase client
-│   └── package.json
+├── frontend/          # React + TypeScript UI
+│  ├── src/
+│  │  ├── components/  # Reusable UI components
+│  │  ├── pages/       # Route pages
+│  │  ├── context/     # Auth & state management
+│  │  └── lib/         # Supabase client
+│  └── package.json
 │
-├── backend/               # (Phase 2) FastAPI server
-├── Docs/                  # Technical specifications
+├── backend/           # (Phase 2) FastAPI server
+├── Docs/              # Technical specifications
 ├── SUPABASE_MIGRATIONS.sql
-├── SECURITY_CONCERNS.md   # Security documentation
+├── SECURITY_CONCERNS.md  # Security documentation
 └── README.md
 ```
 
@@ -194,9 +194,9 @@ BCD/
 
 ## 📖 Documentation
 
-- **[SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)** — Backend configuration (15 min)
-- **[SECURITY_CONCERNS.md](SECURITY_CONCERNS.md)** — Security implementation details
-- **[Docs/visual_anomaly_awareness_system.md](Docs/visual_anomaly_awareness_system.md)** — Non-technical overview
+- **[SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)** : Backend configuration (15 min)
+- **[SECURITY_CONCERNS.md](SECURITY_CONCERNS.md)** : Security implementation details
+- **[Docs/visual_anomaly_awareness_system.md](Docs/visual_anomaly_awareness_system.md)** : Non-technical overview
 
 ---
 
@@ -212,17 +212,17 @@ Contributions welcome! Please:
 
 ## 📜 License
 
-MIT License — See [LICENSE](LICENSE) for details.
+MIT License : See [LICENSE](LICENSE) for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
 Built with:
-- [Supabase](https://supabase.com) — Open-source Firebase alternative
-- [React](https://react.dev) — UI library
-- [Tailwind CSS](https://tailwindcss.com) — CSS framework
-- [Vite](https://vitejs.dev) — Build tool
+- [Supabase](https://supabase.com) : Open-source Firebase alternative
+- [React](https://react.dev) : UI library
+- [Tailwind CSS](https://tailwindcss.com) : CSS framework
+- [Vite](https://vitejs.dev) : Build tool
 
 ---
 
@@ -230,7 +230,7 @@ Built with:
 
 - **Issues**: [GitHub Issues](https://github.com/muneer406/BCD/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/muneer406/BCD/discussions)
-- **Email**: [Add contact email]
+- **Email**: muneer.alam320@gmail.com
 
 ---
 

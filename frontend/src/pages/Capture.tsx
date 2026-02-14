@@ -77,21 +77,12 @@ export function Capture() {
           throw new Error(`Failed to save ${image.label}`);
         }
 
-        // Get signed URL (expires in 1 hour for security)
-        const { data: signedUrlData, error: urlError } = await supabase.storage
-          .from("bcd-images")
-          .createSignedUrl(path, 3600); // 1 hour expiration
-
-        if (urlError || !signedUrlData) {
-          throw new Error(`Failed to generate secure URL for ${image.label}`);
-        }
-
-        // Save metadata with signed URL
+        // Save metadata with storage path
         const { error: dbError } = await supabase.from("images").insert({
           user_id: user.id,
           session_id: sessionId,
           image_type: image.type,
-          image_url: signedUrlData.signedUrl,
+          storage_path: path,
         });
 
         if (dbError) {
