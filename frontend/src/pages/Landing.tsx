@@ -163,10 +163,10 @@ export function Landing() {
             </h3>
             <div className="mt-6 grid gap-4">
               {[
-                { icon: Ban, text: "Not a cancer detector" },
+                { icon: Ban, text: "Not a medical diagnosis tool" },
                 { icon: FileText, text: "Not a medical device" },
-                { icon: Stethoscope, text: "Not a replacement for screening" },
-                { icon: Search, text: "Not providing diagnosis" },
+                { icon: Stethoscope, text: "Not a replacement for professional screening" },
+                { icon: Search, text: "Does not detect internal conditions" },
               ].map((item) => (
                 <div key={item.text} className="flex items-start gap-3">
                   <item.icon className="mt-0.5 h-5 w-5 text-ink-900" />
@@ -372,7 +372,7 @@ export function Landing() {
           {[
             {
               icon: Lock,
-              title: "Encrypted storage",
+              title: "Secure storage",
               text: "Images are stored securely and tied to your account.",
             },
             {
@@ -502,20 +502,20 @@ export function Landing() {
         <div className="grid gap-4">
           {[
             {
-              q: "Does this detect cancer?",
-              a: "No. BCD does not detect cancer and does not provide diagnosis. It supports personal visual change awareness.",
+              q: "What does BCD help with?",
+              a: "BCD helps you track visual changes over time by capturing consistent images from multiple angles. It supports personal awareness, not medical diagnosis.",
             },
             {
               q: "How accurate is it?",
-              a: "Accuracy depends on consistent captures and available comparisons. The system is designed to be cautious and non-diagnostic.",
+              a: "Accuracy improves with consistent captures and historical comparisons. The system is designed to highlight differences that warrant professional discussion.",
             },
             {
               q: "Are my images shared?",
               a: "Your images are linked to your account and used only for your comparisons. They are not shared as a public dataset.",
             },
             {
-              q: "Can this replace a mammogram?",
-              a: "No. It is not a replacement for screening or professional medical evaluation.",
+              q: "Should I use this instead of screening?",
+              a: "No. Use BCD alongside professional screening recommendations, not as a replacement for them.",
             },
             {
               q: "What happens if a change is detected?",
