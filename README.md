@@ -1,4 +1,4 @@
-# BCD - Breast Changes Detection / VAAS - Visual Anomaly Awareness System
+# BCD - Breast Changes Detection
 
 A **privacy-focused, time-series visual change detection system** built on React, TypeScript, and Supabase. BCD helps users track visual changes over time with calm, neutral guidance-**not** diagnosis.
 
@@ -100,8 +100,8 @@ Follow **SUPABASE_SETUP_GUIDE.md** (15 minutes):
 
 1. **Sign up** at http://localhost:5173/signup
 2. **Accept disclaimer** to access capture
-3. **Capture all 6 angles** using webcam or file upload (you can add multiple images per angle)
-4. **Upload session** directly from Capture page
+3. **Capture all 6 angles** using webcam or file selection (you can add multiple images per angle)
+4. **Save session** directly from Capture page
 5. **View results** with session summary and comparison data
 6. **View history** to confirm data persisted
 
@@ -233,7 +233,7 @@ Landing Page (/)
             ↓ [All 6 angles captured?]
             No → Stay on Capture, add images
             Yes ↓
-          Upload Session → Save to DB + Upload to Storage
+          Save Session → Save to DB + Store Images
             ↓
           Result (/result) - Session summary
             ↓
@@ -268,7 +268,7 @@ Each session requires **all 6 angles** (at least 1 image per angle; more images 
 - [x] Frontend UI/UX skeleton
 - [x] Auth (signup/login)
 - [x] Disclaimer gate
-- [x] Image capture + upload
+- [x] Image capture + save
 - [x] Session management
 - [x] History view
 - [x] Supabase integration
@@ -297,7 +297,7 @@ Each session requires **all 6 angles** (at least 1 image per angle; more images 
 - Check Email auth is enabled in Supabase > Authentication
 - Verify `.env` has correct VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 
-### "Images not uploading"
+### "Images not saving"
 
 - Confirm `bcd-images` bucket exists and is Public
 - Check storage policies are applied
