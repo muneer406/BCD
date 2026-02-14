@@ -50,24 +50,31 @@ export function Review() {
     for (const image of orderedImages) {
       const ext = getFileExtension(image.file);
       const path = `${user.id}/${sessionId}/${image.type}.${ext}`;
-      const { error: uploadError } = await supabase.storage
+      const { error: saveError } = await supabase.storage
         .from("bcd-images")
         .upload(path, image.file, { upsert: true });
 
-      if (uploadError) {
-        setMessage("Unable to upload all images. Try again soon.");
+      if (saveError) {
+        setMessage("Unable to save all images. Try again soon.");
         setSaving(false);
         return;
       }
 
-      const publicUrl = supabase.storage.from("bcd-images").getPublicUrl(path)
-        .data.publicUrl;
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from("bcd-images")
+        .createSignedUrl(path, 3600); // 1 hour expiration
+
+      if (urlError || !signedUrlData) {
+        setMessage("Unable to generate secure URL. Try again soon.");
+        setSaving(false);
+        return;
+      }
 
       const { error: imageError } = await supabase.from("images").insert({
         user_id: user.id,
         session_id: sessionId,
         image_type: image.type,
-        image_url: publicUrl,
+        image_url: signedUrlData.signedUrl,
       });
 
       if (imageError) {
