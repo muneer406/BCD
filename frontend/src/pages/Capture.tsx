@@ -22,14 +22,23 @@ export function Capture() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const imageMap = useMemo(() => {
-    const map = new Map(images.map((image) => [image.type, image]));
-    return map;
+  // Get all images grouped by type
+  const imagesByType = useMemo(() => {
+    const groups = new Map<string, typeof images>();
+    for (const image of images) {
+      if (!groups.has(image.type)) {
+        groups.set(image.type, []);
+      }
+      groups.get(image.type)!.push(image);
+    }
+    return groups;
   }, [images]);
 
-  const allStepsPresent = captureSteps.every((step) => imageMap.has(step.type));
+  const allStepsPresent = captureSteps.every((step) =>
+    imagesByType.has(step.type),
+  );
   const completedCount = captureSteps.filter((step) =>
-    imageMap.has(step.type),
+    imagesByType.has(step.type),
   ).length;
 
   const handleUploadSession = async () => {
@@ -51,18 +60,18 @@ export function Capture() {
 
       const sessionId = sessionData.id as string;
 
-      // Upload all images
-      for (const step of captureSteps) {
-        const image = imageMap.get(step.type);
-        if (!image) continue;
-
+      // Upload all images (including duplicates per type)
+      for (const image of images) {
         const ext = getFileExtension(image.file);
-        const path = `${user.id}/${sessionId}/${image.type}.${ext}`;
+        // Use timestamp to ensure unique filename for each upload
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).slice(2, 9);
+        const path = `${user.id}/${sessionId}/${image.type}_${timestamp}_${randomSuffix}.${ext}`;
 
         // Upload to storage
         const { error: uploadError } = await supabase.storage
           .from("bcd-images")
-          .upload(path, image.file, { upsert: true });
+          .upload(path, image.file);
 
         if (uploadError) {
           throw new Error(`Failed to upload ${image.label}`);
@@ -103,7 +112,51 @@ export function Capture() {
         description="Follow each angle for consistent results. Tip: More images per angle = better insights."
       />
 
-      {/* Progress and tips */}
+      {/* Prominent guidelines */}
+      <div className="rounded-3xl border-2 border-tide-300 bg-gradient-to-r from-tide-50 to-transparent p-6">
+        <div className="space-y-3">
+          <h3 className="font-semibold text-tide-900 text-lg">
+            ✨ For best results, keep these consistent:
+          </h3>
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <span className="text-xl">💡</span>
+              <div>
+                <p className="font-semibold text-sm text-tide-900">
+                  Bright, even lighting
+                </p>
+                <p className="text-xs text-tide-800">
+                  Avoid shadows and harsh light
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-xl">📏</span>
+              <div>
+                <p className="font-semibold text-sm text-tide-900">
+                  Same distance & angle
+                </p>
+                <p className="text-xs text-tide-800">
+                  Keep your position steady per session
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-xl">📸</span>
+              <div>
+                <p className="font-semibold text-sm text-tide-900">
+                  Multiple images per angle
+                </p>
+                <p className="text-xs text-tide-800">
+                  More = better detection accuracy
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex-1 rounded-full bg-sand-100 px-4 py-3">
@@ -120,22 +173,14 @@ export function Capture() {
             </div>
           </div>
         </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          <div className="rounded-2xl bg-tide-50 p-4 text-sm text-tide-900">
-            <span className="font-semibold">💡 Tip:</span> Use consistent
-            lighting and distance for better comparisons.
-          </div>
-          <div className="rounded-2xl bg-sand-50 p-4 text-sm text-ink-900">
-            <span className="font-semibold">✓ All 6 angles required</span> to
-            upload session.
-          </div>
-        </div>
       </div>
 
       {/* Image capture grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {captureSteps.map((step) => {
-          const captured = imageMap.get(step.type);
+          const typeImages = imagesByType.get(step.type) || [];
+          const hasImages = typeImages.length > 0;
+
           return (
             <Card key={step.type} className="space-y-4">
               <div className="space-y-1">
@@ -143,26 +188,50 @@ export function Capture() {
                   {step.label}
                 </h3>
                 <p className="text-sm text-ink-700">{step.guidance}</p>
+                {hasImages && (
+                  <p className="text-xs text-sand-600 font-medium">
+                    {typeImages.length} image
+                    {typeImages.length !== 1 ? "s" : ""} captured ✓
+                  </p>
+                )}
               </div>
 
-              {captured ? (
+              {hasImages ? (
                 <div className="space-y-3">
-                  <ImageModal src={captured.previewUrl} alt={step.label}>
-                    <img
-                      src={captured.previewUrl}
-                      alt={step.label}
-                      className="h-48 w-full rounded-2xl object-cover"
-                    />
-                  </ImageModal>
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => removeImage(step.type)}
-                      className="flex-1"
-                    >
-                      Retake
-                    </Button>
-                    <label className="flex flex-1 cursor-pointer items-center justify-center rounded-lg bg-sand-50 text-sm font-medium text-ink-700 transition-colors hover:bg-sand-100">
+                  {/* Gallery grid for multiple images */}
+                  {typeImages.length === 1 ? (
+                    <ImageModal src={typeImages[0].previewUrl} alt={step.label}>
+                      <img
+                        src={typeImages[0].previewUrl}
+                        alt={step.label}
+                        className="h-48 w-full rounded-2xl object-cover"
+                      />
+                    </ImageModal>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {typeImages.map((img, idx) => (
+                        <ImageModal
+                          key={idx}
+                          src={img.previewUrl}
+                          alt={`${step.label} ${idx + 1}`}
+                        >
+                          <div className="relative rounded-2xl overflow-hidden bg-sand-100">
+                            <img
+                              src={img.previewUrl}
+                              alt={`${step.label} ${idx + 1}`}
+                              className="h-32 w-full object-cover hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute top-1 right-1 bg-ink-900 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-semibold">
+                              {idx + 1}
+                            </div>
+                          </div>
+                        </ImageModal>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    <label className="flex cursor-pointer items-center justify-center rounded-lg bg-sand-50 px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-sand-100">
                       <input
                         type="file"
                         accept="image/*"
@@ -179,12 +248,24 @@ export function Capture() {
                           });
                         }}
                       />
-                      Add more
+                      + Add more
                     </label>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        // Remove the last image of this type
+                        if (typeImages.length > 0) {
+                          removeImage(step.type);
+                        }
+                      }}
+                      className="text-xs"
+                    >
+                      Remove last
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <label className="flex h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-sand-200 bg-sand-50 transition-colors hover:bg-sand-100">
+                <label className="flex h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors hover:bg-sand-100">
                   <input
                     type="file"
                     accept="image/*"

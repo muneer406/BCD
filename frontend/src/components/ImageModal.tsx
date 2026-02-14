@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState } from "react";
 
 interface ImageModalProps {
@@ -18,41 +19,43 @@ export function ImageModal({ src, alt, children }: ImageModalProps) {
         {children}
       </div>
 
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
-        >
+      {isOpen &&
+        createPortal(
           <div
-            className="relative max-h-[90vh] w-full max-w-3xl rounded-3xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={() => setIsOpen(false)}
           >
-            <button
-              onClick={() => setIsOpen(false)}
-              className="absolute right-4 top-4 rounded-full bg-ink-900 p-2 text-white hover:bg-ink-800"
+            <div
+              className="relative max-h-[90vh] w-full max-w-3xl rounded-3xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+              <button
+                onClick={() => setIsOpen(false)}
+                className="absolute right-4 top-4 rounded-full bg-ink-900 p-2 text-white hover:bg-ink-800 z-10"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-            <img
-              src={src}
-              alt={alt}
-              className="h-full w-full rounded-3xl object-contain"
-            />
-          </div>
-        </div>
-      )}
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+              <img
+                src={src}
+                alt={alt}
+                className="h-full w-full rounded-3xl object-contain"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

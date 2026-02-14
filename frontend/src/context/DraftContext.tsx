@@ -20,23 +20,26 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
   const [images, setImages] = useState<CaptureImage[]>([]);
 
   const setImage = (image: CaptureImage) => {
-    setImages((prev) => {
-      const existing = prev.find((entry) => entry.type === image.type);
-      if (existing) {
-        URL.revokeObjectURL(existing.previewUrl);
-      }
-      const next = prev.filter((entry) => entry.type !== image.type);
-      return [...next, image];
-    });
+    // Add new image without removing previous ones of the same type
+    setImages((prev) => [...prev, image]);
   };
 
   const removeImage = (type: string) => {
+    // Remove only the LAST image of this type
     setImages((prev) => {
-      const target = prev.find((entry) => entry.type === type);
-      if (target) {
-        URL.revokeObjectURL(target.previewUrl);
+      let lastIndex = -1;
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].type === type) {
+          lastIndex = i;
+          break;
+        }
       }
-      return prev.filter((entry) => entry.type !== type);
+      if (lastIndex === -1) return prev;
+
+      const target = prev[lastIndex];
+      URL.revokeObjectURL(target.previewUrl);
+
+      return prev.filter((_, i) => i !== lastIndex);
     });
   };
 
