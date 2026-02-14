@@ -1,24 +1,173 @@
-# BCD - Breast Changes Detection
+# BCD — Breast Changes Detection
 
-A **privacy-focused, time-series visual change detection system** built on React, TypeScript, and Supabase. BCD helps users track visual changes over time with calm, neutral guidance-**not** diagnosis.
+[![React](https://img.shields.io/badge/React-18-blue?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green?logo=supabase)](https://supabase.com)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#)
+[![Status](https://img.shields.io/badge/Status-Phase%201%20Complete-success)](#)
+
+> **A privacy-first visual change awareness tool that helps individuals track breast health changes over time through standardized self-monitoring.**
+
+⚠️ **Disclaimer**: This is an awareness tool, NOT a medical diagnostic device. Always consult healthcare professionals for medical concerns.
 
 ---
 
-## 🎯 Project Goal
+## 📌 What is BCD?
 
-Enable users to:
+BCD (Breast Changes Detection) is a time-series visual tracking system that empowers individuals to:
 
-1. Capture standardized images of themselves (6 angles per session)
-2. Store images securely with time-series metadata
-3. Receive neutral change indicators by comparing sessions
-4. Decide when to seek professional consultation
+- **Monitor** visual changes through consistent photo documentation
+- **Compare** current sessions with personal history using 6-angle captures  
+- **Detect** subtle changes that might otherwise go unnoticed
+- **Decide** when to seek professional medical consultation
 
-**What BCD is NOT:**
+### Why BCD Exists
 
-- ❌ A diagnostic tool
-- ❌ A cancer detector
-- ❌ A medical device
-- ❌ A replacement for doctors/screenings
+Many breast health concerns are detected late because:
+- Regular self-monitoring feels unstructured or unreliable
+- Changes happen gradually and are easy to dismiss
+- People lack a systematic way to track visual differences over time
+
+BCD provides a **structured, consistent framework** for awareness—bridging the gap between irregular self-checks and clinical screenings.
+
+---
+
+## 💡 Use Cases
+
+### Who Should Use BCD?
+
+| Scenario | Frequency | Benefit |
+|----------|-----------|---------|
+| **Regular monitoring** | Monthly | Establish personal baseline, track normal changes |
+| **Post-surgery follow-up** | Weekly/Bi-weekly | Monitor healing and recovery progress |
+| **Family history concerns** | Bi-weekly | Early awareness for higher-risk individuals |
+| **Noticed something different** | As needed | Document changes to share with healthcare provider |
+| **Between clinical appointments** | Monthly | Maintain awareness during 6-12 month gaps |
+
+### When to Use BCD
+
+- **Ideal**: Monthly captures at the same phase of your cycle
+- **Consistency matters**: Same lighting, distance, and time of day
+- **More data = better trends**: Multiple images per angle improve detection
+
+---
+
+## 🎯 How It Works
+
+### The Process
+
+```
+Sign Up → Accept Disclaimer → Capture 6 Angles → Save Session → View Results → Compare History
+```
+
+### 6-Angle Capture Protocol
+
+Each session requires captures from **all 6 standardized angles**:
+
+| Angle | Position | Purpose |
+|-------|----------|---------|
+| 🎯 **Front view** | Arms at sides, shoulders relaxed | Baseline symmetry reference |
+| ⬅️ **Left side** | 90° turn, steady posture | Left side profile |
+| ➡️ **Right side** | 90° turn, steady posture | Right side profile |
+| ⬆️ **Upward angle** | Camera below, tilted up | Underside perspective |
+| ⬇️ **Downward angle** | Camera above, tilted down | Top-down view |
+| 🧍 **Full body** | Step back for full torso | Overall proportions |
+
+**Pro Tip**: Capture **multiple images per angle** for better accuracy—the system uses all images for comparison.
+
+---
+
+## 🚀 Getting Started
+
+### For Users
+
+1. Visit the web app (link TBD)
+2. Sign up with email/password
+3. Read and accept the disclaimer
+4. Capture your first session (6 angles)
+5. Return monthly to compare progress
+
+### For Developers
+
+```bash
+# Clone repository
+git clone https://github.com/muneer406/BCD.git
+cd BCD/frontend
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env.local
+# Add your Supabase credentials
+
+# Run development server
+npm run dev
+```
+
+📚 **Full Setup Guide**: See [SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md) for complete backend configuration.
+
+---
+
+## 🔐 Privacy & Security
+
+| Feature | Implementation |
+|---------|----------------|
+| **Authentication** | Supabase Auth with email/password |
+| **Data Isolation** | Row-Level Security (RLS) policies |
+| **Image Storage** | Private bucket with signed URLs |
+| **Access Control** | Users can only see their own data |
+| **Encryption** | HTTPS in transit, encrypted at rest |
+
+**Privacy Promise**: Your images are stored securely, never shared, and completely isolated from other users. You own your data.
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **React 18** + **TypeScript** — Type-safe UI components
+- **Vite** — Lightning-fast development
+- **Tailwind CSS** — Utility-first styling
+- **React Router** — Client-side navigation
+- **Supabase JS** — Authentication & storage client
+
+### Backend (Phase 2)
+- **FastAPI** — Python async web framework
+- **ML Models** — Anomaly detection pipeline
+- **PostgreSQL** — Time-series data storage
+
+### Hosting
+- Frontend: Vercel
+- Database: Supabase (PostgreSQL)
+- Storage: Supabase Storage (S3-compatible)
+
+---
+
+## 📊 Current Status
+
+### ✅ Phase 1 — Complete (February 2026)
+
+- [x] User authentication & authorization
+- [x] Disclaimer acceptance flow
+- [x] 6-angle image capture interface
+- [x] Session management & history
+- [x] Secure image storage with RLS
+- [x] Responsive UI for mobile & desktop
+
+### 🚧 Phase 2 — In Progress
+
+- [ ] Backend API for image processing
+- [ ] ML anomaly detection model
+- [ ] Session comparison algorithm
+- [ ] Change visualization dashboard
+
+### 🔮 Phase 3 — Future
+
+- [ ] Mobile app (React Native)
+- [ ] Export reports for doctors
+- [ ] Trend graphs & analytics
+- [ ] Multi-language support
 
 ---
 
@@ -26,344 +175,63 @@ Enable users to:
 
 ```
 BCD/
-├── frontend/                           # React + TypeScript + Tailwind UI
+├── frontend/               # React + TypeScript UI
 │   ├── src/
-│   │   ├── components/                 # Reusable UI components (Button, Card, etc)
-│   │   ├── context/                    # Auth & Draft state management
-│   │   ├── pages/                      # Route pages (Capture, Review, History, etc)
-│   │   ├── lib/                        # Supabase client config
-│   │   ├── data/                       # Static capture angle definitions
-│   │   └── index.css                   # Tailwind styles
-│   ├── .env.example                    # Environment variable template
-│   ├── package.json                    # Dependencies
-│   └── README.md                       # Frontend-specific docs
+│   │   ├── components/    # Reusable UI components
+│   │   ├── pages/         # Route pages
+│   │   ├── context/       # Auth & state management
+│   │   └── lib/           # Supabase client
+│   └── package.json
 │
-├── backend/                            # (Phase 2) FastAPI for anomaly scoring
-│   └── .gitkeep
-│
-├── Docs/                               # Project specifications
-│   ├── visual_anomaly_awareness_system.md
-│   └── bcd_vaas_frontend_web_app_specification_phase_1_2.md
-│
-├── SUPABASE_MIGRATIONS.sql             # Database schema (tables, indexes, RLS)
-├── SUPABASE_SCHEMA_OVERVIEW.md         # Database architecture overview
-├── SUPABASE_SETUP_GUIDE.md             # Step-by-step Supabase configuration
-├── STORAGE_SETUP.md                    # Storage bucket & policies
-├── SETUP_CHECKLIST.md                  # Testing checklist after setup
-│
-├── .gitignore                          # Git ignore rules
-└── README.md                           # This file
+├── backend/               # (Phase 2) FastAPI server
+├── Docs/                  # Technical specifications
+├── SUPABASE_MIGRATIONS.sql
+├── SECURITY_CONCERNS.md   # Security documentation
+└── README.md
 ```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Node.js 18+** installed
-- **Supabase project** created (free at [supabase.com](https://supabase.com))
-- **Git** for version control
-
-### 1. Setup Frontend
-
-```bash
-# Navigate to frontend
-cd frontend
-
-# Create environment file
-cp .env.example .env.local
-
-# Add your Supabase credentials to .env.local
-# VITE_SUPABASE_URL=https://[project-id].supabase.co
-# VITE_SUPABASE_ANON_KEY=[your-anon-key]
-
-# Install dependencies
-npm install
-
-# Start dev server
-npm run dev
-```
-
-Open http://localhost:5173 in your browser.
-
-### 2. Setup Supabase Database & Storage
-
-Follow **SUPABASE_SETUP_GUIDE.md** (15 minutes):
-
-1. Execute `SUPABASE_MIGRATIONS.sql` in Supabase SQL Editor
-2. Create `bcd-images` storage bucket
-3. Apply RLS storage policies
-4. Test the flow
-
-### 3. Test Auth & Image Capture
-
-1. **Sign up** at http://localhost:5173/signup
-2. **Accept disclaimer** to access capture
-3. **Capture all 6 angles** using webcam or file selection (you can add multiple images per angle)
-4. **Save session** directly from Capture page
-5. **View results** with session summary and comparison data
-6. **View history** to confirm data persisted
-
----
-
-## 🔐 Security & Privacy
-
-### Authentication
-
-- **Supabase Auth** with email/password
-- Session tokens stored in browser
-- Auto-logout on tab close
-
-### Data Isolation (RLS)
-
-- Users **cannot** see other users' images or sessions
-- Row-Level Security policies enforce in database
-- Storage policies ensure folder-level isolation
-
-### Image Storage
-
-- Images stored in public bucket (`bcd-images`)
-- Folder structure: `{user_id}/{session_id}/{image_type}.jpg`
-- URLs generated dynamically, not shareable by default
-
-### No Personal Data
-
-- No sensitive metadata collected
-- No IP logging
-- No medical history stored
-
----
-
-## 📊 Database Schema
-
-### Tables
-
-- **`sessions`** - Capture sessions (user + timestamp)
-- **`images`** - Image metadata (type + URL + timestamp)
-- **`disclaimer_acceptance`** - Consent tracking
-- **`user_profiles`** - User email + creation date
-
-### Indexes
-
-- `sessions(user_id, created_at)`
-- `images(session_id, user_id, image_type)`
-
-### RLS Policies
-
-All tables protected. Users can only access their own data.
-
-See **SUPABASE_MIGRATIONS.sql** for full CREATE TABLE syntax.
-
----
-
-## 🛠️ Tech Stack
-
-### Frontend
-
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool (HMR, fast dev)
-- **Tailwind CSS** - Utility-first styling
-- **React Router v6** - Client-side routing
-- **Supabase JS Client** - Auth + DB + Storage
-
-### Backend (Phase 2)
-
-- **FastAPI** - Python async web framework
-- **OpenCV/PIL** - Image processing
-- **NumPy/SciPy** - Numerical computing
-- **Pre-trained vision model** - Feature extraction
-
-### Hosting
-
-- **Frontend:** Vercel / Netlify / Firebase Hosting
-- **Backend:** Railway / Render / AWS Lambda
-- **Database:** Supabase (PostgreSQL)
-- **Storage:** Supabase Storage (AWS S3)
 
 ---
 
 ## 📖 Documentation
 
-| Document                                                      | Purpose                                             |
-| ------------------------------------------------------------- | --------------------------------------------------- |
-| **SUPABASE_SETUP_GUIDE.md**                                   | 👈 **Start here** - Complete Supabase configuration |
-| **SUPABASE_MIGRATIONS.sql**                                   | Database schema to copy-paste into Supabase         |
-| **SUPABASE_SCHEMA_OVERVIEW.md**                               | Architecture overview & data flow                   |
-| **STORAGE_SETUP.md**                                          | Storage bucket & RLS policy details                 |
-| **SETUP_CHECKLIST.md**                                        | Testing flow after Supabase setup                   |
-| **frontend/README.md**                                        | Frontend-specific code guide                        |
-| **Docs/visual_anomaly_awareness_system.md**                   | Non-technical project overview                      |
-| **Docs/bcd_vaas_frontend_web_app_specification_phase_1_2.md** | Technical specifications                            |
-
----
-
-## 🧪 Testing
-
-### Manual Testing Scenario
-
-1. **Create test account A** - test-a@example.com
-2. **Create test account B** - test-b@example.com
-3. **Account A:**
-   - Sign up
-   - Accept disclaimer
-   - Capture & save session with images
-4. **Account B:**
-   - Sign up separately
-   - Verify **cannot see Account A's sessions** (RLS blocking)
-5. **Cross-check in Supabase Dashboard:**
-   - Account A's sessions visible to Account A
-   - Account B has empty history
-   - Storage folder structure matches user IDs
-
----
-
-## 🔄 User Flow
-
-```
-Landing Page (/)
-  ↓
-[Authenticated?]
-  No → Sign Up (/signup) → Confirm Email → Disclaimer (/disclaimer)
-  Yes → [Disclaimer accepted?]
-        No → Disclaimer (/disclaimer)
-        Yes ↓
-          Capture (/capture) - All 6 angles
-            ↓ [All 6 angles captured?]
-            No → Stay on Capture, add images
-            Yes ↓
-          Save Session → Save to DB + Store Images
-            ↓
-          Result (/result) - Session summary
-            ↓
-          History (/history) - View all prior sessions
-```
-
----
-
-## 🎥 Image Capture Protocol
-
-Each session requires **all 6 angles** (at least 1 image per angle; more images = better results):
-
-| Angle              | Required | Description                                  |
-| ------------------ | -------- | -------------------------------------------- |
-| **Front view**     | ✅       | Centered, shoulders relaxed, arms at sides   |
-| **Left side**      | ✅       | 90° left turn, steady posture                |
-| **Right side**     | ✅       | 90° right turn, steady posture               |
-| **Upward angle**   | ✅       | Camera tilted slightly upward at chest level |
-| **Downward angle** | ✅       | Camera from above, angle downward            |
-| **Full body view** | ✅       | Step back or raise camera to show full torso |
-
-**Key for accuracy:** Consistent distance, lighting, and positioning per session enables accurate time-series comparisons.
-
-**Note:** You can capture multiple images per angle for improved detection confidence. The more images, the better the results.
-
----
-
-## 🚧 Current Phase & Next Steps
-
-### Phase 1 ✅ Complete
-
-- [x] Frontend UI/UX skeleton
-- [x] Auth (signup/login)
-- [x] Disclaimer gate
-- [x] Image capture + save
-- [x] Session management
-- [x] History view
-- [x] Supabase integration
-
-### Phase 2 (Coming)
-
-- [ ] Backend FastAPI server
-- [ ] ML anomaly detection model
-- [ ] Session comparison logic
-- [ ] Change score generation
-- [ ] Result presentation
-
-### Phase 3+ (Future)
-
-- [ ] Advanced comparisons (graphs, trends)
-- [ ] Export functionality
-- [ ] Mobile app (React Native)
-- [ ] Regulatory compliance (FDA, CE)
-
----
-
-## 📋 Troubleshooting
-
-### "Cannot sign up"
-
-- Check Email auth is enabled in Supabase > Authentication
-- Verify `.env` has correct VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-
-### "Images not saving"
-
-- Confirm `bcd-images` bucket exists and is Public
-- Check storage policies are applied
-- Verify user is authenticated (check AppHeader)
-
-### "Cannot see sessions in history"
-
-- Ensure disclaimer was accepted (check DB: `disclaimer_acceptance` table)
-- Verify RLS policies exist (all `create policy` statements executed)
-
-### "Other users can see my data"
-
-- RLS policies not applied. Run SUPABASE_MIGRATIONS.sql again
-- Confirm `enable row level security` statements executed
-
-See **SETUP_CHECKLIST.md** for detailed testing & debugging.
+- **[SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)** — Backend configuration (15 min)
+- **[SECURITY_CONCERNS.md](SECURITY_CONCERNS.md)** — Security implementation details
+- **[Docs/visual_anomaly_awareness_system.md](Docs/visual_anomaly_awareness_system.md)** — Non-technical overview
 
 ---
 
 ## 🤝 Contributing
 
-This is a guided project. If you're working on this:
-
-1. **Follow the specification** - See Docs/ for requirements
-2. **Keep changes neutral** - Never add diagnostic language
-3. **Test locally** - Use test accounts before deploying
-4. **Update docs** - Keep README.md and other guides current
+Contributions welcome! Please:
+1. Follow the existing code style
+2. Maintain neutral, non-diagnostic language
+3. Test thoroughly with multiple users
+4. Update documentation
 
 ---
 
 ## 📜 License
 
-[Add your license here if applicable]
+MIT License — See [LICENSE](LICENSE) for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
 Built with:
-
-- [Supabase](https://supabase.com) - Open-source Firebase alternative
-- [React](https://react.dev) - JavaScript UI library
-- [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS
-- [Vite](https://vitejs.dev) - Next-generation frontend tooling
-
----
-
-## 📞 Support
-
-For questions or debugging:
-
-1. Check the relevant guide in the root folder
-2. Review JavaScript console for errors
-3. Check Supabase dashboard (SQL Editor, Logs, Storage browser)
-4. Consult project specifications in Docs/
+- [Supabase](https://supabase.com) — Open-source Firebase alternative
+- [React](https://react.dev) — UI library
+- [Tailwind CSS](https://tailwindcss.com) — CSS framework
+- [Vite](https://vitejs.dev) — Build tool
 
 ---
 
-## ✨ What's Next?
+## 📞 Contact & Support
 
-**Ready to get started?**
-
-👉 Follow **[SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)** to configure your Supabase project (15 minutes).
-
-Then test the full flow locally. Questions? Check **SETUP_CHECKLIST.md**.
+- **Issues**: [GitHub Issues](https://github.com/muneer406/BCD/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/muneer406/BCD/discussions)
+- **Email**: [Add contact email]
 
 ---
 
-**BCD/VAAS - Making breast health awareness accessible.** 🎯
+**Making breast health awareness accessible, one session at a time.** 💙
