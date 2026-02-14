@@ -165,7 +165,10 @@ export function Landing() {
               {[
                 { icon: Ban, text: "Not a medical diagnosis tool" },
                 { icon: FileText, text: "Not a medical device" },
-                { icon: Stethoscope, text: "Not a replacement for professional screening" },
+                {
+                  icon: Stethoscope,
+                  text: "Not a replacement for professional screening",
+                },
                 { icon: Search, text: "Does not detect internal conditions" },
               ].map((item) => (
                 <div key={item.text} className="flex items-start gap-3">
