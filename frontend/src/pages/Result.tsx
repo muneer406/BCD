@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  BarChart3,
-  CheckCircle,
-  Clock,
-  Download,
-  Heart,
-} from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Download, Heart } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ImageModal } from "../components/ImageModal";
@@ -265,7 +259,9 @@ export function Result() {
             🎯 Your baseline is set
           </p>
           <p className="mt-2 text-sm text-blue-800">
-            This is your first session with us. Future sessions will be compared to these images, helping you track any changes over time. Regular captures will give you the clearest timeline.
+            This is your first session with us. Future sessions will be compared
+            to these images, helping you track any changes over time. Regular
+            captures will give you the clearest timeline.
           </p>
         </div>
       )}
@@ -337,7 +333,9 @@ export function Result() {
                 key={note.title}
                 className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
               >
-                <p className="text-sm font-semibold text-ink-900">{note.title}</p>
+                <p className="text-sm font-semibold text-ink-900">
+                  {note.title}
+                </p>
                 <p className="mt-1 text-xs font-semibold text-tide-600">
                   {note.status}
                 </p>
@@ -353,9 +351,12 @@ export function Result() {
           </div>
 
           <div className="rounded-2xl bg-white/70 p-4">
-            <p className="text-sm font-semibold text-ink-900">Session summary</p>
+            <p className="text-sm font-semibold text-ink-900">
+              Session summary
+            </p>
             <p className="mt-2 text-sm text-ink-700">
-              Most angles look balanced in this session, with a couple of areas worth noting for future comparison.
+              Most angles look balanced in this session, with a couple of areas
+              worth noting for future comparison.
             </p>
           </div>
         </Card>
@@ -380,7 +381,9 @@ export function Result() {
                   key={item.title}
                   className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
                 >
-                  <p className="text-sm font-semibold text-ink-900">{item.title}</p>
+                  <p className="text-sm font-semibold text-ink-900">
+                    {item.title}
+                  </p>
                   <div className="mt-3 space-y-2 text-sm text-ink-700">
                     <p>
                       <span className="font-semibold text-ink-900">
@@ -401,9 +404,7 @@ export function Result() {
                       {item.lastMonth}
                     </p>
                     <p>
-                      <span className="font-semibold text-ink-900">
-                        trend:
-                      </span>{" "}
+                      <span className="font-semibold text-ink-900">trend:</span>{" "}
                       {item.trend}
                     </p>
                   </div>
@@ -423,7 +424,8 @@ export function Result() {
                   All angles: Last session
                 </p>
                 <p className="mt-2 text-ink-700">
-                  Most angles remain consistent, with a couple of minor differences worth noting.
+                  Most angles remain consistent, with a couple of minor
+                  differences worth noting.
                 </p>
               </div>
               <div className="rounded-2xl bg-white/70 p-4">
@@ -431,7 +433,8 @@ export function Result() {
                   All angles: Last 5 sessions
                 </p>
                 <p className="mt-2 text-ink-700">
-                  Overall stability with a few mild shifts deserving of attention.
+                  Overall stability with a few mild shifts deserving of
+                  attention.
                 </p>
               </div>
               <div className="rounded-2xl bg-white/70 p-4">
@@ -445,7 +448,8 @@ export function Result() {
               <div className="rounded-2xl bg-white/70 p-4">
                 <p className="font-semibold text-ink-900">Overall trend</p>
                 <p className="mt-2 text-ink-700">
-                  Long-term pattern appears steady; regular captures provide the clearest timeline.
+                  Long-term pattern appears steady; regular captures provide the
+                  clearest timeline.
                 </p>
               </div>
             </div>
@@ -462,7 +466,9 @@ export function Result() {
           </span>
         </h3>
         <p className="text-sm text-ink-700">
-          Keep the images from this session for comparison with future captures. If you notice changes that concern you, discussing them with a healthcare professional can provide personalized guidance.
+          Keep the images from this session for comparison with future captures.
+          If you notice changes that concern you, discussing them with a
+          healthcare professional can provide personalized guidance.
         </p>
       </Card>
 

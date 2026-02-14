@@ -26,9 +26,11 @@ export function Capture() {
 
   // Angle explanations for tooltips
   const angleExplanations: Record<string, string> = {
-    front: "Straight-on view of the front. Shows symmetry and overall contour from the center perspective.",
+    front:
+      "Straight-on view of the front. Shows symmetry and overall contour from the center perspective.",
     left: "Left side view. Captures the profile and any changes visible from this angle.",
-    right: "Right side view. Complements the left side for full awareness of lateral changes.",
+    right:
+      "Right side view. Complements the left side for full awareness of lateral changes.",
     up: "Upward angled view. Reveals how the area appears from above.",
     down: "Downward angled view. Shows how the area appears from below for complete perspective.",
     "full-body": "Full body view showing the overall proportions and context.",
@@ -200,7 +202,7 @@ export function Capture() {
                     type="button"
                     onClick={() =>
                       setExpandedTooltip(
-                        expandedTooltip === step.type ? null : step.type
+                        expandedTooltip === step.type ? null : step.type,
                       )
                     }
                     className="inline-flex items-center justify-center rounded-full p-1 hover:bg-sand-100 transition-colors"
