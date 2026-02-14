@@ -106,7 +106,7 @@ export function Capture() {
       <SectionHeading
         eyebrow="Capture session"
         title="Capture from 6 angles"
-        description="Follow each angle for consistent results. Tip: More images per angle = better insights."
+        description="Follow each angle for consistent results."
       />
 
       {/* Prominent guidelines */}
