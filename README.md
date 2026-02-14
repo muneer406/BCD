@@ -1,6 +1,6 @@
-# BCD — Breast Changes Detection / VAAS — Visual Anomaly Awareness System
+# BCD - Breast Changes Detection / VAAS - Visual Anomaly Awareness System
 
-A **privacy-focused, time-series visual change detection system** built on React, TypeScript, and Supabase. BCD helps users track visual changes over time with calm, neutral guidance—**not** diagnosis.
+A **privacy-focused, time-series visual change detection system** built on React, TypeScript, and Supabase. BCD helps users track visual changes over time with calm, neutral guidance-**not** diagnosis.
 
 ---
 
@@ -139,10 +139,10 @@ Follow **SUPABASE_SETUP_GUIDE.md** (15 minutes):
 
 ### Tables
 
-- **`sessions`** — Capture sessions (user + timestamp)
-- **`images`** — Image metadata (type + URL + timestamp)
-- **`disclaimer_acceptance`** — Consent tracking
-- **`user_profiles`** — User email + creation date
+- **`sessions`** - Capture sessions (user + timestamp)
+- **`images`** - Image metadata (type + URL + timestamp)
+- **`disclaimer_acceptance`** - Consent tracking
+- **`user_profiles`** - User email + creation date
 
 ### Indexes
 
@@ -161,19 +161,19 @@ See **SUPABASE_MIGRATIONS.sql** for full CREATE TABLE syntax.
 
 ### Frontend
 
-- **React 18** — UI library
-- **TypeScript** — Type safety
-- **Vite** — Build tool (HMR, fast dev)
-- **Tailwind CSS** — Utility-first styling
-- **React Router v6** — Client-side routing
-- **Supabase JS Client** — Auth + DB + Storage
+- **React 18** - UI library
+- **TypeScript** - Type safety
+- **Vite** - Build tool (HMR, fast dev)
+- **Tailwind CSS** - Utility-first styling
+- **React Router v6** - Client-side routing
+- **Supabase JS Client** - Auth + DB + Storage
 
 ### Backend (Phase 2)
 
-- **FastAPI** — Python async web framework
-- **OpenCV/PIL** — Image processing
-- **NumPy/SciPy** — Numerical computing
-- **Pre-trained vision model** — Feature extraction
+- **FastAPI** - Python async web framework
+- **OpenCV/PIL** - Image processing
+- **NumPy/SciPy** - Numerical computing
+- **Pre-trained vision model** - Feature extraction
 
 ### Hosting
 
@@ -188,7 +188,7 @@ See **SUPABASE_MIGRATIONS.sql** for full CREATE TABLE syntax.
 
 | Document                                                      | Purpose                                             |
 | ------------------------------------------------------------- | --------------------------------------------------- |
-| **SUPABASE_SETUP_GUIDE.md**                                   | 👈 **Start here** — Complete Supabase configuration |
+| **SUPABASE_SETUP_GUIDE.md**                                   | 👈 **Start here** - Complete Supabase configuration |
 | **SUPABASE_MIGRATIONS.sql**                                   | Database schema to copy-paste into Supabase         |
 | **SUPABASE_SCHEMA_OVERVIEW.md**                               | Architecture overview & data flow                   |
 | **STORAGE_SETUP.md**                                          | Storage bucket & RLS policy details                 |
@@ -203,8 +203,8 @@ See **SUPABASE_MIGRATIONS.sql** for full CREATE TABLE syntax.
 
 ### Manual Testing Scenario
 
-1. **Create test account A** — test-a@example.com
-2. **Create test account B** — test-b@example.com
+1. **Create test account A** - test-a@example.com
+2. **Create test account B** - test-b@example.com
 3. **Account A:**
    - Sign up
    - Accept disclaimer
@@ -229,15 +229,15 @@ Landing Page (/)
   Yes → [Disclaimer accepted?]
         No → Disclaimer (/disclaimer)
         Yes ↓
-          Capture (/capture) — All 6 angles
+          Capture (/capture) - All 6 angles
             ↓ [All 6 angles captured?]
             No → Stay on Capture, add images
             Yes ↓
           Upload Session → Save to DB + Upload to Storage
             ↓
-          Result (/result) — Session summary
+          Result (/result) - Session summary
             ↓
-          History (/history) — View all prior sessions
+          History (/history) - View all prior sessions
 ```
 
 ---
@@ -321,10 +321,10 @@ See **SETUP_CHECKLIST.md** for detailed testing & debugging.
 
 This is a guided project. If you're working on this:
 
-1. **Follow the specification** — See Docs/ for requirements
-2. **Keep changes neutral** — Never add diagnostic language
-3. **Test locally** — Use test accounts before deploying
-4. **Update docs** — Keep README.md and other guides current
+1. **Follow the specification** - See Docs/ for requirements
+2. **Keep changes neutral** - Never add diagnostic language
+3. **Test locally** - Use test accounts before deploying
+4. **Update docs** - Keep README.md and other guides current
 
 ---
 
@@ -338,10 +338,10 @@ This is a guided project. If you're working on this:
 
 Built with:
 
-- [Supabase](https://supabase.com) — Open-source Firebase alternative
-- [React](https://react.dev) — JavaScript UI library
-- [Tailwind CSS](https://tailwindcss.com) — Utility-first CSS
-- [Vite](https://vitejs.dev) — Next-generation frontend tooling
+- [Supabase](https://supabase.com) - Open-source Firebase alternative
+- [React](https://react.dev) - JavaScript UI library
+- [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS
+- [Vite](https://vitejs.dev) - Next-generation frontend tooling
 
 ---
 
@@ -366,4 +366,4 @@ Then test the full flow locally. Questions? Check **SETUP_CHECKLIST.md**.
 
 ---
 
-**BCD/VAAS — Making breast health awareness accessible.** 🎯
+**BCD/VAAS - Making breast health awareness accessible.** 🎯

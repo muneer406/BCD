@@ -5,19 +5,507 @@ import { PageShell } from "../components/PageShell";
 
 export function Landing() {
   return (
-    <PageShell className="space-y-20">
-      {/* Hero Section */}
-      <section className="text-center">
-        <div className="mb-8">
+    <PageShell className="space-y-24">
+      {/* 1) Hero */}
+      <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div className="space-y-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            Breast Changes Detection
+          </p>
           <h1 className="text-5xl font-heading font-semibold text-ink-900 md:text-6xl">
             Track your changes
           </h1>
-          <p className="mt-4 text-xl text-ink-700">
-            Consistent captures. Time-based comparisons. Personal baseline
-            awareness.
+          <p className="max-w-xl text-lg text-ink-700">
+            Capture consistent images and compare only with your own history.
           </p>
+
+          <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700">
+            <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
+              <span className="text-base">✔︎</span>
+              Not a medical diagnosis
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
+              <span className="text-base">✔︎</span>
+              Your data stays private
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
+              <span className="text-base">✔︎</span>
+              Compare with your own history
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link to="/signup">
+              <Button className="px-8 py-3 text-base">Get started</Button>
+            </Link>
+            <a href="#how-it-works">
+              <Button variant="outline" className="px-8 py-3 text-base">
+                Learn how it works
+              </Button>
+            </a>
+          </div>
         </div>
-        <div className="flex flex-wrap justify-center gap-4">
+
+        {/* Subtle abstract diagram */}
+        <Card className="p-8">
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-ink-700">
+                Over time
+              </p>
+              <p className="mt-2 text-lg font-heading font-semibold text-ink-900">
+                Sessions become a timeline
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                {[
+                  { label: "Session 1", tone: "bg-sand-100" },
+                  { label: "Session 2", tone: "bg-tide-50" },
+                  { label: "Session 3", tone: "bg-sand-100" },
+                ].map((node) => (
+                  <div key={node.label} className="flex flex-col items-center">
+                    <div className={`h-10 w-10 rounded-2xl ${node.tone}`} />
+                    <span className="mt-2 text-xs text-ink-700">
+                      {node.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="relative">
+                <div className="h-1 w-full rounded-full bg-sand-200" />
+                <div className="absolute -top-2 left-[12%] h-5 w-5 rounded-full bg-ink-900" />
+                <div className="absolute -top-2 left-1/2 h-5 w-5 -translate-x-1/2 rounded-full bg-ink-900" />
+                <div className="absolute -top-2 left-[88%] h-5 w-5 -translate-x-full rounded-full bg-ink-900" />
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-ink-700">
+                <span>Capture</span>
+                <span className="inline-flex items-center gap-2">
+                  Compare
+                  <span aria-hidden className="text-base">
+                    →
+                  </span>
+                </span>
+                <span>Trend</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      <div className="h-px w-full bg-sand-100" />
+
+      {/* 2) What this is / is not */}
+      <section className="space-y-8">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            Clarity
+          </p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            What BCD is (and what it is not)
+          </h2>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="p-8">
+            <h3 className="text-lg font-heading font-semibold text-ink-900">
+              What BCD is
+            </h3>
+            <div className="mt-6 grid gap-4">
+              {[
+                { icon: "👤", text: "A personal awareness tool" },
+                { icon: "🧭", text: "Tracks visual changes over time" },
+                { icon: "🗂️", text: "Builds a private reference history" },
+                { icon: "🤝", text: "Encourages timely professional checkups" },
+              ].map((item) => (
+                <div key={item.text} className="flex items-start gap-3">
+                  <span className="text-xl">{item.icon}</span>
+                  <p className="text-sm text-ink-700">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card tone="soft" className="p-8">
+            <h3 className="text-lg font-heading font-semibold text-ink-900">
+              What BCD is not
+            </h3>
+            <div className="mt-6 grid gap-4">
+              {[
+                { icon: "🚫", text: "Not a cancer detector" },
+                { icon: "🧾", text: "Not a medical device" },
+                { icon: "🩺", text: "Not a replacement for screening" },
+                { icon: "🔍", text: "Not providing diagnosis" },
+              ].map((item) => (
+                <div key={item.text} className="flex items-start gap-3">
+                  <span className="text-xl">{item.icon}</span>
+                  <p className="text-sm text-ink-700">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      {/* 3) When should I use this? */}
+      <section className="space-y-10">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            Use cases
+          </p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            When should I use this?
+          </h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              icon: "📅",
+              title: "Over time",
+              text: "You want to monitor changes across weeks or months.",
+            },
+            {
+              icon: "👀",
+              title: "Looks different",
+              text: "You noticed something that seems visually different.",
+            },
+            {
+              icon: "🧩",
+              title: "Structured tracking",
+              text: "You want a consistent way to capture and compare.",
+            },
+            {
+              icon: "🪞",
+              title: "Personal history",
+              text: "You prefer comparing against your own history.",
+            },
+          ].map((card) => (
+            <Card key={card.title} className="p-6">
+              <div className="text-3xl">{card.icon}</div>
+              <h3 className="mt-4 text-lg font-heading font-semibold text-ink-900">
+                {card.title}
+              </h3>
+              <p className="mt-2 text-sm text-ink-700">{card.text}</p>
+            </Card>
+          ))}
+        </div>
+
+        <p className="mx-auto max-w-3xl text-center text-sm font-bold text-ink-900">
+          If you feel pain, lumps, discharge, or strong concern, consult a
+          healthcare professional directly.
+        </p>
+      </section>
+
+      <div className="h-px w-full bg-sand-100" />
+
+      {/* 4 & 5) How it works */}
+      <section id="how-it-works" className="space-y-12 scroll-mt-24">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            How it works
+          </p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            Two ways BCD helps you compare
+          </h2>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="p-8">
+            <p className="text-xs uppercase tracking-[0.25em] text-ink-700">
+              Phase 1
+            </p>
+            <h3 className="mt-2 text-xl font-heading font-semibold text-ink-900">
+              Session-based visual analysis
+            </h3>
+
+            <div className="mt-6 grid gap-4">
+              <div className="flex items-center justify-between text-sm text-ink-700">
+                <span className="inline-flex items-center gap-2">📱 Phone</span>
+                <span aria-hidden className="text-lg">
+                  →
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  📸 Captures
+                </span>
+                <span aria-hidden className="text-lg">
+                  →
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  🧠 Compare
+                </span>
+                <span aria-hidden className="text-lg">
+                  →
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  📌 Indicator
+                </span>
+              </div>
+
+              <div className="grid gap-3">
+                {[
+                  "Capture guided angles",
+                  "Images are standardized for consistency",
+                  "Visual difference detection runs",
+                  "Session-level differences are highlighted",
+                ].map((text) => (
+                  <div
+                    key={text}
+                    className="rounded-2xl bg-sand-50 px-4 py-3 text-sm text-ink-700"
+                  >
+                    {text}
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-sm text-ink-700">
+                Each session checks for visible inconsistencies within the
+                current set of images.
+              </p>
+            </div>
+          </Card>
+
+          <Card tone="soft" className="p-8">
+            <p className="text-xs uppercase tracking-[0.25em] text-ink-700">
+              Phase 2
+            </p>
+            <h3 className="mt-2 text-xl font-heading font-semibold text-ink-900">
+              Time-series change tracking
+            </h3>
+
+            <div className="mt-6 space-y-6">
+              <div className="rounded-2xl bg-white/70 p-5">
+                <div className="flex items-center justify-between">
+                  {[
+                    { label: "Session A" },
+                    { label: "Session B" },
+                    { label: "Session C" },
+                    { label: "Today" },
+                  ].map((node) => (
+                    <div
+                      key={node.label}
+                      className="flex flex-col items-center"
+                    >
+                      <div className="h-3 w-3 rounded-full bg-ink-900" />
+                      <span className="mt-2 text-[11px] text-ink-700">
+                        {node.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 h-1 w-full rounded-full bg-sand-200" />
+              </div>
+
+              <div className="grid gap-3">
+                {[
+                  "Every session becomes a reference point",
+                  "New sessions are compared with past sessions",
+                  "Gradual or sudden changes are flagged",
+                  "Trends are shown over time",
+                ].map((text) => (
+                  <div
+                    key={text}
+                    className="rounded-2xl bg-sand-50 px-4 py-3 text-sm text-ink-700"
+                  >
+                    {text}
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-sm font-semibold text-ink-900">
+                BCD compares you to your past - not to population averages.
+              </p>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      {/* 6) Data & Privacy */}
+      <section className="space-y-10">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            Trust
+          </p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            Your data, your control
+          </h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              icon: "🔒",
+              title: "Encrypted storage",
+              text: "Images are stored securely and tied to your account.",
+            },
+            {
+              icon: "🗑",
+              title: "Deletion options",
+              text: "You can remove your sessions and images.",
+            },
+            {
+              icon: "👤",
+              title: "Personal comparisons",
+              text: "Used only for your own time-based comparisons.",
+            },
+            {
+              icon: "🚫",
+              title: "No sharing",
+              text: "Not shared as a public training dataset.",
+            },
+          ].map((item) => (
+            <Card key={item.title} className="p-6">
+              <div className="text-3xl">{item.icon}</div>
+              <h3 className="mt-4 text-lg font-heading font-semibold text-ink-900">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-sm text-ink-700">{item.text}</p>
+            </Card>
+          ))}
+        </div>
+
+        <Card tone="soft" className="p-8">
+          <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
+            <div className="space-y-2">
+              <h3 className="text-xl font-heading font-semibold text-ink-900">
+                Transparency during development
+              </h3>
+              <p className="text-sm text-ink-700">
+                Server-side processing is used during development. Future
+                versions may support on-device processing.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white/70 p-5 text-sm text-ink-700">
+              <p>
+                Images are linked to your account and used only to generate your
+                comparisons.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      <div className="h-px w-full bg-sand-100" />
+
+      {/* 7) How to use it */}
+      <section className="space-y-10">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            Quick guide
+          </p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            How to use it
+          </h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-4">
+          {[
+            { icon: "🧾", text: "Sign up" },
+            { icon: "📸", text: "Capture guided angles" },
+            { icon: "📌", text: "Review session result" },
+            { icon: "📈", text: "Compare history" },
+          ].map((step, index) => (
+            <Card key={step.text} className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="text-3xl">{step.icon}</div>
+                <div className="rounded-full bg-sand-100 px-3 py-1 text-xs font-semibold text-ink-900">
+                  {index + 1}
+                </div>
+              </div>
+              <p className="mt-4 text-sm font-semibold text-ink-900">
+                {step.text}
+              </p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* 8) Goals */}
+      <section className="space-y-10">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+            Project
+          </p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            Our goal
+          </h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {[
+            { icon: "🕰️", text: "Encourage earlier attention" },
+            { icon: "🧠", text: "Provide structured self-awareness" },
+            { icon: "🧩", text: "Reduce ignored changes" },
+            { icon: "🤝", text: "Promote informed professional consultation" },
+          ].map((goal) => (
+            <Card key={goal.text} className="p-6">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">{goal.icon}</span>
+                <p className="text-sm font-semibold text-ink-900">
+                  {goal.text}
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* 9) FAQ */}
+      <section className="space-y-10">
+        <div className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">FAQ</p>
+          <h2 className="text-3xl font-heading font-semibold text-ink-900">
+            Common questions
+          </h2>
+        </div>
+
+        <div className="grid gap-4">
+          {[
+            {
+              q: "Does this detect cancer?",
+              a: "No. BCD does not detect cancer and does not provide diagnosis. It supports personal visual change awareness.",
+            },
+            {
+              q: "How accurate is it?",
+              a: "Accuracy depends on consistent captures and available comparisons. The system is designed to be cautious and non-diagnostic.",
+            },
+            {
+              q: "Are my images shared?",
+              a: "Your images are linked to your account and used only for your comparisons. They are not shared as a public dataset.",
+            },
+            {
+              q: "Can this replace a mammogram?",
+              a: "No. It is not a replacement for screening or professional medical evaluation.",
+            },
+            {
+              q: "What happens if a change is detected?",
+              a: "You may see a neutral indicator that something looks different compared to your past sessions. If you feel concerned, consider consulting a healthcare professional.",
+            },
+            {
+              q: "Can I delete my data?",
+              a: "Yes. You can remove sessions and images. (More deletion controls will be expanded over time.)",
+            },
+          ].map((item) => (
+            <Card key={item.q} className="p-6">
+              <p className="text-sm font-semibold text-ink-900">{item.q}</p>
+              <p className="mt-2 text-sm text-ink-700">{item.a}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* 10) CTA */}
+      <section className="space-y-6 rounded-3xl bg-white/80 p-8 text-center shadow-lift md:p-12">
+        <h2 className="text-3xl font-heading font-semibold text-ink-900">
+          Ready to get started?
+        </h2>
+        <p className="mx-auto max-w-2xl text-lg text-ink-700">
+          Create an account to begin building your personal comparison history.
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
           <Link to="/signup">
             <Button className="px-8 py-3 text-base">Get started</Button>
           </Link>
@@ -27,110 +515,6 @@ export function Landing() {
             </Button>
           </Link>
         </div>
-      </section>
-
-      {/* How it works - Visual cards */}
-      <section className="space-y-8">
-        <h2 className="text-center text-3xl font-heading font-semibold text-ink-900">
-          How BCD works
-        </h2>
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="flex flex-col items-center p-8 text-center">
-            <div className="mb-4 text-5xl">📸</div>
-            <h3 className="text-lg font-heading font-semibold text-ink-900">
-              Capture angles
-            </h3>
-            <p className="mt-2 text-sm text-ink-700">
-              6 guided angles with consistent lighting and positioning.
-            </p>
-          </Card>
-          <Card className="flex flex-col items-center p-8 text-center">
-            <div className="mb-4 text-5xl">⏱️</div>
-            <h3 className="text-lg font-heading font-semibold text-ink-900">
-              Build your baseline
-            </h3>
-            <p className="mt-2 text-sm text-ink-700">
-              Each session becomes a reference point for future comparisons.
-            </p>
-          </Card>
-          <Card className="flex flex-col items-center p-8 text-center">
-            <div className="mb-4 text-5xl">📊</div>
-            <h3 className="text-lg font-heading font-semibold text-ink-900">
-              Compare over time
-            </h3>
-            <p className="mt-2 text-sm text-ink-700">
-              Review trends and changes between your own sessions.
-            </p>
-          </Card>
-        </div>
-      </section>
-
-      {/* Key benefits - Visual layout */}
-      <section className="rounded-3xl bg-gradient-to-br from-sand-50 to-tide-50 p-8 md:p-12">
-        <h2 className="text-center text-3xl font-heading font-semibold text-ink-900 mb-8">
-          Why BCD
-        </h2>
-        <div className="grid gap-8 md:grid-cols-2">
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="text-2xl">✓</div>
-              <div>
-                <h4 className="font-semibold text-ink-900">Non-diagnostic</h4>
-                <p className="text-sm text-ink-700">
-                  A personal awareness tool, not a medical device.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <div className="text-2xl">✓</div>
-              <div>
-                <h4 className="font-semibold text-ink-900">Your baseline</h4>
-                <p className="text-sm text-ink-700">
-                  Compare to your own history, not population averages.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="text-2xl">✓</div>
-              <div>
-                <h4 className="font-semibold text-ink-900">Private & secure</h4>
-                <p className="text-sm text-ink-700">
-                  Your data belongs to you. No AI training or sharing.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <div className="text-2xl">✓</div>
-              <div>
-                <h4 className="font-semibold text-ink-900">Simple to use</h4>
-                <p className="text-sm text-ink-700">
-                  Straightforward captures and comparisons.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Call to action */}
-      <section className="space-y-6 rounded-3xl bg-white/80 p-8 text-center shadow-lift md:p-12">
-        <h2 className="text-3xl font-heading font-semibold text-ink-900">
-          Ready to get started?
-        </h2>
-        <p className="text-lg text-ink-700">
-          Sign up in a few seconds to begin your journey of awareness.
-        </p>
-        <Link to="/signup">
-          <Button className="px-8 py-3 text-base">Create account now</Button>
-        </Link>
-        <p className="text-sm text-ink-600">
-          Already have an account?{" "}
-          <Link to="/login" className="font-semibold underline">
-            Log in here
-          </Link>
-        </p>
       </section>
     </PageShell>
   );
