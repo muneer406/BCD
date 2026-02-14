@@ -1,3 +1,28 @@
+import {
+  Activity,
+  Ban,
+  Calendar,
+  Camera,
+  Check,
+  Clock,
+  Compass,
+  Eye,
+  FileText,
+  Folder,
+  Handshake,
+  Heart,
+  History,
+  LayoutGrid,
+  LineChart,
+  Layers,
+  Lock,
+  Pin,
+  Search,
+  Smartphone,
+  Stethoscope,
+  Trash2,
+  User,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -21,15 +46,15 @@ export function Landing() {
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700">
             <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
-              <span className="text-base">✔︎</span>
+              <Check className="h-4 w-4 text-ink-900" />
               Not a medical diagnosis
             </span>
             <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
-              <span className="text-base">✔︎</span>
+              <Check className="h-4 w-4 text-ink-900" />
               Your data stays private
             </span>
             <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
-              <span className="text-base">✔︎</span>
+              <Check className="h-4 w-4 text-ink-900" />
               Compare with your own history
             </span>
           </div>
@@ -116,13 +141,16 @@ export function Landing() {
             </h3>
             <div className="mt-6 grid gap-4">
               {[
-                { icon: "👤", text: "A personal awareness tool" },
-                { icon: "🧭", text: "Tracks visual changes over time" },
-                { icon: "🗂️", text: "Builds a private reference history" },
-                { icon: "🤝", text: "Encourages timely professional checkups" },
+                { icon: User, text: "A personal awareness tool" },
+                { icon: Compass, text: "Tracks visual changes over time" },
+                { icon: Folder, text: "Builds a private reference history" },
+                {
+                  icon: Heart,
+                  text: "Encourages timely professional checkups",
+                },
               ].map((item) => (
                 <div key={item.text} className="flex items-start gap-3">
-                  <span className="text-xl">{item.icon}</span>
+                  <item.icon className="mt-0.5 h-5 w-5 text-ink-900" />
                   <p className="text-sm text-ink-700">{item.text}</p>
                 </div>
               ))}
@@ -135,13 +163,13 @@ export function Landing() {
             </h3>
             <div className="mt-6 grid gap-4">
               {[
-                { icon: "🚫", text: "Not a cancer detector" },
-                { icon: "🧾", text: "Not a medical device" },
-                { icon: "🩺", text: "Not a replacement for screening" },
-                { icon: "🔍", text: "Not providing diagnosis" },
+                { icon: Ban, text: "Not a cancer detector" },
+                { icon: FileText, text: "Not a medical device" },
+                { icon: Stethoscope, text: "Not a replacement for screening" },
+                { icon: Search, text: "Not providing diagnosis" },
               ].map((item) => (
                 <div key={item.text} className="flex items-start gap-3">
-                  <span className="text-xl">{item.icon}</span>
+                  <item.icon className="mt-0.5 h-5 w-5 text-ink-900" />
                   <p className="text-sm text-ink-700">{item.text}</p>
                 </div>
               ))}
@@ -164,28 +192,28 @@ export function Landing() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[
             {
-              icon: "📅",
+              icon: Calendar,
               title: "Over time",
               text: "You want to monitor changes across weeks or months.",
             },
             {
-              icon: "👀",
+              icon: Eye,
               title: "Looks different",
               text: "You noticed something that seems visually different.",
             },
             {
-              icon: "🧩",
+              icon: LayoutGrid,
               title: "Structured tracking",
               text: "You want a consistent way to capture and compare.",
             },
             {
-              icon: "🪞",
+              icon: History,
               title: "Personal history",
               text: "You prefer comparing against your own history.",
             },
           ].map((card) => (
             <Card key={card.title} className="p-6">
-              <div className="text-3xl">{card.icon}</div>
+              <card.icon className="h-8 w-8 text-ink-900" />
               <h3 className="mt-4 text-lg font-heading font-semibold text-ink-900">
                 {card.title}
               </h3>
@@ -224,24 +252,30 @@ export function Landing() {
 
             <div className="mt-6 grid gap-4">
               <div className="flex items-center justify-between text-sm text-ink-700">
-                <span className="inline-flex items-center gap-2">📱 Phone</span>
-                <span aria-hidden className="text-lg">
-                  →
-                </span>
                 <span className="inline-flex items-center gap-2">
-                  📸 Captures
-                </span>
-                <span aria-hidden className="text-lg">
-                  →
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  🧠 Compare
+                  <Smartphone className="h-4 w-4 text-ink-900" />
+                  Phone
                 </span>
                 <span aria-hidden className="text-lg">
                   →
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  📌 Indicator
+                  <Camera className="h-4 w-4 text-ink-900" />
+                  Captures
+                </span>
+                <span aria-hidden className="text-lg">
+                  →
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Search className="h-4 w-4 text-ink-900" />
+                  Compare
+                </span>
+                <span aria-hidden className="text-lg">
+                  →
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Pin className="h-4 w-4 text-ink-900" />
+                  Indicator
                 </span>
               </div>
 
@@ -337,28 +371,28 @@ export function Landing() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[
             {
-              icon: "🔒",
+              icon: Lock,
               title: "Encrypted storage",
               text: "Images are stored securely and tied to your account.",
             },
             {
-              icon: "🗑",
+              icon: Trash2,
               title: "Deletion options",
               text: "You can remove your sessions and images.",
             },
             {
-              icon: "👤",
+              icon: User,
               title: "Personal comparisons",
               text: "Used only for your own time-based comparisons.",
             },
             {
-              icon: "🚫",
+              icon: Ban,
               title: "No sharing",
               text: "Not shared as a public training dataset.",
             },
           ].map((item) => (
             <Card key={item.title} className="p-6">
-              <div className="text-3xl">{item.icon}</div>
+              <item.icon className="h-8 w-8 text-ink-900" />
               <h3 className="mt-4 text-lg font-heading font-semibold text-ink-900">
                 {item.title}
               </h3>
@@ -403,14 +437,14 @@ export function Landing() {
 
         <div className="grid gap-6 md:grid-cols-4">
           {[
-            { icon: "🧾", text: "Sign up" },
-            { icon: "📸", text: "Capture guided angles" },
-            { icon: "📌", text: "Review session result" },
-            { icon: "📈", text: "Compare history" },
+            { icon: FileText, text: "Sign up" },
+            { icon: Camera, text: "Capture guided angles" },
+            { icon: Pin, text: "Review session result" },
+            { icon: LineChart, text: "Compare history" },
           ].map((step, index) => (
             <Card key={step.text} className="p-6">
               <div className="flex items-center justify-between">
-                <div className="text-3xl">{step.icon}</div>
+                <step.icon className="h-8 w-8 text-ink-900" />
                 <div className="rounded-full bg-sand-100 px-3 py-1 text-xs font-semibold text-ink-900">
                   {index + 1}
                 </div>
@@ -436,14 +470,17 @@ export function Landing() {
 
         <div className="grid gap-6 md:grid-cols-2">
           {[
-            { icon: "🕰️", text: "Encourage earlier attention" },
-            { icon: "🧠", text: "Provide structured self-awareness" },
-            { icon: "🧩", text: "Reduce ignored changes" },
-            { icon: "🤝", text: "Promote informed professional consultation" },
+            { icon: Clock, text: "Encourage earlier attention" },
+            { icon: Activity, text: "Provide structured self-awareness" },
+            { icon: Layers, text: "Reduce ignored changes" },
+            {
+              icon: Handshake,
+              text: "Promote informed professional consultation",
+            },
           ].map((goal) => (
             <Card key={goal.text} className="p-6">
               <div className="flex items-start gap-3">
-                <span className="text-2xl">{goal.icon}</span>
+                <goal.icon className="mt-0.5 h-6 w-6 text-ink-900" />
                 <p className="text-sm font-semibold text-ink-900">
                   {goal.text}
                 </p>
