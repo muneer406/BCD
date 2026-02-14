@@ -19,7 +19,7 @@ export function Capture() {
   const { user } = useAuth();
   const { images, setImage, removeImage, clearDraft } = useDraft();
   const navigate = useNavigate();
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Get all images grouped by type
@@ -41,9 +41,9 @@ export function Capture() {
     imagesByType.has(step.type),
   ).length;
 
-  const handleUploadSession = async () => {
+  const handleSaveSession = async () => {
     if (!user || !allStepsPresent) return;
-    setUploading(true);
+    setSaving(true);
     setError(null);
 
     try {
@@ -60,33 +60,38 @@ export function Capture() {
 
       const sessionId = sessionData.id as string;
 
-      // Upload all images (including duplicates per type)
+      // Save all images (including duplicates per type)
       for (const image of images) {
         const ext = getFileExtension(image.file);
-        // Use timestamp to ensure unique filename for each upload
+        // Use timestamp to ensure unique filename for each save
         const timestamp = Date.now();
         const randomSuffix = Math.random().toString(36).slice(2, 9);
         const path = `${user.id}/${sessionId}/${image.type}_${timestamp}_${randomSuffix}.${ext}`;
 
-        // Upload to storage
-        const { error: uploadError } = await supabase.storage
+        // Save to storage
+        const { error: saveError } = await supabase.storage
           .from("bcd-images")
           .upload(path, image.file);
 
-        if (uploadError) {
-          throw new Error(`Failed to upload ${image.label}`);
+        if (saveError) {
+          throw new Error(`Failed to save ${image.label}`);
         }
 
-        // Get public URL
-        const publicUrl = supabase.storage.from("bcd-images").getPublicUrl(path)
-          .data.publicUrl;
+        // Get signed URL (expires in 1 hour for security)
+        const { data: signedUrlData, error: urlError } = await supabase.storage
+          .from("bcd-images")
+          .createSignedUrl(path, 3600); // 1 hour expiration
 
-        // Save metadata
+        if (urlError || !signedUrlData) {
+          throw new Error(`Failed to generate secure URL for ${image.label}`);
+        }
+
+        // Save metadata with signed URL
         const { error: dbError } = await supabase.from("images").insert({
           user_id: user.id,
           session_id: sessionId,
           image_type: image.type,
-          image_url: publicUrl,
+          image_url: signedUrlData.signedUrl,
         });
 
         if (dbError) {
@@ -100,7 +105,7 @@ export function Capture() {
       const message = err instanceof Error ? err.message : "An error occurred";
       setError(message);
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
   };
 
@@ -301,19 +306,17 @@ export function Capture() {
         </div>
       )}
 
-      {/* Upload button */}
+      {/* Save button */}
       <div className="flex items-center gap-4">
         <Button
-          onClick={handleUploadSession}
-          disabled={!allStepsPresent || uploading}
+          onClick={handleSaveSession}
+          disabled={!allStepsPresent || saving}
           className="flex-1 md:flex-none"
         >
-          {uploading ? "Uploading session..." : "Upload session"}
+          {saving ? "Saving session..." : "Save session"}
         </Button>
         {!allStepsPresent && (
-          <p className="text-sm text-ink-700">
-            Complete all 6 angles to upload
-          </p>
+          <p className="text-sm text-ink-700">Complete all 6 angles to save</p>
         )}
       </div>
     </PageShell>
