@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import {
+  BarChart3,
+  CheckCircle,
+  Clock,
+  Download,
+  Heart,
+  LineChart,
+} from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ImageModal } from "../components/ImageModal";
@@ -21,6 +29,7 @@ const imageTypeByTitle: Record<string, string> = {
 
 export function Result() {
   const { user } = useAuth();
+  const { sessionId } = useParams();
   const [previewMap, setPreviewMap] = useState<ImagePreviewMap>({});
 
   const notes = useMemo(
@@ -110,16 +119,22 @@ export function Result() {
   useEffect(() => {
     let active = true;
 
-    const loadLatestSession = async () => {
+    const loadSessionImages = async () => {
       if (!user) return;
 
-      const { data: sessionData, error: sessionError } = await supabase
+      const query = supabase
         .from("sessions")
         .select("id, images (storage_path, image_type)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("user_id", user.id);
+
+      const sessionQuery = sessionId
+        ? query.eq("id", sessionId).maybeSingle()
+        : query
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+      const { data: sessionData, error: sessionError } = await sessionQuery;
 
       if (!active || sessionError || !sessionData?.images) return;
 
@@ -143,12 +158,12 @@ export function Result() {
       }
     };
 
-    loadLatestSession();
+    loadSessionImages();
 
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, sessionId]);
 
   const getPreviewForTitle = (title: string) => {
     const imageType = imageTypeByTitle[title];
@@ -165,6 +180,24 @@ export function Result() {
       );
     }
 
+    const handleDownload = async () => {
+      try {
+        const response = await fetch(preview);
+        if (!response.ok) {
+          throw new Error("Failed to download image");
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${title.replaceAll(" ", "-").toLowerCase()}.jpg`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     return (
       <div className="space-y-3">
         <ImageModal src={preview} alt={`${title} preview`}>
@@ -175,13 +208,16 @@ export function Result() {
             loading="lazy"
           />
         </ImageModal>
-        <a
-          href={preview}
-          download
-          className="inline-flex items-center justify-center rounded-full border border-ink-700 px-4 py-2 text-xs font-semibold text-ink-900 hover:bg-sand-100"
-        >
-          Download image
-        </a>
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={handleDownload}
+            className="text-xs"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download image
+          </Button>
+        </div>
       </div>
     );
   };
@@ -197,7 +233,7 @@ export function Result() {
       {/* Main status */}
       <div className="rounded-3xl bg-gradient-to-br from-tide-50 to-sand-50 p-8 shadow-lift">
         <div className="flex items-center gap-4">
-          <div className="text-5xl">✓</div>
+          <CheckCircle className="h-11 w-11 text-ink-900" />
           <div>
             <h2 className="text-2xl font-heading font-semibold text-ink-900">
               Session successfully saved
@@ -213,7 +249,10 @@ export function Result() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <h3 className="text-lg font-heading font-semibold text-ink-900">
-            📊 Image quality
+            <span className="inline-flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-ink-900" />
+              Image quality
+            </span>
           </h3>
           <div className="mt-4 space-y-3">
             <div>
@@ -239,7 +278,10 @@ export function Result() {
 
         <Card tone="soft">
           <h3 className="text-lg font-heading font-semibold text-ink-900">
-            ⏱️ Capture notes
+            <span className="inline-flex items-center gap-2">
+              <Clock className="h-5 w-5 text-ink-900" />
+              Capture notes
+            </span>
           </h3>
           <div className="mt-4 space-y-2 text-sm text-ink-700">
             <p>✓ Consistent lighting throughout</p>
@@ -297,7 +339,10 @@ export function Result() {
       <Card className="space-y-5">
         <div className="space-y-1">
           <h3 className="text-lg font-heading font-semibold text-ink-900">
-            📈 Comparisons across time
+            <span className="inline-flex items-center gap-2">
+              <LineChart className="h-5 w-5 text-ink-900" />
+              Comparisons across time
+            </span>
           </h3>
           <p className="text-sm text-ink-700">
             Per-angle comparisons followed by overall summaries.
@@ -386,7 +431,10 @@ export function Result() {
       {/* Health recommendation */}
       <Card tone="soft" className="space-y-4">
         <h3 className="text-lg font-heading font-semibold text-ink-900">
-          💭 General wellness reminder
+          <span className="inline-flex items-center gap-2">
+            <Heart className="h-5 w-5 text-ink-900" />
+            General wellness reminder
+          </span>
         </h3>
         <p className="text-sm text-ink-700">
           If you notice any new or concerning changes between sessions, speaking
@@ -396,7 +444,7 @@ export function Result() {
       </Card>
 
       {/* Next steps */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         <Link to="/history">
           <Button variant="outline">View all sessions</Button>
         </Link>

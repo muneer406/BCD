@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
 import { SectionHeading } from "../components/SectionHeading";
@@ -127,33 +128,35 @@ export function History() {
             const dateLabel = new Date(session.created_at).toLocaleString();
 
             return (
-              <Card key={session.id} className="flex flex-wrap gap-6">
-                <div className="h-28 w-40 overflow-hidden rounded-2xl bg-sand-100">
-                  {session.previewUrl ? (
-                    <img
-                      src={session.previewUrl}
-                      alt="Session preview"
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-ink-700">
-                      No preview
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.2em] text-ink-700">
-                    Session
-                  </p>
-                  <h3 className="text-lg font-heading font-semibold text-ink-900">
-                    {dateLabel}
-                  </h3>
-                  <p className="text-sm text-ink-700">
-                    Neutral status: saved for future comparison.
-                  </p>
-                </div>
-              </Card>
+              <Link key={session.id} to={`/result/${session.id}`}>
+                <Card className="flex flex-wrap gap-6 transition hover:shadow-lift">
+                  <div className="h-28 w-40 overflow-hidden rounded-2xl bg-sand-100">
+                    {session.previewUrl ? (
+                      <img
+                        src={session.previewUrl}
+                        alt="Session preview"
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-ink-700">
+                        No preview
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.2em] text-ink-700">
+                      Session
+                    </p>
+                    <h3 className="text-lg font-heading font-semibold text-ink-900">
+                      {dateLabel}
+                    </h3>
+                    <p className="text-sm text-ink-700">
+                      Neutral status: saved for future comparison.
+                    </p>
+                  </div>
+                </Card>
+              </Link>
             );
           })}
           {hasMore ? (

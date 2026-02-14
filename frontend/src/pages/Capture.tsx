@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Camera, Lightbulb, Ruler } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ImageModal } from "../components/ImageModal";
@@ -91,7 +92,7 @@ export function Capture() {
       }
 
       clearDraft();
-      navigate("/result", { replace: true });
+      navigate(`/result/${sessionId}`, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "An error occurred";
       setError(message);
@@ -116,7 +117,7 @@ export function Capture() {
           </h3>
           <div className="grid gap-2 md:grid-cols-3">
             <div className="flex items-start gap-3">
-              <span className="text-xl">💡</span>
+              <Lightbulb className="h-5 w-5 text-tide-900" />
               <div>
                 <p className="font-semibold text-sm text-tide-900">
                   Bright, even lighting
@@ -127,7 +128,7 @@ export function Capture() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="text-xl">📏</span>
+              <Ruler className="h-5 w-5 text-tide-900" />
               <div>
                 <p className="font-semibold text-sm text-tide-900">
                   Same distance & angle
@@ -138,7 +139,7 @@ export function Capture() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="text-xl">📸</span>
+              <Camera className="h-5 w-5 text-tide-900" />
               <div>
                 <p className="font-semibold text-sm text-tide-900">
                   Multiple images per angle
@@ -254,7 +255,7 @@ export function Capture() {
                           removeImage(step.type);
                         }
                       }}
-                      className="text-xs"
+                      className="text-xs self-center"
                     >
                       Remove last
                     </Button>
@@ -278,7 +279,7 @@ export function Capture() {
                       });
                     }}
                   />
-                  <span className="text-4xl">📸</span>
+                  <Camera className="h-10 w-10 text-ink-900" />
                   <span className="mt-2 text-sm font-semibold text-ink-900">
                     Add image
                   </span>
@@ -298,7 +299,7 @@ export function Capture() {
       )}
 
       {/* Save button */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap justify-center gap-4">
         <Button
           onClick={handleSaveSession}
           disabled={!allStepsPresent || saving}
@@ -306,9 +307,6 @@ export function Capture() {
         >
           {saving ? "Saving session..." : "Save session"}
         </Button>
-        {!allStepsPresent && (
-          <p className="text-sm text-ink-700">Complete all 6 angles to save</p>
-        )}
       </div>
     </PageShell>
   );

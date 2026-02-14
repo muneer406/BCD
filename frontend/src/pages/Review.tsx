@@ -75,7 +75,7 @@ export function Review() {
     }
 
     clearDraft();
-    navigate("/result", { replace: true });
+    navigate(`/result/${sessionId}`, { replace: true });
   };
 
   return (
@@ -111,7 +111,7 @@ export function Review() {
 
       {message ? <p className="text-sm text-ink-700">{message}</p> : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap justify-center gap-4">
         <Button variant="outline" onClick={() => navigate("/capture")}>
           Back to capture
         </Button>
