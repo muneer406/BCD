@@ -134,13 +134,19 @@ export function History() {
           {sessions.map((session, index) => {
             const dateLabel = new Date(session.created_at).toLocaleString();
             // Simple trend indicator based on session order (first session gets baseline tag)
-            const isFirstSession = index === sessions.length - 1 && sessions.length > 0;
-            const trendTag = isFirstSession 
-              ? "Baseline" 
-              : index === sessions.length - 2 
-              ? "Latest" 
-              : "Historical";
-            const trendColor = trendTag === "Latest" ? "blue" : trendTag === "Baseline" ? "green" : "gray";
+            const isFirstSession =
+              index === sessions.length - 1 && sessions.length > 0;
+            const trendTag = isFirstSession
+              ? "Baseline"
+              : index === sessions.length - 2
+                ? "Latest"
+                : "Historical";
+            const trendColor =
+              trendTag === "Latest"
+                ? "blue"
+                : trendTag === "Baseline"
+                  ? "green"
+                  : "gray";
 
             return (
               <Link key={session.id} to={`/result/${session.id}`}>
@@ -171,13 +177,21 @@ export function History() {
                         Saved for comparison.
                       </p>
                       {/* Trend indicator badge */}
-                      <div className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                        trendColor === "blue" ? "bg-blue-100 text-blue-700" :
-                        trendColor === "green" ? "bg-green-100 text-green-700" :
-                        "bg-sand-100 text-ink-700"
-                      }`}>
-                        {trendTag === "Latest" && <TrendingUp className="h-3 w-3" />}
-                        {trendTag === "Baseline" && <Minus className="h-3 w-3" />}
+                      <div
+                        className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                          trendColor === "blue"
+                            ? "bg-blue-100 text-blue-700"
+                            : trendColor === "green"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-sand-100 text-ink-700"
+                        }`}
+                      >
+                        {trendTag === "Latest" && (
+                          <TrendingUp className="h-3 w-3" />
+                        )}
+                        {trendTag === "Baseline" && (
+                          <Minus className="h-3 w-3" />
+                        )}
                         {trendTag}
                       </div>
                     </div>
