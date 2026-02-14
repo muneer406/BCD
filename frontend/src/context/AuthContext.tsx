@@ -36,12 +36,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    const initializeAuth = async () => {
+      const { data } = await supabase.auth.getSession();
       if (!isMounted) return;
+
+      const sessionUser = data.session?.user;
       setSession(data.session ?? null);
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    });
+      setUser(sessionUser ?? null);
+
+      // Fetch disclaimer status in parallel
+      if (sessionUser) {
+        const accepted = await fetchDisclaimer(sessionUser.id);
+        if (isMounted) {
+          setDisclaimerAccepted(accepted);
+        }
+      }
+
+      if (isMounted) {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
