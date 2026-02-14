@@ -30,6 +30,7 @@ function App() {
               <Route path="/capture" element={<Capture />} />
               <Route path="/history" element={<History />} />
               <Route path="/result" element={<Result />} />
+              <Route path="/result/:sessionId" element={<Result />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
