@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, Lightbulb, Ruler } from "lucide-react";
+import { Camera, Lightbulb, Ruler, HelpCircle } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ImageModal } from "../components/ImageModal";
@@ -22,6 +22,17 @@ export function Capture() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedTooltip, setExpandedTooltip] = useState<string | null>(null);
+
+  // Angle explanations for tooltips
+  const angleExplanations: Record<string, string> = {
+    front: "Straight-on view of the front. Shows symmetry and overall contour from the center perspective.",
+    left: "Left side view. Captures the profile and any changes visible from this angle.",
+    right: "Right side view. Complements the left side for full awareness of lateral changes.",
+    up: "Upward angled view. Reveals how the area appears from above.",
+    down: "Downward angled view. Shows how the area appears from below for complete perspective.",
+    "full-body": "Full body view showing the overall proportions and context.",
+  };
 
   // Get all images grouped by type
   const imagesByType = useMemo(() => {
@@ -181,9 +192,32 @@ export function Capture() {
           return (
             <Card key={step.type} className="space-y-4">
               <div className="space-y-1">
-                <h3 className="text-lg font-heading font-semibold text-ink-900">
-                  {step.label}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-heading font-semibold text-ink-900">
+                    {step.label}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedTooltip(
+                        expandedTooltip === step.type ? null : step.type
+                      )
+                    }
+                    className="inline-flex items-center justify-center rounded-full p-1 hover:bg-sand-100 transition-colors"
+                    title={angleExplanations[step.type] || ""}
+                  >
+                    <HelpCircle className="h-4 w-4 text-ink-600" />
+                  </button>
+                </div>
+
+                {expandedTooltip === step.type && (
+                  <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                    <p className="text-sm text-blue-900">
+                      {angleExplanations[step.type] || step.guidance}
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-sm text-ink-700">{step.guidance}</p>
                 {hasImages && (
                   <p className="text-xs text-sand-600 font-medium">

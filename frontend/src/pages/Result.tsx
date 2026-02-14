@@ -6,7 +6,6 @@ import {
   Clock,
   Download,
   Heart,
-  LineChart,
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -31,6 +30,7 @@ export function Result() {
   const { user } = useAuth();
   const { sessionId } = useParams();
   const [previewMap, setPreviewMap] = useState<ImagePreviewMap>({});
+  const [isFirstSession, setIsFirstSession] = useState(false);
 
   const notes = useMemo(
     () => [
@@ -122,6 +122,12 @@ export function Result() {
     const loadSessionImages = async () => {
       if (!user) return;
 
+      // First, count total sessions to determine if this is first session
+      const { count } = await supabase
+        .from("sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
       const query = supabase
         .from("sessions")
         .select("id, images (storage_path, image_type)")
@@ -136,7 +142,14 @@ export function Result() {
 
       const { data: sessionData, error: sessionError } = await sessionQuery;
 
-      if (!active || sessionError || !sessionData?.images) return;
+      if (!active) return;
+
+      if (sessionError || !sessionData?.images) {
+        setIsFirstSession(count === 1);
+        return;
+      }
+
+      setIsFirstSession(count === 1);
 
       const previews: ImagePreviewMap = {};
       await Promise.all(
@@ -245,6 +258,18 @@ export function Result() {
         </div>
       </div>
 
+      {/* First session message */}
+      {isFirstSession && (
+        <div className="rounded-2xl bg-blue-50 border border-blue-200 p-5">
+          <p className="text-sm font-semibold text-blue-900">
+            🎯 Your baseline is set
+          </p>
+          <p className="mt-2 text-sm text-blue-800">
+            This is your first session with us. Future sessions will be compared to these images, helping you track any changes over time. Regular captures will give you the clearest timeline.
+          </p>
+        </div>
+      )}
+
       {/* Session insights grid */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -294,152 +319,150 @@ export function Result() {
         </Card>
       </div>
 
-      {/* Session image remarks */}
-      <Card className="space-y-5">
-        <div className="space-y-1">
-          <h3 className="text-lg font-heading font-semibold text-ink-900">
-            Session image remarks
-          </h3>
-          <p className="text-sm text-ink-700">
-            Standalone notes for each angle, followed by a session overview.
+      {/* ===== THIS SESSION SECTION ===== */}
+      <div className="space-y-6 border-t-2 border-sand-200 pt-8">
+        <div>
+          <h2 className="text-2xl font-heading font-semibold text-ink-900">
+            This session
+          </h2>
+          <p className="mt-1 text-sm text-ink-700">
+            Detailed observations from the 6 angles captured today.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {notes.map((note) => (
-            <div
-              key={note.title}
-              className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
-            >
-              <p className="text-sm font-semibold text-ink-900">{note.title}</p>
-              <p className="mt-1 text-xs font-semibold text-tide-600">
-                {note.status}
-              </p>
-              <p className="mt-2 text-sm text-ink-700">{note.detail}</p>
-              <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-semibold text-ink-900">
-                  View image
-                </summary>
-                <div className="mt-3">{renderPreview(note.title)}</div>
-              </details>
+        <Card className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            {notes.map((note) => (
+              <div
+                key={note.title}
+                className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
+              >
+                <p className="text-sm font-semibold text-ink-900">{note.title}</p>
+                <p className="mt-1 text-xs font-semibold text-tide-600">
+                  {note.status}
+                </p>
+                <p className="mt-2 text-sm text-ink-700">{note.detail}</p>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs font-semibold text-ink-900">
+                    View image
+                  </summary>
+                  <div className="mt-3">{renderPreview(note.title)}</div>
+                </details>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl bg-white/70 p-4">
+            <p className="text-sm font-semibold text-ink-900">Session summary</p>
+            <p className="mt-2 text-sm text-ink-700">
+              Most angles look balanced in this session, with a couple of areas worth noting for future comparison.
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      {/* ===== OVER TIME SECTION ===== */}
+      {!isFirstSession && (
+        <div className="space-y-6 border-t-2 border-sand-200 pt-8">
+          <div>
+            <h2 className="text-2xl font-heading font-semibold text-ink-900">
+              Over time
+            </h2>
+            <p className="mt-1 text-sm text-ink-700">
+              How this session compares to your recent history.
+            </p>
+          </div>
+
+          <Card className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              {comparisons.map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
+                >
+                  <p className="text-sm font-semibold text-ink-900">{item.title}</p>
+                  <div className="mt-3 space-y-2 text-sm text-ink-700">
+                    <p>
+                      <span className="font-semibold text-ink-900">
+                        vs last session:
+                      </span>{" "}
+                      {item.lastSession}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-ink-900">
+                        vs last 5 sessions:
+                      </span>{" "}
+                      {item.lastFive}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-ink-900">
+                        vs last month:
+                      </span>{" "}
+                      {item.lastMonth}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-ink-900">
+                        trend:
+                      </span>{" "}
+                      {item.trend}
+                    </p>
+                  </div>
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs font-semibold text-ink-900">
+                      View image
+                    </summary>
+                    <div className="mt-3">{renderPreview(item.title)}</div>
+                  </details>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="rounded-2xl bg-white/70 p-4">
-          <p className="text-sm font-semibold text-ink-900">Session overview</p>
-          <p className="mt-2 text-sm text-ink-700">
-            Most angles look balanced, with two localized areas worth keeping an
-            eye on. Keep capturing regularly so patterns are easier to monitor.
-          </p>
-        </div>
-      </Card>
-
-      {/* Comparisons */}
-      <Card className="space-y-5">
-        <div className="space-y-1">
-          <h3 className="text-lg font-heading font-semibold text-ink-900">
-            <span className="inline-flex items-center gap-2">
-              <LineChart className="h-5 w-5 text-ink-900" />
-              Comparisons across time
-            </span>
-          </h3>
-          <p className="text-sm text-ink-700">
-            Per-angle comparisons followed by overall summaries.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {comparisons.map((item) => (
-            <div
-              key={item.title}
-              className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
-            >
-              <p className="text-sm font-semibold text-ink-900">{item.title}</p>
-              <div className="mt-3 space-y-2 text-sm text-ink-700">
-                <p>
-                  <span className="font-semibold text-ink-900">
-                    Last session:
-                  </span>{" "}
-                  {item.lastSession}
+            <div className="space-y-3 text-sm">
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="font-semibold text-ink-900">
+                  All angles: Last session
                 </p>
-                <p>
-                  <span className="font-semibold text-ink-900">
-                    Last 5 sessions:
-                  </span>{" "}
-                  {item.lastFive}
-                </p>
-                <p>
-                  <span className="font-semibold text-ink-900">
-                    Last month:
-                  </span>{" "}
-                  {item.lastMonth}
-                </p>
-                <p>
-                  <span className="font-semibold text-ink-900">
-                    Overall trend:
-                  </span>{" "}
-                  {item.trend}
+                <p className="mt-2 text-ink-700">
+                  Most angles remain consistent, with a couple of minor differences worth noting.
                 </p>
               </div>
-              <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-semibold text-ink-900">
-                  View image
-                </summary>
-                <div className="mt-3">{renderPreview(item.title)}</div>
-              </details>
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="font-semibold text-ink-900">
+                  All angles: Last 5 sessions
+                </p>
+                <p className="mt-2 text-ink-700">
+                  Overall stability with a few mild shifts deserving of attention.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="font-semibold text-ink-900">
+                  All angles: Last month
+                </p>
+                <p className="mt-2 text-ink-700">
+                  Month-over-month view is mostly stable with small variations.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="font-semibold text-ink-900">Overall trend</p>
+                <p className="mt-2 text-ink-700">
+                  Long-term pattern appears steady; regular captures provide the clearest timeline.
+                </p>
+              </div>
             </div>
-          ))}
+          </Card>
         </div>
-
-        <div className="grid gap-3 text-sm">
-          <div className="rounded-2xl bg-white/70 p-4">
-            <p className="font-semibold text-ink-900">
-              All angles vs last session
-            </p>
-            <p className="mt-2 text-ink-700">
-              Most angles remain consistent, with two minor differences to keep
-              an eye on.
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white/70 p-4">
-            <p className="font-semibold text-ink-900">
-              All angles vs last 5 sessions
-            </p>
-            <p className="mt-2 text-ink-700">
-              Overall stability across recent sessions with a few mild shifts.
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white/70 p-4">
-            <p className="font-semibold text-ink-900">
-              All angles vs last month
-            </p>
-            <p className="mt-2 text-ink-700">
-              Month-over-month view is mostly stable with small variations.
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white/70 p-4">
-            <p className="font-semibold text-ink-900">Overall trend</p>
-            <p className="mt-2 text-ink-700">
-              Long-term trend appears steady; continue regular captures for the
-              clearest timeline.
-            </p>
-          </div>
-        </div>
-      </Card>
+      )}
 
       {/* Health recommendation */}
       <Card tone="soft" className="space-y-4">
         <h3 className="text-lg font-heading font-semibold text-ink-900">
           <span className="inline-flex items-center gap-2">
             <Heart className="h-5 w-5 text-ink-900" />
-            General wellness reminder
+            Next steps
           </span>
         </h3>
         <p className="text-sm text-ink-700">
-          If you notice any new or concerning changes between sessions, speaking
-          with a healthcare professional can provide personalized guidance. This
-          tool is designed to support awareness, not replace medical advice.
+          Keep the images from this session for comparison with future captures. If you notice changes that concern you, discussing them with a healthcare professional can provide personalized guidance.
         </p>
       </Card>
 

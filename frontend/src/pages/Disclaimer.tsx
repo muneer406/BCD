@@ -65,6 +65,9 @@ export function Disclaimer() {
             medical conclusions or replace professional care.
           </p>
           <p>
+            This tool does not detect internal conditions or provide diagnosis.
+          </p>
+          <p>
             If you notice concerning changes, we recommend speaking with a
             qualified healthcare professional.
           </p>
