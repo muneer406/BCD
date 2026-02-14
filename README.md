@@ -246,14 +246,14 @@ Landing Page (/)
 
 Each session requires **all 6 angles** (at least 1 image per angle; more images = better results):
 
-| Angle              | Required | Description                                    |
-| ------------------ | -------- | ---------------------------------------------- |
-| **Front view**     | ✅       | Centered, shoulders relaxed, arms at sides     |
-| **Left side**      | ✅       | 90° left turn, steady posture                  |
-| **Right side**     | ✅       | 90° right turn, steady posture                 |
-| **Upward angle**   | ✅       | Camera tilted slightly upward at chest level   |
-| **Downward angle** | ✅       | Camera from above, angle downward              |
-| **Full body view** | ✅       | Step back or raise camera to show full torso   |
+| Angle              | Required | Description                                  |
+| ------------------ | -------- | -------------------------------------------- |
+| **Front view**     | ✅       | Centered, shoulders relaxed, arms at sides   |
+| **Left side**      | ✅       | 90° left turn, steady posture                |
+| **Right side**     | ✅       | 90° right turn, steady posture               |
+| **Upward angle**   | ✅       | Camera tilted slightly upward at chest level |
+| **Downward angle** | ✅       | Camera from above, angle downward            |
+| **Full body view** | ✅       | Step back or raise camera to show full torso |
 
 **Key for accuracy:** Consistent distance, lighting, and positioning per session enables accurate time-series comparisons.
 
