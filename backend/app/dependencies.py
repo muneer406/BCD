@@ -21,16 +21,16 @@ def get_current_user(authorization: str | None = Header(default=None)) -> Dict[s
         )
 
     settings = get_settings()
-    if not settings.supabase_jwt_public_key:
+    if not settings.supabase_jwks_url:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="SUPABASE_JWT_PUBLIC_KEY is not configured",
+            detail="SUPABASE_JWKS_URL is not configured",
         )
 
     try:
         return decode_supabase_jwt(
             token,
-            public_key=settings.supabase_jwt_public_key,
+            jwks_url=settings.supabase_jwks_url,
             algorithm=settings.jwt_algorithm,
         )
     except ValueError as exc:
