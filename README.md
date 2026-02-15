@@ -155,7 +155,7 @@ npm run dev
 - [x] Secure image storage with RLS
 - [x] Responsive UI for mobile & desktop
 
-### 🚧 Phase 2 - In Progress
+### 🚧 Phase 2 - Coming Next
 
 - [ ] Backend API for image processing
 - [ ] ML anomaly detection model
@@ -175,16 +175,22 @@ npm run dev
 
 ```
 BCD/
-├── frontend/          # React + TypeScript UI
+├── frontend/                    # React + TypeScript UI
 │  ├── src/
-│  │  ├── components/  # Reusable UI components
-│  │  ├── pages/       # Route pages
-│  │  ├── context/     # Auth & state management
-│  │  └── lib/         # Supabase client
+│  │  ├── components/           # Reusable UI components
+│  │  ├── pages/                # Route pages
+│  │  ├── context/              # Auth & state management
+│  │  └── lib/                  # Supabase client
+│  ├── DEVELOPMENT.md           # Frontend setup guide
 │  └── package.json
 │
-├── backend/           # (Phase 2) FastAPI server
-├── Docs/              # Technical specifications
+├── backend/                     # (Phase 2) FastAPI server
+│  └── DEVELOPMENT.md           # Backend setup guide
+│
+├── Docs/                        # Technical specifications (legacy)
+├── ARCHITECTURE.md             # System design & data flow
+├── API_INTEGRATION.md          # Frontend-Backend contract
+├── SUPABASE_MIGRATIONS.sql     # Database schema
 └── README.md
 ```
 
@@ -192,7 +198,16 @@ BCD/
 
 ## 📖 Documentation
 
+### Comprehensive Guides
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** : System design, data flow, component hierarchy
+- **[API_INTEGRATION.md](API_INTEGRATION.md)** : Frontend-Backend API contract (Phase 2)
+- **[frontend/DEVELOPMENT.md](frontend/DEVELOPMENT.md)** : Frontend setup, workflow, code structure
+- **[backend/DEVELOPMENT.md](backend/DEVELOPMENT.md)** : Backend setup guide (Phase 2)
+
+### Additional Resources
+- **[frontend/README.md](frontend/README.md)** : Frontend quick start
 - **[Docs/visual_anomaly_awareness_system.md](Docs/visual_anomaly_awareness_system.md)** : Non-technical overview
+- **[SUPABASE_MIGRATIONS.sql](SUPABASE_MIGRATIONS.sql)** : Database schema and migrations
 
 ---
 
