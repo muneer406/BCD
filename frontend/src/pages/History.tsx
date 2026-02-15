@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { TrendingUp, Minus } from "lucide-react";
+import { TrendingUp, Minus, Camera } from "lucide-react";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
 import { SectionHeading } from "../components/SectionHeading";
@@ -11,7 +11,6 @@ type SessionRow = {
   id: string;
   created_at: string;
   images?: { storage_path: string; image_type: string }[];
-  previewUrl?: string | null;
 };
 
 export function History() {
@@ -25,12 +24,11 @@ export function History() {
   const prevUserIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    // Reset state when user changes
+    // Reset pagination when user changes
     if (prevUserIdRef.current !== user?.id) {
       setSessions([]);
       setHasMore(true);
       setPage(1);
-      setLoading(true);
       prevUserIdRef.current = user?.id;
     }
   }, [user?.id]);
@@ -75,28 +73,7 @@ export function History() {
 
       const rows = (data as SessionRow[]) ?? [];
 
-      const rowsWithPreviews = await Promise.all(
-        rows.map(async (session) => {
-          const previewPath = session.images?.[0]?.storage_path;
-          if (!previewPath) {
-            return { ...session, previewUrl: null };
-          }
-
-          const { data: signedUrlData, error: urlError } =
-            await supabase.storage
-              .from("bcd-images")
-              .createSignedUrl(previewPath, 3600);
-
-          return {
-            ...session,
-            previewUrl: urlError ? null : (signedUrlData?.signedUrl ?? null),
-          };
-        }),
-      );
-
-      setSessions((prev) =>
-        page === 1 ? rowsWithPreviews : [...prev, ...rowsWithPreviews],
-      );
+      setSessions((prev) => (page === 1 ? rows : [...prev, ...rows]));
       setHasMore(rows.length === pageSize);
       setLoading(false);
       setLoadingMore(false);
@@ -151,19 +128,8 @@ export function History() {
             return (
               <Link key={session.id} to={`/result/${session.id}`}>
                 <Card className="flex flex-wrap gap-6 transition hover:shadow-lift">
-                  <div className="h-28 w-40 overflow-hidden rounded-2xl bg-sand-100">
-                    {session.previewUrl ? (
-                      <img
-                        src={session.previewUrl}
-                        alt="Session preview"
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-xs text-ink-700">
-                        No preview
-                      </div>
-                    )}
+                  <div className="h-28 w-40 overflow-hidden rounded-2xl bg-sand-100 flex items-center justify-center">
+                    <Camera className="h-12 w-12 text-sand-400" />
                   </div>
                   <div className="space-y-2 flex-1">
                     <p className="text-xs uppercase tracking-[0.2em] text-ink-700">
