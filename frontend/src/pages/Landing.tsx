@@ -32,39 +32,44 @@ export function Landing() {
   return (
     <PageShell className="space-y-24">
       {/* 1) Hero */}
-      <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div className="space-y-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-ink-700">
+      <section className="grid gap-8 sm:gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div className="space-y-4 sm:space-y-6">
+          <p className="text-xs uppercase tracking-[0.2em] sm:tracking-[0.3em] text-ink-700">
             Breast Changes Detection
           </p>
-          <h1 className="text-5xl font-heading font-semibold text-ink-900 md:text-6xl">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-heading font-semibold text-ink-900">
             Track your changes
           </h1>
-          <p className="max-w-xl text-lg text-ink-700">
+          <p className="max-w-xl text-base sm:text-lg text-ink-700">
             Capture consistent images and compare only with your own history.
           </p>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm text-ink-700">
-            <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
-              <Check className="h-4 w-4 text-ink-900" />
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-ink-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sand-100 px-2.5 sm:px-4 py-1.5 sm:py-2">
+              <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-900 flex-shrink-0" />
               Not a medical diagnosis
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
-              <Check className="h-4 w-4 text-ink-900" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sand-100 px-2.5 sm:px-4 py-1.5 sm:py-2">
+              <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-900 flex-shrink-0" />
               Your data stays private
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-sand-100 px-4 py-2">
-              <Check className="h-4 w-4 text-ink-900" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sand-100 px-2.5 sm:px-4 py-1.5 sm:py-2">
+              <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-900 flex-shrink-0" />
               Compare with your own history
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
             <Link to="/signup">
-              <Button className="px-8 py-3 text-base">Get started</Button>
+              <Button className="w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base">
+                Get started
+              </Button>
             </Link>
             <a href="#how-it-works">
-              <Button variant="outline" className="px-8 py-3 text-base">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base"
+              >
                 Learn how it works
               </Button>
             </a>
@@ -72,7 +77,7 @@ export function Landing() {
         </div>
 
         {/* Subtle abstract diagram */}
-        <Card className="p-8">
+        <Card className="p-4 sm:p-8">
           <div className="space-y-6">
             <div>
               <p className="text-xs uppercase tracking-[0.25em] text-ink-700">

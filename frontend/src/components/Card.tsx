@@ -11,7 +11,7 @@ export function Card({ tone = "default", className, ...props }: CardProps) {
       : "bg-white/90 border border-sand-100";
 
   const classes =
-    `rounded-3xl p-6 shadow-lift backdrop-blur ${toneClass} ${className ?? ""}`.trim();
+    `rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-lift backdrop-blur ${toneClass} ${className ?? ""}`.trim();
 
   return <div className={classes} {...props} />;
 }

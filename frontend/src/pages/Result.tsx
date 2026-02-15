@@ -181,7 +181,7 @@ export function Result() {
     const preview = getPreviewForTitle(title);
     if (!preview) {
       return (
-        <div className="h-48 w-full rounded-2xl bg-sand-100 flex items-center justify-center text-xs text-ink-700">
+        <div className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl bg-sand-100 flex items-center justify-center text-xs text-ink-700">
           No image available yet
         </div>
       );
@@ -211,7 +211,7 @@ export function Result() {
           <img
             src={preview}
             alt={`${title} preview`}
-            className="h-48 w-full rounded-2xl object-contain bg-white"
+            className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl object-contain bg-white"
             loading="lazy"
           />
         </ImageModal>
