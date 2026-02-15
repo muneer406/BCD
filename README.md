@@ -212,7 +212,6 @@ BCD/
 ### Additional Resources
 
 - **[frontend/README.md](frontend/README.md)** : Frontend quick start
-- **[Docs/visual_anomaly_awareness_system.md](Docs/visual_anomaly_awareness_system.md)** : Non-technical overview
 - **[SUPABASE_MIGRATIONS.sql](SUPABASE_MIGRATIONS.sql)** : Database schema and migrations
 
 ---

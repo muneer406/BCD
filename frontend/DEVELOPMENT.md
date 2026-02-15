@@ -88,7 +88,8 @@ src/
 │  ├── Capture.tsx
 │  ├── Review.tsx
 │  ├── Result.tsx
-│  └── History.tsx
+│  ├── History.tsx
+│  └── NotFound.tsx
 │
 ├── components/             # Reusable UI components
 │  ├── Button.tsx           # Primary, outline, ghost variants
@@ -101,7 +102,8 @@ src/
 │
 ├── context/                # State management
 │  ├── AuthContext.tsx      # User + auth state
-│  └── DraftContext.tsx     # Session draft state
+│  ├── DraftContext.tsx     # Session draft state
+│  └── SessionCacheContext.tsx # History cache (in-memory)
 │
 ├── lib/                    # Utilities
 │  └── supabaseClient.ts    # Supabase client setup
@@ -132,6 +134,7 @@ Defined in `App.tsx` using React Router v7:
       <Route path="/history" element={<History />} />
     </Route>
   </Route>
+  <Route path="*" element={<NotFound />} />
 </Routes>
 ```
 
@@ -151,6 +154,7 @@ Defined in `App.tsx` using React Router v7:
 2. **JWT Token**: Stored in localStorage
 3. **Auto-refresh**: Token refreshed on app load in AuthContext
 4. **User object**: Available via `useAuth()` hook
+5. **Inactivity timeout**: Auto sign-out after 30 minutes of no activity
 
 ```tsx
 import { useAuth } from "../context/AuthContext";
