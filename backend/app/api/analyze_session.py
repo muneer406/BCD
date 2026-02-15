@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from ..dependencies import get_current_user
 from ..services.analysis_service import analyze_session as run_analysis
@@ -9,40 +9,7 @@ from ..services.session_service import get_session
 router = APIRouter(tags=["analysis"])
 
 
-@router.post("/analyze-session/{session_id}")
-def analyze_session(session_id: str, user=Depends(get_current_user)):
-    user_id = user.get("user_id")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user context",
-        )
-
-    session = get_session(session_id, user_id)
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
-
-    if session.get("status") != "completed":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session is not completed",
-        )
-
-    images = get_session_images(session_id, user_id)
-    required_types = {"front", "left", "right", "up", "down", "raised"}
-    present_types = {image.get("image_type") for image in images}
-    missing = required_types - present_types
-    if missing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required angles: {', '.join(sorted(missing))}",
-        )
-
-    analysis = run_analysis(images)
-
+def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
     supabase = get_supabase_client()
     existing = (
         supabase.table("session_analysis")
@@ -76,6 +43,65 @@ def analyze_session(session_id: str, user=Depends(get_current_user)):
         "overall_change_score": analysis["scores"].get("overall_change_score", 0.0),
     }
     supabase.table("session_analysis").insert(session_row).execute()
+
+    return overwritten
+
+
+def _process_and_store(session_id: str, user_id: str, images: list) -> None:
+    analysis = run_analysis(images)
+    _persist_analysis(session_id, user_id, analysis)
+
+
+@router.post("/analyze-session/{session_id}")
+def analyze_session(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    async_process: bool = False,
+    user=Depends(get_current_user),
+):
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user context",
+        )
+
+    session = get_session(session_id, user_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    if session.get("status") != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session is not completed",
+        )
+
+    images = get_session_images(session_id, user_id)
+    required_types = {"front", "left", "right", "up", "down", "raised"}
+    present_types = {image.get("image_type") for image in images}
+    missing = required_types - present_types
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required angles: {', '.join(sorted(missing))}",
+        )
+
+    if async_process:
+        background_tasks.add_task(
+            _process_and_store, session_id, user_id, images)
+        return {
+            "success": True,
+            "data": {
+                "session_id": session_id,
+                "status": "processing",
+            },
+        }
+
+    analysis = run_analysis(images)
+    overwritten = _persist_analysis(session_id, user_id, analysis)
 
     return {
         "success": True,
