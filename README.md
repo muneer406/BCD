@@ -81,7 +81,7 @@ Each session requires captures from **all 6 standardized angles**:
 
 ### For Users
 
-1. Visit the web app (link TBD)
+1. Visit the [web app](https://bcd-dev.vercel.app)
 2. Sign up with email/password
 3. Read and accept the disclaimer
 4. Capture your first session (6 angles)
@@ -103,9 +103,9 @@ cp .env.example .env.local
 
 # Run development server
 npm run dev
-```
 
-📚 **Full Setup Guide**: See [SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md) for complete backend configuration.
+# Then setup Supabase
+```
 
 ---
 
@@ -115,7 +115,7 @@ npm run dev
 |---------|----------------|
 | **Authentication** | Supabase Auth with email/password |
 | **Data Isolation** | Row-Level Security (RLS) policies |
-| **Image Storage** | Private bucket with signed URLs |
+| **Image Storage** | Private bucket with signed URLs (temporary, metadata will replace this) |
 | **Access Control** | Users can only see their own data |
 | **Encryption** | HTTPS in transit, encrypted at rest |
 
@@ -185,8 +185,6 @@ BCD/
 │
 ├── backend/           # (Phase 2) FastAPI server
 ├── Docs/              # Technical specifications
-├── SUPABASE_MIGRATIONS.sql
-├── SECURITY_CONCERNS.md  # Security documentation
 └── README.md
 ```
 
@@ -194,8 +192,6 @@ BCD/
 
 ## 📖 Documentation
 
-- **[SUPABASE_SETUP_GUIDE.md](SUPABASE_SETUP_GUIDE.md)** : Backend configuration (15 min)
-- **[SECURITY_CONCERNS.md](SECURITY_CONCERNS.md)** : Security implementation details
 - **[Docs/visual_anomaly_awareness_system.md](Docs/visual_anomaly_awareness_system.md)** : Non-technical overview
 
 ---
