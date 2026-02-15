@@ -127,24 +127,24 @@ export function History() {
 
             return (
               <Link key={session.id} to={`/result/${session.id}`}>
-                <Card className="flex flex-wrap gap-6 transition hover:shadow-lift">
-                  <div className="h-28 w-40 overflow-hidden rounded-2xl bg-sand-100 flex items-center justify-center">
-                    <Camera className="h-12 w-12 text-sand-400" />
+                <Card className="flex flex-col sm:flex-row gap-4 sm:gap-6 transition hover:shadow-lift">
+                  <div className="h-24 w-24 sm:h-28 sm:w-40 flex-shrink-0 overflow-hidden rounded-xl sm:rounded-2xl bg-sand-100 flex items-center justify-center">
+                    <Camera className="h-10 w-10 sm:h-12 sm:w-12 text-sand-400" />
                   </div>
-                  <div className="space-y-2 flex-1">
-                    <p className="text-xs uppercase tracking-[0.2em] text-ink-700">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-[0.15em] sm:tracking-[0.2em] text-ink-700">
                       Session
                     </p>
-                    <h3 className="text-lg font-heading font-semibold text-ink-900">
+                    <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900 break-words">
                       {dateLabel}
                     </h3>
-                    <div className="flex items-center gap-3">
-                      <p className="text-sm text-ink-700">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                      <p className="text-xs sm:text-sm text-ink-700">
                         Saved for comparison.
                       </p>
                       {/* Trend indicator badge */}
                       <div
-                        className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                        className={`flex items-center gap-1 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold ${
                           trendColor === "blue"
                             ? "bg-blue-100 text-blue-700"
                             : trendColor === "green"

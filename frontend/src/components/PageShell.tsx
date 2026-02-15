@@ -5,6 +5,6 @@ export function PageShell({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   const classes =
-    `mx-auto w-full max-w-6xl px-6 py-10 ${className ?? ""}`.trim();
+    `mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-10 ${className ?? ""}`.trim();
   return <div className={classes} {...props} />;
 }
