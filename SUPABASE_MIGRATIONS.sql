@@ -10,6 +10,7 @@
 
 create extension if not exists "uuid-ossp";
 create extension if not exists "http" schema extensions;
+create extension if not exists "vector";
 
 
 -- ============================================================================
@@ -52,6 +53,36 @@ create table if not exists public.user_profiles (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Session analysis: stores per-session summary scores
+create table if not exists public.session_analysis (
+  id uuid primary key default uuid_generate_v4(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  overall_change_score float,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Angle analysis: stores per-angle scores and summaries
+create table if not exists public.angle_analysis (
+  id uuid primary key default uuid_generate_v4(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  angle_type text not null,
+  change_score float,
+  summary text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+
+  constraint angle_type_valid check (angle_type in ('front', 'left', 'right', 'up', 'down', 'raised'))
+);
+
+-- Session embeddings (optional future use, internal only)
+create table if not exists public.session_embeddings (
+  id uuid primary key default uuid_generate_v4(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  embedding vector,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 
 -- ============================================================================
 -- 3. Create Indexes
@@ -62,6 +93,11 @@ create index if not exists sessions_created_at_idx on public.sessions(created_at
 create index if not exists images_session_id_idx on public.images(session_id);
 create index if not exists images_user_id_idx on public.images(user_id);
 create index if not exists images_image_type_idx on public.images(image_type);
+create index if not exists session_analysis_session_id_idx on public.session_analysis(session_id);
+create index if not exists session_analysis_user_id_idx on public.session_analysis(user_id);
+create index if not exists angle_analysis_session_id_idx on public.angle_analysis(session_id);
+create index if not exists angle_analysis_user_id_idx on public.angle_analysis(user_id);
+create index if not exists session_embeddings_session_id_idx on public.session_embeddings(session_id);
 
 
 -- ============================================================================
@@ -73,8 +109,16 @@ alter table public.sessions enable row level security;
 alter table public.images enable row level security;
 alter table public.disclaimer_acceptance enable row level security;
 alter table public.user_profiles enable row level security;
+alter table public.session_analysis enable row level security;
+alter table public.angle_analysis enable row level security;
+alter table public.session_embeddings enable row level security;
 
 -- Sessions: users can only see their own sessions
+drop policy if exists sessions_select_own on public.sessions;
+drop policy if exists sessions_insert_own on public.sessions;
+drop policy if exists sessions_update_own on public.sessions;
+drop policy if exists sessions_delete_own on public.sessions;
+
 create policy sessions_select_own on public.sessions
   for select using (auth.uid() = user_id);
 
@@ -88,6 +132,10 @@ create policy sessions_delete_own on public.sessions
   for delete using (auth.uid() = user_id);
 
 -- Images: users can only see their own images
+drop policy if exists images_select_own on public.images;
+drop policy if exists images_insert_own on public.images;
+drop policy if exists images_delete_own on public.images;
+
 create policy images_select_own on public.images
   for select using (auth.uid() = user_id);
 
@@ -113,6 +161,8 @@ drop policy if exists "allow_upload_own_folder" on storage.objects;
 drop policy if exists "allow_read_own_images" on storage.objects;
 
 -- Users can upload to their own folder
+drop policy if exists "Users can upload to own folder" on storage.objects;
+
 create policy "Users can upload to own folder"
 on storage.objects for insert
 to authenticated
@@ -122,6 +172,8 @@ with check (
 );
 
 -- Users can read their own images
+drop policy if exists "Users can read own images" on storage.objects;
+
 create policy "Users can read own images"
 on storage.objects for select
 to authenticated
@@ -131,6 +183,8 @@ using (
 );
 
 -- Users can delete their own images
+drop policy if exists "Users can delete own images" on storage.objects;
+
 create policy "Users can delete own images"
 on storage.objects for delete
 to authenticated
@@ -140,6 +194,11 @@ using (
 );
 
 -- Disclaimer acceptance: users can only see and modify their own
+drop policy if exists disclaimer_select_own on public.disclaimer_acceptance;
+drop policy if exists disclaimer_insert_own on public.disclaimer_acceptance;
+drop policy if exists disclaimer_update_own on public.disclaimer_acceptance;
+drop policy if exists disclaimer_delete_own on public.disclaimer_acceptance;
+
 create policy disclaimer_select_own on public.disclaimer_acceptance
   for select using (auth.uid() = user_id);
 
@@ -153,6 +212,10 @@ create policy disclaimer_delete_own on public.disclaimer_acceptance
   for delete using (auth.uid() = user_id);
 
 -- User profiles: users can see and update their own profile
+drop policy if exists user_profiles_select_own on public.user_profiles;
+drop policy if exists user_profiles_insert_own on public.user_profiles;
+drop policy if exists user_profiles_update_own on public.user_profiles;
+
 create policy user_profiles_select_own on public.user_profiles
   for select using (auth.uid() = id);
 
@@ -161,6 +224,60 @@ create policy user_profiles_insert_own on public.user_profiles
 
 create policy user_profiles_update_own on public.user_profiles
   for update using (auth.uid() = id);
+
+-- Session analysis: users can only see their own analysis
+drop policy if exists session_analysis_select_own on public.session_analysis;
+drop policy if exists session_analysis_insert_own on public.session_analysis;
+drop policy if exists session_analysis_update_own on public.session_analysis;
+drop policy if exists session_analysis_delete_own on public.session_analysis;
+
+create policy session_analysis_select_own on public.session_analysis
+  for select using (auth.uid() = user_id);
+
+create policy session_analysis_insert_own on public.session_analysis
+  for insert with check (auth.uid() = user_id);
+
+create policy session_analysis_update_own on public.session_analysis
+  for update using (auth.uid() = user_id);
+
+create policy session_analysis_delete_own on public.session_analysis
+  for delete using (auth.uid() = user_id);
+
+-- Angle analysis: users can only see their own analysis
+drop policy if exists angle_analysis_select_own on public.angle_analysis;
+drop policy if exists angle_analysis_insert_own on public.angle_analysis;
+drop policy if exists angle_analysis_update_own on public.angle_analysis;
+drop policy if exists angle_analysis_delete_own on public.angle_analysis;
+
+create policy angle_analysis_select_own on public.angle_analysis
+  for select using (auth.uid() = user_id);
+
+create policy angle_analysis_insert_own on public.angle_analysis
+  for insert with check (auth.uid() = user_id);
+
+create policy angle_analysis_update_own on public.angle_analysis
+  for update using (auth.uid() = user_id);
+
+create policy angle_analysis_delete_own on public.angle_analysis
+  for delete using (auth.uid() = user_id);
+
+-- Session embeddings: internal only (no direct access)
+drop policy if exists session_embeddings_select_none on public.session_embeddings;
+drop policy if exists session_embeddings_insert_none on public.session_embeddings;
+drop policy if exists session_embeddings_update_none on public.session_embeddings;
+drop policy if exists session_embeddings_delete_none on public.session_embeddings;
+
+create policy session_embeddings_select_none on public.session_embeddings
+  for select using (false);
+
+create policy session_embeddings_insert_none on public.session_embeddings
+  for insert with check (false);
+
+create policy session_embeddings_update_none on public.session_embeddings
+  for update using (false);
+
+create policy session_embeddings_delete_none on public.session_embeddings
+  for delete using (false);
 
 
 -- ============================================================================
