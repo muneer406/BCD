@@ -581,6 +581,235 @@ pip install -r requirements.txt
 
 ---
 
+## Phase 2 Implementation Plan
+
+### Context
+
+Frontend Phase 1 is complete with auth, capture, storage, history, signed URL retrieval, and RLS in place. Phase 2 adds preprocessing, session-level analysis, time-series comparison, scoring, and structured results. The backend must integrate with the Supabase schema and storage structure defined in ARCHITECTURE.md.
+
+### Core Objective
+
+Build a deterministic, modular analysis pipeline that:
+
+1. Accepts a completed session.
+2. Retrieves its images.
+3. Processes them.
+4. Computes session-level visual consistency and time-series change metrics.
+5. Stores results.
+6. Returns structured JSON to the frontend.
+
+No diagnostic logic and no medical claims.
+
+### Backend Architecture (Server Side)
+
+```
+FastAPI Application
+│
+├── API Layer (routers)
+│   ├── analyze_session
+│   ├── compare_sessions
+│   └── generate_report
+│
+├── Service Layer
+│   ├── SessionService
+│   ├── ImageService
+│   ├── AnalysisService
+│   ├── ComparisonService
+│   └── ReportService
+│
+├── Processing Layer
+│   ├── preprocessing.py
+│   ├── embedding.py
+│   ├── session_analysis.py
+│   └── trend_analysis.py
+│
+└── Storage/DB Access Layer
+```
+
+Separation of concerns is required.
+
+### Development Order
+
+#### Step 1 - Backend Skeleton Setup
+
+- Create the FastAPI project.
+- Connect to Supabase (service role key for server-side access).
+- Implement JWT validation using the Supabase public key.
+- Verify user identity from JWT.
+
+Goal: a secure, authenticated backend environment. No ML yet.
+
+#### Step 2 - Database Extension (Analysis Tables)
+
+Add new tables aligned with ARCHITECTURE.md:
+
+```sql
+session_analysis {
+  id UUID PK
+  session_id UUID FK
+  user_id UUID FK
+  overall_change_score FLOAT
+  created_at TIMESTAMP
+}
+
+angle_analysis {
+  id UUID PK
+  session_id UUID FK
+  angle_type TEXT
+  change_score FLOAT
+  summary TEXT
+}
+```
+
+Optional (future-ready):
+
+```sql
+session_embeddings {
+  id UUID PK
+  session_id UUID FK
+  embedding VECTOR
+}
+```
+
+#### Step 3 - Implement /api/analyze-session/{session_id}
+
+Workflow:
+
+1. Validate session exists, status is completed, and user owns session.
+2. Retrieve images from Supabase Storage.
+3. Preprocess (resize, normalize lighting, standardize resolution).
+4. Extract embeddings (placeholder for now).
+5. Compute per-angle internal consistency and overall session change score.
+6. Save results in session_analysis and angle_analysis.
+7. Return structured JSON.
+
+Response shape:
+
+```json
+{
+  "session_analysis": {
+    "per_angle": [],
+    "overall_summary": ""
+  },
+  "scores": {
+    "change_score": 0.23,
+    "confidence": 0.85
+  }
+}
+```
+
+No frontend logic should compute these values.
+
+#### Step 4 - Time-Series Comparison Engine
+
+Create ComparisonService.compare(current_session_id) with:
+
+1. Fetch last session.
+2. Fetch last 5 sessions.
+3. Fetch last month sessions.
+4. Compare embeddings or angle scores.
+5. Compute trend direction, stability index, and delta magnitude.
+
+Response shape:
+
+```json
+{
+  "vs_last_session": {},
+  "vs_last_5": {},
+  "vs_last_month": {},
+  "overall_trend": "stable"
+}
+```
+
+Do not hardcode thresholds randomly. Define constants.
+
+#### Step 5 - Preprocessing Layer
+
+Create pure image processing functions:
+
+```
+normalize_image(image)
+crop_region_of_interest(image)
+resize(image, 512x512)
+```
+
+No DB calls in these functions.
+
+#### Step 6 - Embedding Interface (ML Placeholder)
+
+Define:
+
+```
+extract_embedding(image) -> np.array
+```
+
+Return a deterministic vector seeded by image hash for now.
+
+#### Step 7 - Idempotent Processing
+
+Re-running analyze_session must either overwrite existing analysis or refuse if already analyzed. Choose one policy and enforce it. No duplicate rows.
+
+#### Step 8 - Background Processing (Optional)
+
+After the synchronous flow works, add BackgroundTasks or a queue. Mark session as processing and update status on completion.
+
+### Security Requirements
+
+- Validate JWT on every request.
+- Verify session.user_id matches token.user_id.
+- Never expose storage paths directly.
+- Never expose embeddings publicly.
+
+Supabase RLS remains in place. The backend must respect that model.
+
+### API Contract Alignment
+
+Endpoints must match the Phase 2 plan in API_INTEGRATION.md:
+
+- /api/analyze-session/{session_id}
+- /api/compare-sessions/{current}/{previous}
+- /api/generate-report/{session_id}
+
+Do not change endpoint structure without updating API_INTEGRATION.md.
+
+### Engineering Principles
+
+1. Deterministic pipeline.
+2. Stateless request handling.
+3. No frontend business logic.
+4. Clear separation of preprocessing, feature extraction, scoring, and comparison.
+5. No medical claims in output.
+
+### Testing Strategy
+
+- Session without 6 angles -> reject.
+- First session -> baseline logic.
+- Multiple sessions -> trend logic.
+- Invalid user access -> 403.
+- Re-run analysis -> consistent result.
+
+### Deployment Plan
+
+1. Local Docker container.
+2. Deploy to Railway or Cloud Run.
+3. Add env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODEL_PATH (future).
+
+Ensure frontend calls correct backend URL.
+
+### Final Goal
+
+After Phase 2 backend is complete:
+
+- Frontend stops computing comparisons locally.
+- Frontend calls backend for session analysis and trend comparison.
+- Frontend renders structured results.
+
+System becomes:
+
+Frontend -> Supabase (storage/auth) -> FastAPI (analysis engine) -> Supabase (store results)
+
+---
+
 ## Next Steps
 
 1. Set up project structure
