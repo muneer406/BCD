@@ -747,7 +747,7 @@ Return a deterministic vector seeded by image hash for now.
 
 #### Step 7 - Idempotent Processing
 
-Re-running analyze_session must either overwrite existing analysis or refuse if already analyzed. Choose one policy and enforce it. No duplicate rows.
+Re-running analyze_session must either overwrite existing analysis or refuse if already analyzed. The current implementation overwrites existing analysis rows and returns an "overwritten" flag. No duplicate rows.
 
 #### Step 8 - Background Processing (Optional)
 
