@@ -96,8 +96,8 @@ API_PORT=8000
 API_PREFIX=/api
 
 # JWT
-JWT_ALGORITHM=RS256
-SUPABASE_JWT_PUBLIC_KEY=your-supabase-jwt-public-key
+JWT_ALGORITHM=ES256
+SUPABASE_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
 
 # ML Models
 MODEL_PATH=./models

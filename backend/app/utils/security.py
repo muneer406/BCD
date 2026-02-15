@@ -1,11 +1,35 @@
 from typing import Dict
 
-from jose import JWTError, jwt
+import requests
+from jose import JWTError, jwk, jwt
 
 
-def decode_supabase_jwt(token: str, public_key: str, algorithm: str) -> Dict[str, str]:
+def _load_jwks(jwks_url: str) -> dict:
+    response = requests.get(jwks_url, timeout=5)
+    response.raise_for_status()
+    return response.json()
+
+
+def decode_supabase_jwt(token: str, jwks_url: str, algorithm: str) -> Dict[str, str]:
     try:
-        payload = jwt.decode(token, public_key, algorithms=[algorithm])
+        header = jwt.get_unverified_header(token)
+    except JWTError as exc:
+        raise ValueError("Invalid JWT header") from exc
+
+    kid = header.get("kid")
+    if not kid:
+        raise ValueError("JWT missing key id")
+
+    jwks = _load_jwks(jwks_url)
+    keys = jwks.get("keys", [])
+    key_data = next((key for key in keys if key.get("kid") == kid), None)
+    if not key_data:
+        raise ValueError("JWT key not found in JWKS")
+
+    try:
+        key = jwk.construct(key_data)
+        payload = jwt.decode(token, key.to_pem().decode(
+            "utf-8"), algorithms=[algorithm])
     except JWTError as exc:
         raise ValueError("Invalid JWT token") from exc
 
