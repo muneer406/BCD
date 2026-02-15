@@ -44,6 +44,14 @@ def analyze_session(session_id: str, user=Depends(get_current_user)):
     analysis = run_analysis(images)
 
     supabase = get_supabase_client()
+    existing = (
+        supabase.table("session_analysis")
+        .select("id")
+        .eq("session_id", session_id)
+        .limit(1)
+        .execute()
+    )
+    overwritten = bool(existing.data)
     supabase.table("angle_analysis").delete().eq(
         "session_id", session_id).execute()
     supabase.table("session_analysis").delete().eq(
@@ -73,6 +81,7 @@ def analyze_session(session_id: str, user=Depends(get_current_user)):
         "success": True,
         "data": {
             "session_id": session_id,
+            "overwritten": overwritten,
             "session_analysis": {
                 "per_angle": analysis["per_angle"],
                 "overall_summary": analysis["overall_summary"],

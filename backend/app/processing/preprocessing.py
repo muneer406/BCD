@@ -1,16 +1,25 @@
-from typing import Any
+from typing import Any, Dict
 
 
-def normalize_image(image: Any) -> Any:
-    # TODO: Normalize lighting and contrast
-    return image
+def _wrap_image(image: Any) -> Dict[str, Any]:
+    if isinstance(image, dict) and "ops" in image:
+        return image
+    return {"source": image, "ops": []}
 
 
-def crop_region_of_interest(image: Any) -> Any:
-    # TODO: Crop to target area
-    return image
+def normalize_image(image: Any) -> Dict[str, Any]:
+    wrapped = _wrap_image(image)
+    return {**wrapped, "ops": [*wrapped["ops"], "normalize"]}
 
 
-def resize(image: Any, size: tuple[int, int]) -> Any:
-    # TODO: Resize to standard resolution
-    return image
+def crop_region_of_interest(image: Any) -> Dict[str, Any]:
+    wrapped = _wrap_image(image)
+    return {**wrapped, "ops": [*wrapped["ops"], "crop_roi"]}
+
+
+def resize(image: Any, size: tuple[int, int]) -> Dict[str, Any]:
+    wrapped = _wrap_image(image)
+    return {
+        **wrapped,
+        "ops": [*wrapped["ops"], f"resize_{size[0]}x{size[1]}"]
+    }
