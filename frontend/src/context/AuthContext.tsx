@@ -9,9 +9,13 @@ type AuthContextValue = {
   disclaimerAccepted: boolean;
   refreshDisclaimer: () => Promise<void>;
   signOut: () => Promise<void>;
+  isSessionValid: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+// Session timeout in minutes (default: 30 minutes of inactivity)
+const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 async function fetchDisclaimer(userId: string): Promise<boolean> {
   const { data, error } = await supabase
@@ -32,6 +36,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [isSessionValid, setIsSessionValid] = useState(true);
+  const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
+  const [sessionTimeoutId, setSessionTimeoutId] =
+    useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -43,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const sessionUser = data.session?.user;
       setSession(data.session ?? null);
       setUser(sessionUser ?? null);
+      setIsSessionValid(!!data.session);
 
       // Fetch disclaimer status in parallel
       if (sessionUser) {
@@ -63,6 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (_event, nextSession) => {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
+        setIsSessionValid(!!nextSession);
+        setLastActivityTime(Date.now());
       },
     );
 
@@ -71,6 +82,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // Activity tracking effect - tracks user interactions to prevent timeout
+  useEffect(() => {
+    if (!user || !isSessionValid) return;
+
+    const handleActivity = () => {
+      setLastActivityTime(Date.now());
+
+      // Clear existing timeout
+      if (sessionTimeoutId) {
+        clearTimeout(sessionTimeoutId);
+      }
+
+      // Set new timeout
+      const timeoutId = setTimeout(() => {
+        setIsSessionValid(false);
+        supabase.auth.signOut();
+      }, SESSION_TIMEOUT);
+
+      setSessionTimeoutId(timeoutId);
+    };
+
+    // Track common user activities
+    window.addEventListener("mousedown", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("touchstart", handleActivity);
+    window.addEventListener("click", handleActivity);
+
+    // Initial timeout setup
+    const initialTimeoutId = setTimeout(() => {
+      setIsSessionValid(false);
+      supabase.auth.signOut();
+    }, SESSION_TIMEOUT);
+
+    setSessionTimeoutId(initialTimeoutId);
+
+    return () => {
+      window.removeEventListener("mousedown", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("touchstart", handleActivity);
+      window.removeEventListener("click", handleActivity);
+
+      if (initialTimeoutId) {
+        clearTimeout(initialTimeoutId);
+      }
+    };
+  }, [user, isSessionValid]);
 
   useEffect(() => {
     if (!user) {
@@ -90,6 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (sessionTimeoutId) {
+      clearTimeout(sessionTimeoutId);
+    }
+    setIsSessionValid(false);
     await supabase.auth.signOut();
   };
 
@@ -101,8 +163,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       disclaimerAccepted,
       refreshDisclaimer,
       signOut,
+      isSessionValid,
     }),
-    [session, user, loading, disclaimerAccepted],
+    [session, user, loading, disclaimerAccepted, isSessionValid],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
