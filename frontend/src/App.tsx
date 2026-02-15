@@ -10,6 +10,7 @@ import { Disclaimer } from "./pages/Disclaimer";
 import { History } from "./pages/History";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
+import { NotFound } from "./pages/NotFound";
 import { Result } from "./pages/Result";
 import { Signup } from "./pages/Signup";
 
@@ -33,7 +34,7 @@ function App() {
               <Route path="/result/:sessionId" element={<Result />} />
             </Route>
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
     </div>

@@ -5,6 +5,7 @@ import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
 import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
+import { useSessionCache } from "../context/SessionCacheContext";
 import { supabase } from "../lib/supabaseClient";
 
 type SessionRow = {
@@ -15,6 +16,8 @@ type SessionRow = {
 
 export function History() {
   const { user } = useAuth();
+  const { getCachedSessions, setCachedSessions, clearUserCache } =
+    useSessionCache();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -29,9 +32,13 @@ export function History() {
       setSessions([]);
       setHasMore(true);
       setPage(1);
+      // Clear cache for old user
+      if (prevUserIdRef.current) {
+        clearUserCache(prevUserIdRef.current);
+      }
       prevUserIdRef.current = user?.id;
     }
-  }, [user?.id]);
+  }, [user?.id, clearUserCache]);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +57,19 @@ export function History() {
         setLoading(true);
       } else {
         setLoadingMore(true);
+      }
+
+      // Try to get from cache first
+      const cachedData = getCachedSessions(user.id, page);
+      if (cachedData) {
+        if (!active) return;
+        setSessions((prev) =>
+          page === 1 ? cachedData : [...prev, ...cachedData],
+        );
+        setHasMore(cachedData.length === pageSize);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
       }
 
       const from = (page - 1) * pageSize;
@@ -73,6 +93,11 @@ export function History() {
 
       const rows = (data as SessionRow[]) ?? [];
 
+      // Cache the results
+      if (rows.length > 0) {
+        setCachedSessions(user.id, page, rows);
+      }
+
       setSessions((prev) => (page === 1 ? rows : [...prev, ...rows]));
       setHasMore(rows.length === pageSize);
       setLoading(false);
@@ -86,7 +111,7 @@ export function History() {
     return () => {
       active = false;
     };
-  }, [user, hasMore, page, pageSize]);
+  }, [user, hasMore, page, pageSize, getCachedSessions, setCachedSessions]);
 
   return (
     <PageShell className="space-y-10">
