@@ -96,8 +96,8 @@ API_PORT=8000
 API_PREFIX=/api
 
 # JWT
-JWT_ALGORITHM=HS256
-JWT_SECRET_KEY=your-secret-key-here
+JWT_ALGORITHM=RS256
+SUPABASE_JWT_PUBLIC_KEY=your-supabase-jwt-public-key
 
 # ML Models
 MODEL_PATH=./models
