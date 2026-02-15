@@ -123,16 +123,16 @@ export function Capture() {
       />
 
       {/* Prominent guidelines */}
-      <div className="rounded-3xl border-2 border-tide-300 bg-gradient-to-r from-tide-50 to-transparent p-6">
-        <div className="space-y-3">
-          <h3 className="font-semibold text-tide-900 text-lg">
+      <div className="rounded-2xl sm:rounded-3xl border-2 border-tide-300 bg-gradient-to-r from-tide-50 to-transparent p-4 sm:p-6">
+        <div className="space-y-2 sm:space-y-3">
+          <h3 className="font-semibold text-tide-900 text-base sm:text-lg">
             ✨ For best results, keep these consistent:
           </h3>
           <div className="grid gap-2 md:grid-cols-3">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="h-5 w-5 text-tide-900" />
-              <div>
-                <p className="font-semibold text-sm text-tide-900">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5 text-tide-900 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-xs sm:text-sm text-tide-900">
                   Bright, even lighting
                 </p>
                 <p className="text-xs text-tide-800">
@@ -140,10 +140,10 @@ export function Capture() {
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <Ruler className="h-5 w-5 text-tide-900" />
-              <div>
-                <p className="font-semibold text-sm text-tide-900">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <Ruler className="h-4 w-4 sm:h-5 sm:w-5 text-tide-900 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-xs sm:text-sm text-tide-900">
                   Same distance & angle
                 </p>
                 <p className="text-xs text-tide-800">
@@ -151,10 +151,10 @@ export function Capture() {
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <Camera className="h-5 w-5 text-tide-900" />
-              <div>
-                <p className="font-semibold text-sm text-tide-900">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-tide-900 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-xs sm:text-sm text-tide-900">
                   Multiple images per angle
                 </p>
                 <p className="text-xs text-tide-800">
@@ -167,10 +167,10 @@ export function Capture() {
       </div>
 
       {/* Progress */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 rounded-full bg-sand-100 px-4 py-3">
-            <p className="text-sm font-semibold text-ink-900">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex-1 rounded-full bg-sand-100 px-3 sm:px-4 py-2 sm:py-3">
+            <p className="text-xs sm:text-sm font-semibold text-ink-900">
               {completedCount} of {captureSteps.length} angles captured
             </p>
             <div className="mt-2 h-2 w-full rounded-full bg-sand-200">
@@ -186,16 +186,16 @@ export function Capture() {
       </div>
 
       {/* Image capture grid */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {captureSteps.map((step) => {
           const typeImages = imagesByType.get(step.type) || [];
           const hasImages = typeImages.length > 0;
 
           return (
-            <Card key={step.type} className="space-y-4">
+            <Card key={step.type} className="space-y-3 sm:space-y-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-heading font-semibold text-ink-900">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900">
                     {step.label}
                   </h3>
                   <button
@@ -205,22 +205,24 @@ export function Capture() {
                         expandedTooltip === step.type ? null : step.type,
                       )
                     }
-                    className="inline-flex items-center justify-center rounded-full p-1 hover:bg-sand-100 transition-colors"
+                    className="inline-flex items-center justify-center rounded-full p-1 hover:bg-sand-100 transition-colors flex-shrink-0"
                     title={angleExplanations[step.type] || ""}
                   >
-                    <HelpCircle className="h-4 w-4 text-ink-600" />
+                    <HelpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-600" />
                   </button>
                 </div>
 
                 {expandedTooltip === step.type && (
-                  <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3">
-                    <p className="text-sm text-blue-900">
+                  <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-2 sm:p-3">
+                    <p className="text-xs sm:text-sm text-blue-900">
                       {angleExplanations[step.type] || step.guidance}
                     </p>
                   </div>
                 )}
 
-                <p className="text-sm text-ink-700">{step.guidance}</p>
+                <p className="text-xs sm:text-sm text-ink-700">
+                  {step.guidance}
+                </p>
                 {hasImages && (
                   <p className="text-xs text-sand-600 font-medium">
                     {typeImages.length} image
@@ -230,14 +232,14 @@ export function Capture() {
               </div>
 
               {hasImages ? (
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {/* Gallery grid for multiple images */}
                   {typeImages.length === 1 ? (
                     <ImageModal src={typeImages[0].previewUrl} alt={step.label}>
                       <img
                         src={typeImages[0].previewUrl}
                         alt={step.label}
-                        className="h-48 w-full rounded-2xl object-cover"
+                        className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl object-cover"
                       />
                     </ImageModal>
                   ) : (
@@ -248,13 +250,13 @@ export function Capture() {
                           src={img.previewUrl}
                           alt={`${step.label} ${idx + 1}`}
                         >
-                          <div className="relative rounded-2xl overflow-hidden bg-sand-100">
+                          <div className="relative rounded-lg sm:rounded-2xl overflow-hidden bg-sand-100">
                             <img
                               src={img.previewUrl}
                               alt={`${step.label} ${idx + 1}`}
-                              className="h-32 w-full object-cover hover:opacity-90 transition-opacity"
+                              className="h-28 sm:h-32 w-full object-cover hover:opacity-90 transition-opacity"
                             />
-                            <div className="absolute top-1 right-1 bg-ink-900 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-semibold">
+                            <div className="absolute top-1 right-1 bg-ink-900 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-semibold">
                               {idx + 1}
                             </div>
                           </div>
@@ -264,7 +266,7 @@ export function Capture() {
                   )}
 
                   <div className="flex flex-col gap-2">
-                    <label className="flex cursor-pointer items-center justify-center rounded-lg bg-sand-50 px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-sand-100">
+                    <label className="flex cursor-pointer items-center justify-center rounded-lg bg-sand-50 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-ink-700 transition-colors hover:bg-sand-100">
                       <input
                         type="file"
                         accept="image/*"
@@ -298,7 +300,7 @@ export function Capture() {
                   </div>
                 </div>
               ) : (
-                <label className="flex h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors hover:bg-sand-100">
+                <label className="flex h-40 sm:h-48 cursor-pointer flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors hover:bg-sand-100">
                   <input
                     type="file"
                     accept="image/*"
@@ -315,8 +317,8 @@ export function Capture() {
                       });
                     }}
                   />
-                  <Camera className="h-10 w-10 text-ink-900" />
-                  <span className="mt-2 text-sm font-semibold text-ink-900">
+                  <Camera className="h-8 w-8 sm:h-10 sm:w-10 text-ink-900" />
+                  <span className="mt-2 text-xs sm:text-sm font-semibold text-ink-900">
                     Add image
                   </span>
                 </label>
@@ -328,18 +330,18 @@ export function Capture() {
 
       {/* Error message */}
       {error && (
-        <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-900">
+        <div className="rounded-lg sm:rounded-2xl bg-red-50 p-3 sm:p-4 text-xs sm:text-sm text-red-900">
           <p className="font-semibold">Something went wrong</p>
           <p className="mt-1">{error}</p>
         </div>
       )}
 
       {/* Save button */}
-      <div className="flex flex-wrap justify-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
         <Button
           onClick={handleSaveSession}
           disabled={!allStepsPresent || saving}
-          className="flex-1 md:flex-none"
+          className="w-full sm:w-auto"
         >
           {saving ? "Saving session..." : "Save session"}
         </Button>
