@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, Lightbulb, Ruler, HelpCircle } from "lucide-react";
+import {
+  Camera,
+  Lightbulb,
+  Ruler,
+  HelpCircle,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ImageModal } from "../components/ImageModal";
@@ -11,9 +17,40 @@ import { useDraft } from "../context/DraftContext";
 import { captureSteps } from "../data/captureSteps";
 import { supabase } from "../lib/supabaseClient";
 
-function getFileExtension(file: File) {
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+function getFileExtension(file: File): string {
+  // Determine extension from MIME type for safety
+  const mimeType = file.type.toLowerCase();
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+
+  // Fallback to filename extension
   const parts = file.name.split(".");
-  return parts.length > 1 ? parts.pop() : "jpg";
+  const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : null;
+
+  // Default to jpg if unknown
+  return ext && ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+}
+
+function validateImageFile(file: File): { valid: boolean; error?: string } {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return {
+      valid: false,
+      error: `Invalid image format. Supported: JPEG, PNG, WebP (Got: ${file.type})`,
+    };
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size: 10MB (Got: ${(file.size / 1024 / 1024).toFixed(2)}MB)`,
+    };
+  }
+
+  return { valid: true };
 }
 
 export function Capture() {
@@ -61,6 +98,19 @@ export function Capture() {
     setError(null);
 
     try {
+      // Validate all files before starting upload
+      const uploadErrors: string[] = [];
+      for (const image of images) {
+        const validation = validateImageFile(image.file);
+        if (!validation.valid) {
+          uploadErrors.push(`${image.label}: ${validation.error}`);
+        }
+      }
+
+      if (uploadErrors.length > 0) {
+        throw new Error(uploadErrors.join("\n"));
+      }
+
       // Create session
       const { data: sessionData, error: sessionError } = await supabase
         .from("sessions")
@@ -73,35 +123,58 @@ export function Capture() {
       }
 
       const sessionId = sessionData.id as string;
+      const failedImages: string[] = [];
 
       // Save all images (including duplicates per type)
       for (const image of images) {
-        const ext = getFileExtension(image.file);
-        // Use timestamp to ensure unique filename for each save
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).slice(2, 9);
-        const path = `${user.id}/${sessionId}/${image.type}_${timestamp}_${randomSuffix}.${ext}`;
+        try {
+          const ext = getFileExtension(image.file);
+          // Use timestamp to ensure unique filename for each save
+          const timestamp = Date.now();
+          const randomSuffix = Math.random().toString(36).slice(2, 9);
+          const path = `${user.id}/${sessionId}/${image.type}_${timestamp}_${randomSuffix}.${ext}`;
 
-        // Save to storage
-        const { error: saveError } = await supabase.storage
-          .from("bcd-images")
-          .upload(path, image.file);
+          // Save to storage
+          const { error: saveError } = await supabase.storage
+            .from("bcd-images")
+            .upload(path, image.file, {
+              cacheControl: "3600",
+              upsert: false,
+            });
 
-        if (saveError) {
-          throw new Error(`Failed to save ${image.label}`);
+          if (saveError) {
+            failedImages.push(`${image.label}: ${saveError.message}`);
+            continue;
+          }
+
+          // Save metadata with storage path
+          const { error: dbError } = await supabase.from("images").insert({
+            user_id: user.id,
+            session_id: sessionId,
+            image_type: image.type,
+            storage_path: path,
+          });
+
+          if (dbError) {
+            // Attempt cleanup: delete uploaded file if DB insert fails
+            try {
+              await supabase.storage.from("bcd-images").remove([path]);
+            } catch {
+              // Cleanup failure is non-critical
+            }
+            failedImages.push(`${image.label}: ${dbError.message}`);
+          }
+        } catch (err) {
+          failedImages.push(
+            `${image.label}: ${err instanceof Error ? err.message : "Unknown error"}`,
+          );
         }
+      }
 
-        // Save metadata with storage path
-        const { error: dbError } = await supabase.from("images").insert({
-          user_id: user.id,
-          session_id: sessionId,
-          image_type: image.type,
-          storage_path: path,
-        });
-
-        if (dbError) {
-          throw new Error(`Failed to save ${image.label} details`);
-        }
+      if (failedImages.length > 0) {
+        throw new Error(
+          `Failed to save ${failedImages.length} image(s):\n${failedImages.join("\n")}`,
+        );
       }
 
       clearDraft();
@@ -275,12 +348,22 @@ export function Capture() {
                         onChange={(event) => {
                           const file = event.target.files?.[0];
                           if (!file) return;
+
+                          // Validate file
+                          const validation = validateImageFile(file);
+                          if (!validation.valid) {
+                            setError(validation.error || "Invalid file");
+                            setTimeout(() => setError(null), 5000);
+                            return;
+                          }
+
                           setImage({
                             type: step.type,
                             label: step.label,
                             file,
                             previewUrl: URL.createObjectURL(file),
                           });
+                          setError(null);
                         }}
                       />
                       + Add more
@@ -309,12 +392,22 @@ export function Capture() {
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (!file) return;
+
+                      // Validate file
+                      const validation = validateImageFile(file);
+                      if (!validation.valid) {
+                        setError(validation.error || "Invalid file");
+                        setTimeout(() => setError(null), 5000);
+                        return;
+                      }
+
                       setImage({
                         type: step.type,
                         label: step.label,
                         file,
                         previewUrl: URL.createObjectURL(file),
                       });
+                      setError(null);
                     }}
                   />
                   <Camera className="h-8 w-8 sm:h-10 sm:w-10 text-ink-900" />
@@ -330,9 +423,16 @@ export function Capture() {
 
       {/* Error message */}
       {error && (
-        <div className="rounded-lg sm:rounded-2xl bg-red-50 p-3 sm:p-4 text-xs sm:text-sm text-red-900">
-          <p className="font-semibold">Something went wrong</p>
-          <p className="mt-1">{error}</p>
+        <div className="rounded-lg sm:rounded-2xl bg-red-50 p-3 sm:p-4 border border-red-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-red-900">Error</p>
+              <div className="mt-1 text-xs sm:text-sm text-red-800 whitespace-pre-wrap break-words">
+                {error}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

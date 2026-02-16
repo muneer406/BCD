@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 
@@ -14,21 +21,25 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Session timeout in minutes (default: 30 minutes of inactivity)
+// Session timeout in milliseconds (default: 30 minutes of inactivity)
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 async function fetchDisclaimer(userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("disclaimer_acceptance")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from("disclaimer_acceptance")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if (error) {
+    if (error) {
+      return false;
+    }
+
+    return Boolean(data?.user_id);
+  } catch {
     return false;
   }
-
-  return Boolean(data?.user_id);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -37,32 +48,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [isSessionValid, setIsSessionValid] = useState(true);
-  const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
-  const [sessionTimeoutId, setSessionTimeoutId] =
-    useState<NodeJS.Timeout | null>(null);
 
+  // Use refs to avoid stale closures
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const authListenerRef = useRef<(() => void) | null>(null);
+
+  // Setup and cleanup auth listener
   useEffect(() => {
+    isMountedRef.current = true;
     let isMounted = true;
 
     const initializeAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!isMounted) return;
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!isMounted) return;
 
-      const sessionUser = data.session?.user;
-      setSession(data.session ?? null);
-      setUser(sessionUser ?? null);
-      setIsSessionValid(!!data.session);
+        const sessionUser = data.session?.user;
+        setSession(data.session ?? null);
+        setUser(sessionUser ?? null);
+        setIsSessionValid(!!data.session);
 
-      // Fetch disclaimer status in parallel
-      if (sessionUser) {
-        const accepted = await fetchDisclaimer(sessionUser.id);
-        if (isMounted) {
-          setDisclaimerAccepted(accepted);
+        // Fetch disclaimer status in parallel
+        if (sessionUser) {
+          const accepted = await fetchDisclaimer(sessionUser.id);
+          if (isMounted) {
+            setDisclaimerAccepted(accepted);
+          }
         }
-      }
 
-      if (isMounted) {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -73,86 +95,119 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
         setIsSessionValid(!!nextSession);
-        setLastActivityTime(Date.now());
       },
     );
 
+    authListenerRef.current = authListener.subscription.unsubscribe;
+
     return () => {
       isMounted = false;
-      authListener.subscription.unsubscribe();
+      isMountedRef.current = false;
+      authListenerRef.current?.();
     };
   }, []);
 
-  // Activity tracking effect - tracks user interactions to prevent timeout
+  // Activity tracking effect - consolidated timeout management
   useEffect(() => {
-    if (!user || !isSessionValid) return;
+    if (!user || !isSessionValid) {
+      // Clean up timeout when session ends
+      if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
+      }
+      return;
+    }
 
     const handleActivity = () => {
-      setLastActivityTime(Date.now());
-
       // Clear existing timeout
-      if (sessionTimeoutId) {
-        clearTimeout(sessionTimeoutId);
+      if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
       }
 
       // Set new timeout
-      const timeoutId = setTimeout(() => {
-        setIsSessionValid(false);
-        supabase.auth.signOut();
+      sessionTimeoutRef.current = setTimeout(async () => {
+        if (isMountedRef.current) {
+          setIsSessionValid(false);
+          try {
+            await supabase.auth.signOut();
+          } catch (error) {
+            console.error("Sign out error:", error);
+          }
+        }
       }, SESSION_TIMEOUT);
-
-      setSessionTimeoutId(timeoutId);
     };
 
     // Track common user activities
-    window.addEventListener("mousedown", handleActivity);
-    window.addEventListener("keydown", handleActivity);
-    window.addEventListener("touchstart", handleActivity);
-    window.addEventListener("click", handleActivity);
+    const events = ["mousedown", "keydown", "touchstart", "click"];
+    events.forEach((event) => {
+      window.addEventListener(event, handleActivity);
+    });
 
     // Initial timeout setup
-    const initialTimeoutId = setTimeout(() => {
-      setIsSessionValid(false);
-      supabase.auth.signOut();
-    }, SESSION_TIMEOUT);
-
-    setSessionTimeoutId(initialTimeoutId);
+    handleActivity();
 
     return () => {
-      window.removeEventListener("mousedown", handleActivity);
-      window.removeEventListener("keydown", handleActivity);
-      window.removeEventListener("touchstart", handleActivity);
-      window.removeEventListener("click", handleActivity);
+      // Cleanup event listeners
+      events.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
 
-      if (initialTimeoutId) {
-        clearTimeout(initialTimeoutId);
+      // Cleanup timeout
+      if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
       }
     };
   }, [user, isSessionValid]);
 
+  // Fetch disclaimer when user changes
   useEffect(() => {
     if (!user) {
       setDisclaimerAccepted(false);
       return;
     }
 
+    let isMounted = true;
+
     fetchDisclaimer(user.id).then((accepted) => {
-      setDisclaimerAccepted(accepted);
+      if (isMounted && isMountedRef.current) {
+        setDisclaimerAccepted(accepted);
+      }
     });
+
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const refreshDisclaimer = async () => {
     if (!user) return;
-    const accepted = await fetchDisclaimer(user.id);
-    setDisclaimerAccepted(accepted);
+    try {
+      const accepted = await fetchDisclaimer(user.id);
+      if (isMountedRef.current) {
+        setDisclaimerAccepted(accepted);
+      }
+    } catch (error) {
+      console.error("Disclaimer refresh error:", error);
+    }
   };
 
   const signOut = async () => {
-    if (sessionTimeoutId) {
-      clearTimeout(sessionTimeoutId);
+    // Clean up timeout
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+      sessionTimeoutRef.current = null;
     }
-    setIsSessionValid(false);
-    await supabase.auth.signOut();
+
+    if (isMountedRef.current) {
+      setIsSessionValid(false);
+    }
+
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
   };
 
   const value = useMemo(
