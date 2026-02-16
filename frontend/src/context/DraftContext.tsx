@@ -1,4 +1,10 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 
 export type CaptureImage = {
   type: string;
@@ -19,12 +25,12 @@ const DraftContext = createContext<DraftContextValue | undefined>(undefined);
 export function DraftProvider({ children }: { children: React.ReactNode }) {
   const [images, setImages] = useState<CaptureImage[]>([]);
 
-  const setImage = (image: CaptureImage) => {
+  const setImage = useCallback((image: CaptureImage) => {
     // Add new image without removing previous ones of the same type
     setImages((prev) => [...prev, image]);
-  };
+  }, []);
 
-  const removeImage = (type: string) => {
+  const removeImage = useCallback((type: string) => {
     // Remove only the LAST image of this type
     setImages((prev) => {
       let lastIndex = -1;
@@ -37,22 +43,33 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
       if (lastIndex === -1) return prev;
 
       const target = prev[lastIndex];
-      URL.revokeObjectURL(target.previewUrl);
+      // Properly clean up the object URL
+      try {
+        URL.revokeObjectURL(target.previewUrl);
+      } catch {
+        // Cleanup failure is non-critical
+      }
 
       return prev.filter((_, i) => i !== lastIndex);
     });
-  };
+  }, []);
 
-  const clearDraft = () => {
+  const clearDraft = useCallback(() => {
     setImages((prev) => {
-      prev.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+      prev.forEach((entry) => {
+        try {
+          URL.revokeObjectURL(entry.previewUrl);
+        } catch {
+          // Cleanup failure is non-critical
+        }
+      });
       return [];
     });
-  };
+  }, []);
 
   const value = useMemo(
     () => ({ images, setImage, removeImage, clearDraft }),
-    [images],
+    [images, setImage, removeImage, clearDraft],
   );
 
   return (

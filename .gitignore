@@ -62,8 +62,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+backend/lib/
+backend/lib64/
 parts/
 sdist/
 var/
@@ -79,3 +79,4 @@ MANIFEST
 *.bak
 .DS_Store
 Thumbs.db
+*SUMMARY*.md
