@@ -48,7 +48,7 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
 
 
 def _process_and_store(session_id: str, user_id: str, images: list) -> None:
-    analysis = run_analysis(images)
+    analysis = run_analysis(images, user_id, session_id)
     _persist_analysis(session_id, user_id, analysis)
 
 
@@ -100,7 +100,7 @@ def analyze_session(
             },
         }
 
-    analysis = run_analysis(images)
+    analysis = run_analysis(images, user_id, session_id)
     overwritten = _persist_analysis(session_id, user_id, analysis)
 
     return {
