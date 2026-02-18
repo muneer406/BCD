@@ -35,6 +35,7 @@ def _load_session_embedding(session_id: str) -> np.ndarray | None:
     """
     Load session embedding from database.
     """
+    import json
     supabase = get_supabase_client()
     result = (
         supabase.table("session_embeddings")
@@ -47,7 +48,11 @@ def _load_session_embedding(session_id: str) -> np.ndarray | None:
     if not result.data:
         return None
 
-    return np.array(result.data[0]["embedding"])
+    emb = result.data[0]["embedding"]
+    # Parse JSON string if stored as text
+    if isinstance(emb, str):
+        emb = json.loads(emb)
+    return np.array(emb, dtype=np.float32)
 
 
 def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:

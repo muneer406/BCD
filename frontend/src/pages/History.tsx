@@ -13,7 +13,6 @@ import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
 import { useSessionCache } from "../context/SessionCacheContext";
 import { supabase } from "../lib/supabaseClient";
-import { apiClient } from "../lib/apiClient";
 
 type SessionRow = {
   id: string;
@@ -41,48 +40,27 @@ export function History() {
   const prevUserIdRef = useRef<string | undefined>(undefined);
   const [totalSessions, setTotalSessions] = useState(0);
 
-  // Process session data - add thumbnails and metadata
+  // Process session data - add metadata (no thumbnails for privacy)
   const processSessionsData = useCallback(
-    async (rows: SessionRow[]): Promise<SessionWithThumbnail[]> => {
-      // Get JWT token for API calls
-      const token = user?.id
-        ? (await supabase.auth.getSession()).data.session?.access_token || ""
-        : "";
+    async (
+      rows: SessionRow[],
+      totalCount: number,
+    ): Promise<SessionWithThumbnail[]> => {
+      return rows.map((session, index) => {
+        const imageCount = session.images?.length ?? 0;
+        // Sessions are ordered by most recent first, so calculate chronological number
+        // sessionNumber = totalSessions - ((page - 1) * pageSize + index)
+        const sessionNumber = totalCount - ((page - 1) * pageSize + index);
 
-      return Promise.all(
-        rows.map(async (session, index) => {
-          // Get thumbnail via backend API
-          let thumbnailUrl: string | undefined;
-          const imageCount = session.images?.length ?? 0;
-
-          if (imageCount > 0 && token) {
-            try {
-              // Get thumbnails for this session
-              const thumbnails = await apiClient.getSessionThumbnails(
-                session.id,
-                token,
-              );
-              // Use first available thumbnail
-              const firstThumb = Object.values(thumbnails.thumbnails)[0];
-              thumbnailUrl = firstThumb || undefined;
-            } catch {
-              // Thumbnail load failed - continue without it
-            }
-          }
-
-          // Calculate session number (from most recent)
-          const sessionNumber = (page - 1) * pageSize + index + 1;
-
-          return {
-            ...session,
-            thumbnailUrl,
-            imageCount,
-            sessionNumber,
-          };
-        }),
-      );
+        return {
+          ...session,
+          thumbnailUrl: undefined, // Never show thumbnails for privacy
+          imageCount,
+          sessionNumber,
+        };
+      });
     },
-    [user?.id, page, pageSize],
+    [page, pageSize],
   );
 
   useEffect(() => {
@@ -121,12 +99,25 @@ export function History() {
       }
 
       try {
+        // Always fetch total count on first page (needed for session numbering)
+        let currentTotal = totalSessions;
+        if (page === 1 && !totalSessions) {
+          const { count } = await supabase
+            .from("sessions")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id);
+          if (!active) return;
+          currentTotal = count ?? 0;
+          setTotalSessions(currentTotal);
+        }
+
         // Try to get from cache first
         const cachedData = getCachedSessions(user.id, page);
         if (cachedData) {
           if (!active) return;
           const processedData = await processSessionsData(
             cachedData as SessionRow[],
+            currentTotal,
           );
           setSessions((prev) =>
             page === 1 ? processedData : [...prev, ...processedData],
@@ -159,26 +150,13 @@ export function History() {
 
         const rows = (data as SessionRow[]) ?? [];
 
-        // Get total count on first load
-        let currentTotal = totalSessions;
-        if (page === 1 && !totalSessions) {
-          const { count } = await supabase
-            .from("sessions")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", user.id);
-
-          if (!active) return;
-          currentTotal = count ?? 0;
-          setTotalSessions(currentTotal);
-        }
-
         // Cache the results
         if (rows.length > 0) {
           setCachedSessions(user.id, page, rows);
         }
 
         // Process sessions - add thumbnail and other metadata
-        const processedData = await processSessionsData(rows);
+        const processedData = await processSessionsData(rows, currentTotal);
         setSessions((prev) =>
           page === 1 ? processedData : [...prev, ...processedData],
         );

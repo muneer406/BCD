@@ -4,6 +4,7 @@ Production-ready session analysis with real ML pipeline.
 """
 
 from typing import Dict, List
+import json
 import numpy as np
 
 from ..processing.embedding import extract_embedding
@@ -28,8 +29,17 @@ def _load_user_baseline(user_id: str) -> np.ndarray | None:
     if not result.data:
         return None
 
-    # Convert stored embeddings to numpy arrays
-    embeddings = [np.array(row["embedding"]) for row in result.data]
+    # Convert stored embeddings to numpy arrays, parsing JSON if needed
+    embeddings = []
+    for row in result.data:
+        emb = row.get("embedding")
+        # Parse JSON string if it's a string, otherwise assume it's already a list
+        if isinstance(emb, str):
+            emb = json.loads(emb)
+        embeddings.append(np.array(emb, dtype=np.float32))
+
+    if not embeddings:
+        return None
 
     # Return mean as baseline
     return np.mean(embeddings, axis=0)
