@@ -94,7 +94,7 @@ export function Result() {
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [comparisonData, setComparisonData] =
     useState<ComparisonResponse | null>(null);
-  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonLoading, setComparisonLoading] = useState(true);
   const [loading, setLoading] = useState(true); // only for session-info
   const [error, setError] = useState<string | null>(null);
 
@@ -117,6 +117,7 @@ export function Result() {
         if (!active) return;
 
         setIsFirstSession(sessionInfo.is_first_session);
+        if (sessionInfo.is_first_session) setComparisonLoading(false);
         setLoading(false); // Render the page skeleton immediately
 
         // ── Step 2: Load images + analysis IN PARALLEL ─────────────────────
@@ -441,18 +442,39 @@ export function Result() {
 
           <Card className="space-y-5">
             {comparisonLoading ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="rounded-2xl border border-sand-100 bg-sand-50 p-4 space-y-2"
-                  >
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-8 w-full" />
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded-2xl border border-sand-100 bg-sand-50 p-4 space-y-2"
+                    >
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-2xl bg-white/70 p-4 space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <div className="space-y-3">
+                  <Skeleton className="h-4 w-36" />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-sand-100 bg-sand-50 p-3 space-y-2"
+                      >
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-3 w-12" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              </>
             ) : comparisonData?.data ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2">
