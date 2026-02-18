@@ -71,20 +71,26 @@ def _load_angle_scores(session_id: str) -> Dict[str, float]:
 
 
 def _load_angle_embeddings(session_id: str) -> Dict[str, np.ndarray]:
-    """Load per-angle embeddings from angle_embeddings table."""
-    supabase = get_supabase_client()
-    result = (
-        supabase.table("angle_embeddings")
-        .select("angle_type, embedding")
-        .eq("session_id", session_id)
-        .execute()
-    )
-    out: Dict[str, np.ndarray] = {}
-    for row in (result.data or []):
-        emb = _parse_embedding(row["embedding"])
-        if emb is not None:
-            out[row["angle_type"]] = emb
-    return out
+    """Load per-angle embeddings from angle_embeddings table.
+    Returns empty dict if the table does not exist yet
+    (run PHASE4_MIGRATION.sql to create it).
+    """
+    try:
+        supabase = get_supabase_client()
+        result = (
+            supabase.table("angle_embeddings")
+            .select("angle_type, embedding")
+            .eq("session_id", session_id)
+            .execute()
+        )
+        out: Dict[str, np.ndarray] = {}
+        for row in (result.data or []):
+            emb = _parse_embedding(row["embedding"])
+            if emb is not None:
+                out[row["angle_type"]] = emb
+        return out
+    except Exception:
+        return {}
 
 
 def _load_session_embedding(session_id: str) -> Optional[np.ndarray]:

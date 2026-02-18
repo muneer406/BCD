@@ -44,7 +44,12 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         "overall_change_score": scores.get("overall_change_score", 0.0),
         "trend_score": scores.get("trend_score"),  # None on first session
     }
-    supabase.table("session_analysis").insert(session_row).execute()
+    try:
+        supabase.table("session_analysis").insert(session_row).execute()
+    except Exception:
+        # trend_score column may not exist if PHASE4_MIGRATION.sql not run yet
+        session_row.pop("trend_score", None)
+        supabase.table("session_analysis").insert(session_row).execute()
 
     return overwritten
 
