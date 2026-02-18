@@ -476,12 +476,13 @@ export function Result() {
                             {title}
                           </p>
                           <p className="mt-1 text-xs font-semibold text-tide-600">
-                            Delta: {result.delta.toFixed(2)}
+                            Delta: {result.delta > 0 ? "+" : ""}
+                            {result.delta.toFixed(2)}
                           </p>
                           <p className="mt-2 text-xs text-ink-700">
-                            {result.delta < 0.1
+                            {Math.abs(result.delta) < 0.1
                               ? "No significant change"
-                              : result.delta < 0.25
+                              : Math.abs(result.delta) < 0.25
                                 ? "Mild variation detected"
                                 : "Notable change detected"}
                           </p>
