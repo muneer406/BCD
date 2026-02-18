@@ -18,10 +18,17 @@ import { apiClient } from "../lib/apiClient";
 
 type ImagePreviewMap = Record<string, string | null>;
 
+type BaselineLayer = {
+  delta: number | null;
+  trend: string | null;
+  available: boolean;
+};
+
 type AnalysisResponse = {
   success: boolean;
   data?: {
     session_id: string;
+    is_first_session?: boolean;
     session_analysis?: {
       per_angle: Array<{
         angle_type: string;
@@ -29,10 +36,10 @@ type AnalysisResponse = {
         summary: string;
       }>;
       overall_summary: string;
-      overall_change_score: number;
     };
     scores?: {
       change_score: number;
+      trend_score: number | null;
     };
   };
   error?: string;
@@ -44,10 +51,14 @@ type ComparisonResponse = {
     per_angle: Array<{
       angle_type: string;
       delta: number;
+      embedding_distance: number | null;
     }>;
     overall_delta: number;
     overall_trend: string;
     comparison_method: string;
+    rolling_baseline: BaselineLayer;
+    monthly_baseline: BaselineLayer;
+    lifetime_baseline: BaselineLayer;
   };
   error?: string;
 };
@@ -298,7 +309,8 @@ export function Result() {
   }
 
   const analysisResults = analysisData?.data?.session_analysis;
-  const changeScore = analysisData?.data?.scores?.change_score ?? 0;
+  const changeScore  = analysisData?.data?.scores?.change_score ?? 0;
+  const trendScore   = analysisData?.data?.scores?.trend_score ?? null;
 
   return (
     <PageShell className="space-y-10">
@@ -327,7 +339,7 @@ export function Result() {
                 ? "Your first session establishes the baseline for all future comparisons."
                 : analysisLoading
                   ? "Calculating change score..."
-                  : `Change score: ${changeScore.toFixed(2)} ${changeScore === 0 ? "(no change from baseline)" : "(compared to baseline)"}`}
+                  : `Change score: ${changeScore.toFixed(2)}${trendScore !== null ? ` · Trend avg: ${trendScore.toFixed(2)}` : ""}`}
             </p>
           </div>
         </div>
@@ -483,14 +495,48 @@ export function Result() {
                       );
                     })}
                 </div>
+                {/* Overall trend */}
                 <div className="rounded-2xl bg-white/70 p-4">
                   <p className="font-semibold text-sm text-ink-900">
                     Overall trend
                   </p>
                   <p className="mt-2 text-sm text-ink-700 capitalize">
-                    {comparisonData.data.overall_trend.replace("_", " ")}
+                    {comparisonData.data.overall_trend.replace(/_/g, " ")}
                   </p>
                 </div>
+
+                {/* Rolling / monthly / lifetime baselines */}
+                {(comparisonData.data.rolling_baseline?.available ||
+                  comparisonData.data.monthly_baseline?.available ||
+                  comparisonData.data.lifetime_baseline?.available) && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-ink-900">Baseline comparisons</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {([
+                        { key: "rolling_baseline",  label: "Rolling (last 5)" },
+                        { key: "monthly_baseline",  label: "Monthly (30 days)" },
+                        { key: "lifetime_baseline", label: "Lifetime" },
+                      ] as const).map(({ key, label }) => {
+                        const layer = comparisonData.data![key];
+                        if (!layer?.available) return null;
+                        return (
+                          <div
+                            key={key}
+                            className="rounded-xl border border-sand-100 bg-sand-50 p-3"
+                          >
+                            <p className="text-xs font-semibold text-ink-900">{label}</p>
+                            <p className="mt-1 text-xs font-semibold text-tide-600">
+                              Δ {layer.delta!.toFixed(3)}
+                            </p>
+                            <p className="mt-1 text-xs text-ink-700 capitalize">
+                              {layer.trend!.replace(/_/g, " ")}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <p className="text-sm text-ink-700 py-4 text-center">
