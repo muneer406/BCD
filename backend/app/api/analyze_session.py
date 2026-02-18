@@ -37,10 +37,12 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
     if per_angle_rows:
         supabase.table("angle_analysis").insert(per_angle_rows).execute()
 
+    scores = analysis.get("scores", {})
     session_row = {
         "session_id": session_id,
         "user_id": user_id,
-        "overall_change_score": analysis["scores"].get("overall_change_score", 0.0),
+        "overall_change_score": scores.get("overall_change_score", 0.0),
+        "trend_score": scores.get("trend_score"),  # None on first session
     }
     supabase.table("session_analysis").insert(session_row).execute()
 
@@ -105,18 +107,20 @@ def analyze_session(
     analysis = run_analysis(images, user_id, session_id)
     overwritten = _persist_analysis(session_id, user_id, analysis)
 
+    scores = analysis.get("scores", {})
     return {
         "success": True,
         "data": {
             "session_id": session_id,
             "overwritten": overwritten,
+            "is_first_session": scores.get("is_first_session", False),
             "session_analysis": {
                 "per_angle": analysis["per_angle"],
                 "overall_summary": analysis["overall_summary"],
             },
             "scores": {
-                "change_score": analysis["scores"].get("overall_change_score", 0.0),
-                "confidence": 0.85,
+                "change_score": scores.get("overall_change_score", 0.0),
+                "trend_score": scores.get("trend_score"),
             },
         },
     }

@@ -77,6 +77,7 @@ export const apiClient = {
     is_current: boolean;
     total_sessions: number;
     created_at: string;
+    previous_session_id: string | null;
   }> {
     return this.request(`/session-info/${sessionId}`, token);
   },

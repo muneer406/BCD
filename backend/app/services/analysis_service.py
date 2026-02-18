@@ -1,9 +1,10 @@
 """
 BCD Backend - analysis_service.py
-Production-ready session analysis with real ML pipeline.
+Phase 4: Multi-angle aggregation, correct baseline comparison, trend tracking.
 """
 
-from typing import Dict, List
+from collections import defaultdict
+from typing import Dict, List, Optional
 import json
 import numpy as np
 
@@ -12,139 +13,206 @@ from ..processing.preprocessing import preprocess_pipeline
 from .db import get_supabase_client
 
 
-def _load_user_baseline(user_id: str) -> np.ndarray | None:
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _parse_embedding(raw) -> Optional[np.ndarray]:
+    """Parse an embedding from DB (vector string, JSON string, or list)."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    return np.array(raw, dtype=np.float32)
+
+
+def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine distance = 1 − cosine_similarity. Returns 1.0 if either vector is zero."""
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0:
+        return 1.0
+    return float(1.0 - np.dot(a, b) / (norm_a * norm_b))
+
+
+# ---------------------------------------------------------------------------
+# Baseline loading
+# ---------------------------------------------------------------------------
+
+def _load_user_baseline(user_id: str, exclude_session_id: str) -> Optional[np.ndarray]:
     """
-    Load rolling baseline embedding for user.
-    Returns mean of all previous session embeddings.
+    Rolling lifetime baseline: mean of ALL stored session embeddings for user,
+    excluding the current session (so baseline is always prior sessions only).
+    Returns None for first session (no prior data).
     """
     supabase = get_supabase_client()
-
     result = (
         supabase.table("session_embeddings")
         .select("embedding")
         .eq("user_id", user_id)
+        .neq("session_id", exclude_session_id)
         .execute()
     )
-
     if not result.data:
         return None
 
-    # Convert stored embeddings to numpy arrays, parsing JSON if needed
-    embeddings = []
-    for row in result.data:
-        emb = row.get("embedding")
-        # Parse JSON string if it's a string, otherwise assume it's already a list
-        if isinstance(emb, str):
-            emb = json.loads(emb)
-        embeddings.append(np.array(emb, dtype=np.float32))
-
+    rows: list = result.data or []
+    embeddings = [_parse_embedding(row["embedding"]) for row in rows]
+    embeddings = [e for e in embeddings if e is not None]
     if not embeddings:
         return None
-
-    # Return mean as baseline
     return np.mean(embeddings, axis=0)
 
 
-def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
+# ---------------------------------------------------------------------------
+# Trend score
+# ---------------------------------------------------------------------------
+
+def _load_trend_score(user_id: str, exclude_session_id: str, n: int = 5) -> Optional[float]:
     """
-    Calculate cosine distance between two vectors.
-    Distance = 1 - cosine_similarity
-    """
-    dot_product = np.dot(a, b)
-    norm_a = np.linalg.norm(a)
-    norm_b = np.linalg.norm(b)
-
-    if norm_a == 0 or norm_b == 0:
-        return 1.0
-
-    cosine_sim = dot_product / (norm_a * norm_b)
-    return 1.0 - cosine_sim
-
-
-def _store_session_embedding(session_id: str, user_id: str, embedding: np.ndarray):
-    """
-    Store session embedding in database.
+    Compute moving-average trend score from last N sessions' overall_change_scores.
+    Returns None if there is no prior history.
     """
     supabase = get_supabase_client()
+    result = (
+        supabase.table("session_analysis")
+        .select("overall_change_score")
+        .eq("user_id", user_id)
+        .neq("session_id", exclude_session_id)
+        .order("created_at", desc=True)
+        .limit(n)
+        .execute()
+    )
+    score_rows: list = result.data or []
+    scores = [
+        float(row["overall_change_score"])
+        for row in score_rows
+        if row.get("overall_change_score") is not None
+    ]
+    if not scores:
+        return None
+    return float(np.mean(scores))
 
-    # Delete existing embedding for this session (idempotent)
-    supabase.table("session_embeddings").delete().eq(
-        "session_id", session_id).execute()
 
-    # Store new embedding
+# ---------------------------------------------------------------------------
+# Storage helpers
+# ---------------------------------------------------------------------------
+
+def _store_angle_embeddings(session_id: str, user_id: str, angle_embeddings: Dict[str, np.ndarray]) -> None:
+    """Store per-angle embeddings (idempotent: delete then insert)."""
+    supabase = get_supabase_client()
+    supabase.table("angle_embeddings").delete().eq("session_id", session_id).execute()
+    rows = [
+        {
+            "session_id": session_id,
+            "user_id": user_id,
+            "angle_type": angle_type,
+            "embedding": embedding.tolist(),
+        }
+        for angle_type, embedding in angle_embeddings.items()
+    ]
+    if rows:
+        supabase.table("angle_embeddings").insert(rows).execute()
+
+
+def _store_session_embedding(session_id: str, user_id: str, embedding: np.ndarray) -> None:
+    """Store session-level embedding (idempotent)."""
+    supabase = get_supabase_client()
+    supabase.table("session_embeddings").delete().eq("session_id", session_id).execute()
     supabase.table("session_embeddings").insert({
         "session_id": session_id,
         "user_id": user_id,
-        "embedding": embedding.tolist()
+        "embedding": embedding.tolist(),
     }).execute()
 
 
+# ---------------------------------------------------------------------------
+# Main pipeline
+# ---------------------------------------------------------------------------
+
 def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[str, object]:
     """
-    Analyze session using real ML pipeline.
+    Phase 4 analysis pipeline.
 
-    Args:
-        images: List of image records with storage_path and image_type
-        user_id: User ID for baseline calculation
-        session_id: Session ID for embedding storage
+    Aggregation hierarchy:
+        image  →  angle embedding (mean of images for that angle)
+        angle  →  session embedding (mean of angle embeddings)
 
-    Returns:
-        Analysis results with per-angle scores and overall metrics
+    Comparison:
+        Each angle and the session overall are compared against the user's
+        lifetime baseline (mean of all prior session embeddings).
+        First session always returns change_score = 0 (establishes baseline).
+
+    Returns dict consumed by _persist_analysis and the API response.
     """
     supabase = get_supabase_client()
 
-    # Load user baseline (rolling average of previous sessions)
-    user_baseline = _load_user_baseline(user_id)
+    # ── 1. Load prior baseline (excludes current session) ────────────────────
+    user_baseline = _load_user_baseline(user_id, exclude_session_id=session_id)
+    is_first_session = user_baseline is None
 
-    # Process each image
-    image_embeddings: List[np.ndarray] = []
+    # ── 2. Group images by angle type (multi-image support) ──────────────────
+    angle_groups: Dict[str, List[dict]] = defaultdict(list)
+    for image_record in images:
+        angle_type = image_record.get("image_type", "unknown")
+        angle_groups[angle_type].append(image_record)
+
+    # ── 3. Extract embeddings per angle → compute angle-level mean ───────────
+    angle_embeddings: Dict[str, np.ndarray] = {}
     per_angle_results: List[Dict[str, object]] = []
 
-    for image_record in images:
-        storage_path = image_record.get("storage_path", "")
+    for angle_type, angle_images in angle_groups.items():
+        image_embeddings_for_angle: List[np.ndarray] = []
 
-        # Real preprocessing pipeline
-        processed_image = preprocess_pipeline(storage_path, supabase)
+        for image_record in angle_images:
+            storage_path = image_record.get("storage_path", "")
+            processed_image = preprocess_pipeline(storage_path, supabase)
+            # Pass user_mean for per-user normalization (subtracts baseline mean)
+            embedding = extract_embedding(processed_image, user_mean=user_baseline)
+            image_embeddings_for_angle.append(embedding)
 
-        # Real embedding extraction with user normalization
-        embedding = extract_embedding(processed_image, user_mean=user_baseline)
-        image_embeddings.append(embedding)
+        # Angle embedding = mean across all images captured for this angle
+        angle_embedding = np.mean(image_embeddings_for_angle, axis=0)
+        angle_embeddings[angle_type] = angle_embedding
 
-        # Calculate change score for this angle
-        if user_baseline is not None:
-            # Distance from baseline
-            distance = _cosine_distance(embedding, np.zeros_like(embedding))
-            change_score = min(1.0, distance)
+        # Change score: distance from baseline; 0 for first session
+        if not is_first_session:
+            change_score = min(1.0, _cosine_distance(angle_embedding, user_baseline))
         else:
-            # First session - no baseline yet
             change_score = 0.0
 
         per_angle_results.append({
-            "angle_type": image_record.get("image_type"),
+            "angle_type": angle_type,
             "change_score": float(change_score),
-            "summary": f"Distance-based analysis for {image_record.get('image_type')} angle.",
+            "summary": f"Distance-based analysis for {angle_type} angle.",
         })
 
-    # Compute session-level embedding (mean of all angles)
-    session_embedding = np.mean(image_embeddings, axis=0)
+    # ── 4. Session embedding = mean of angle embeddings ──────────────────────
+    session_embedding = np.mean(list(angle_embeddings.values()), axis=0)
 
-    # Store session embedding for future baseline calculations
+    # ── 5. Store embeddings ───────────────────────────────────────────────────
+    _store_angle_embeddings(session_id, user_id, angle_embeddings)
     _store_session_embedding(session_id, user_id, session_embedding)
 
-    # Calculate overall change score
-    if user_baseline is not None:
-        # Distance from baseline using session embedding
-        overall_distance = _cosine_distance(
-            session_embedding, np.zeros_like(session_embedding))
-        overall_change_score = min(1.0, overall_distance)
+    # ── 6. Overall change score ───────────────────────────────────────────────
+    if not is_first_session:
+        overall_change_score = min(1.0, _cosine_distance(session_embedding, user_baseline))
     else:
-        # First session
         overall_change_score = 0.0
+
+    # ── 7. Trend score (moving average of last 5 prior sessions) ─────────────
+    trend_score = _load_trend_score(user_id, exclude_session_id=session_id)
 
     return {
         "per_angle": per_angle_results,
-        "overall_summary": f"Real ML analysis complete. Baseline: {'available' if user_baseline is not None else 'establishing'}.",
+        "overall_summary": (
+            "Baseline established. Future sessions will be compared to this."
+            if is_first_session
+            else "ML analysis complete. Scores reflect distance from your personal baseline."
+        ),
         "scores": {
-            "overall_change_score": float(overall_change_score)
-        }
+            "overall_change_score": float(overall_change_score),
+            "trend_score": float(trend_score) if trend_score is not None else None,
+            "is_first_session": is_first_session,
+        },
     }
