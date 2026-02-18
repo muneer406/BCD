@@ -36,8 +36,15 @@ def get_image_preview(
     """
     supabase = get_supabase_client()
 
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user context",
+        )
+
     # Verify session belongs to user
-    session = get_session(session_id, user.id)
+    session = get_session(session_id, user_id)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -48,28 +55,50 @@ def get_image_preview(
     try:
         images_response = supabase.table("images").select(
             "storage_path"
-        ).eq("session_id", session_id).eq("image_type", image_type).maybeSingle().execute()
+        ).eq("session_id", session_id).eq("image_type", image_type).execute()
 
-        image = images_response.data
-        if not image or not image.get("storage_path"):
+        images = images_response.data or []
+        if not images:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Image not found for angle: {image_type}",
             )
 
+        image = images[0]
+        storage_path = image.get("storage_path") if isinstance(
+            image, dict) else None
+
+        if not storage_path:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Image storage path not found for angle: {image_type}",
+            )
+
         # Generate signed URL
         signed_url_response = supabase.storage.from_("bcd-images").create_signed_url(
-            image["storage_path"], 3600
+            storage_path, 3600
         )
 
-        if not signed_url_response or not signed_url_response.get("signedUrl"):
+        # Handle different response formats from Supabase storage client
+        signed_url = None
+        if isinstance(signed_url_response, dict):
+            # Direct dict response
+            signed_url = signed_url_response.get(
+                "signedUrl") or signed_url_response.get("signedURL")
+        elif hasattr(signed_url_response, "data"):
+            # Wrapped in response object
+            data = signed_url_response.data
+            if isinstance(data, dict):
+                signed_url = data.get("signedUrl") or data.get("signedURL")
+
+        if not signed_url:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to generate preview URL",
             )
 
         return {
-            "preview_url": signed_url_response["signedUrl"],
+            "preview_url": signed_url,
             "expires_in": 3600,
             "image_type": image_type,
         }
@@ -111,9 +140,16 @@ def get_session_info(
     """
     supabase = get_supabase_client()
 
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user context",
+        )
+
     try:
         # Get session
-        session = get_session(session_id, user.id)
+        session = get_session(session_id, user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -123,18 +159,38 @@ def get_session_info(
         # Count total user sessions
         count_response = supabase.table("sessions").select(
             "id", count="exact", head=True
-        ).eq("user_id", user.id).execute()
+        ).eq("user_id", user_id).execute()
 
         total_sessions = count_response.count or 0
-        is_first_session = total_sessions <= 1
+
+        # Get the oldest (first chronologically) session for this user
+        oldest_response = supabase.table("sessions").select(
+            "id"
+        ).eq("user_id", user_id).order("created_at", desc=False).limit(1).execute()
+
+        oldest_rows = oldest_response.data or []
+        oldest_session = oldest_rows[0] if oldest_rows else None
+        is_first_session = oldest_session and oldest_session.get(
+            "id") == session_id
 
         # Get most recent session to check if current is latest
         latest_response = supabase.table("sessions").select(
             "id"
-        ).eq("user_id", user.id).order("created_at", ascending=False).limit(1).maybeSingle().execute()
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(1).execute()
 
-        latest_session = latest_response.data
+        latest_rows = latest_response.data or []
+        latest_session = latest_rows[0] if latest_rows else None
         is_current = latest_session and latest_session.get("id") == session_id
+
+        # Get previous session (second most recent) for comparisons
+        previous_session_id = None
+        if not is_first_session:
+            all_sessions_response = supabase.table("sessions").select(
+                "id"
+            ).eq("user_id", user_id).order("created_at", desc=True).limit(2).execute()
+            session_rows = all_sessions_response.data or []
+            if len(session_rows) >= 2:
+                previous_session_id = session_rows[1].get("id")
 
         return {
             "session_id": session_id,
@@ -142,6 +198,7 @@ def get_session_info(
             "is_current": is_current,
             "total_sessions": total_sessions,
             "created_at": session.get("created_at"),
+            "previous_session_id": previous_session_id,
         }
 
     except HTTPException:
@@ -179,9 +236,16 @@ def get_session_thumbnails(
     """
     supabase = get_supabase_client()
 
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user context",
+        )
+
     try:
         # Verify session belongs to user
-        session = get_session(session_id, user.id)
+        session = get_session(session_id, user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -209,8 +273,19 @@ def get_session_thumbnails(
                     storage_path, 3600
                 )
 
-                if signed_url_response and signed_url_response.get("signedUrl"):
-                    thumbnails[image_type] = signed_url_response["signedUrl"]
+                # Handle different response formats
+                signed_url = None
+                if isinstance(signed_url_response, dict):
+                    signed_url = signed_url_response.get(
+                        "signedUrl") or signed_url_response.get("signedURL")
+                elif hasattr(signed_url_response, "data"):
+                    data = signed_url_response.data
+                    if isinstance(data, dict):
+                        signed_url = data.get(
+                            "signedUrl") or data.get("signedURL")
+
+                if signed_url:
+                    thumbnails[image_type] = signed_url
             except Exception:
                 # Skip images that fail to generate URLs
                 pass
