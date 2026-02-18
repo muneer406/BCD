@@ -48,7 +48,8 @@ def compare_sessions(
         )
 
     try:
-        comparison = run_comparison(current_session_id, previous_session_id, user_id=user_id)
+        comparison = run_comparison(
+            current_session_id, previous_session_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

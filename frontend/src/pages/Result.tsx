@@ -309,8 +309,8 @@ export function Result() {
   }
 
   const analysisResults = analysisData?.data?.session_analysis;
-  const changeScore  = analysisData?.data?.scores?.change_score ?? 0;
-  const trendScore   = analysisData?.data?.scores?.trend_score ?? null;
+  const changeScore = analysisData?.data?.scores?.change_score ?? 0;
+  const trendScore = analysisData?.data?.scores?.trend_score ?? null;
 
   return (
     <PageShell className="space-y-10">
@@ -510,13 +510,23 @@ export function Result() {
                   comparisonData.data.monthly_baseline?.available ||
                   comparisonData.data.lifetime_baseline?.available) && (
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold text-ink-900">Baseline comparisons</p>
+                    <p className="text-sm font-semibold text-ink-900">
+                      Baseline comparisons
+                    </p>
                     <div className="grid gap-3 sm:grid-cols-3">
-                      {([
-                        { key: "rolling_baseline",  label: "Rolling (last 5)" },
-                        { key: "monthly_baseline",  label: "Monthly (30 days)" },
-                        { key: "lifetime_baseline", label: "Lifetime" },
-                      ] as const).map(({ key, label }) => {
+                      {(
+                        [
+                          {
+                            key: "rolling_baseline",
+                            label: "Rolling (last 5)",
+                          },
+                          {
+                            key: "monthly_baseline",
+                            label: "Monthly (30 days)",
+                          },
+                          { key: "lifetime_baseline", label: "Lifetime" },
+                        ] as const
+                      ).map(({ key, label }) => {
                         const layer = comparisonData.data![key];
                         if (!layer?.available) return null;
                         return (
@@ -524,7 +534,9 @@ export function Result() {
                             key={key}
                             className="rounded-xl border border-sand-100 bg-sand-50 p-3"
                           >
-                            <p className="text-xs font-semibold text-ink-900">{label}</p>
+                            <p className="text-xs font-semibold text-ink-900">
+                              {label}
+                            </p>
                             <p className="mt-1 text-xs font-semibold text-tide-600">
                               Δ {layer.delta!.toFixed(3)}
                             </p>
