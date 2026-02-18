@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .api.analyze_session import router as analyze_router
 from .api.compare_sessions import router as compare_router
@@ -32,6 +33,21 @@ app.include_router(compare_router, prefix=settings.api_prefix)
 app.include_router(report_router, prefix=settings.api_prefix)
 app.include_router(session_analysis_router, prefix=settings.api_prefix)
 app.include_router(utility_router, prefix=settings.api_prefix)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Catch-all for unhandled exceptions so that FastAPI (not Starlette's
+    ServerErrorMiddleware) generates the 500 response.  This keeps the response
+    inside the CORS middleware stack and ensures the appropriate
+    Access-Control-Allow-Origin header is always present on error responses.
+    """
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Internal server error: {type(exc).__name__}: {exc}"},
+    )
 
 
 @app.get("/")
