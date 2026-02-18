@@ -13,7 +13,7 @@ from .db import get_supabase_client
 
 
 STABLE_THRESHOLD = 0.1
-MILD_THRESHOLD   = 0.25
+MILD_THRESHOLD = 0.25
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,8 @@ def _load_rolling_baseline(user_id: str, current_session_id: str, n: int = 5) ->
         .limit(n)
         .execute()
     )
-    embeddings = [_parse_embedding(r["embedding"]) for r in (result.data or [])]
+    embeddings = [_parse_embedding(r["embedding"])
+                  for r in (result.data or [])]
     return _mean_of_embeddings([e for e in embeddings if e is not None])
 
 
@@ -130,7 +131,8 @@ def _load_monthly_baseline(user_id: str, current_session_id: str) -> Optional[np
         .gte("created_at", cutoff)
         .execute()
     )
-    embeddings = [_parse_embedding(r["embedding"]) for r in (result.data or [])]
+    embeddings = [_parse_embedding(r["embedding"])
+                  for r in (result.data or [])]
     return _mean_of_embeddings([e for e in embeddings if e is not None])
 
 
@@ -144,7 +146,8 @@ def _load_lifetime_baseline(user_id: str, current_session_id: str) -> Optional[n
         .neq("session_id", current_session_id)
         .execute()
     )
-    embeddings = [_parse_embedding(r["embedding"]) for r in (result.data or [])]
+    embeddings = [_parse_embedding(r["embedding"])
+                  for r in (result.data or [])]
     return _mean_of_embeddings([e for e in embeddings if e is not None])
 
 
@@ -170,26 +173,27 @@ def compare_sessions(
     Returns full comparison dict consumed by the API handler and frontend.
     """
     # ── Load per-angle scores (required) ─────────────────────────────────────
-    current_scores   = _load_angle_scores(current_session_id)
-    previous_scores  = _load_angle_scores(previous_session_id)
+    current_scores = _load_angle_scores(current_session_id)
+    previous_scores = _load_angle_scores(previous_session_id)
 
     if not current_scores or not previous_scores:
-        raise ValueError("Missing analysis results for one or both sessions. Run analyze-session first.")
+        raise ValueError(
+            "Missing analysis results for one or both sessions. Run analyze-session first.")
 
     # ── Load session embeddings ───────────────────────────────────────────────
-    current_emb  = _load_session_embedding(current_session_id)
+    current_emb = _load_session_embedding(current_session_id)
     previous_emb = _load_session_embedding(previous_session_id)
 
     # ── Load per-angle embeddings ─────────────────────────────────────────────
-    current_angle_embs  = _load_angle_embeddings(current_session_id)
+    current_angle_embs = _load_angle_embeddings(current_session_id)
     previous_angle_embs = _load_angle_embeddings(previous_session_id)
 
     # ── Layer 1: Immediate comparison (current vs previous) ──────────────────
     if current_emb is not None and previous_emb is not None:
-        immediate_delta  = _cosine_distance(current_emb, previous_emb)
+        immediate_delta = _cosine_distance(current_emb, previous_emb)
         comparison_method = "embedding"
     else:
-        immediate_delta  = 0.0
+        immediate_delta = 0.0
         comparison_method = "score"
 
     # ── Layer 2: Rolling baseline (last 3–5 sessions) ────────────────────────
@@ -246,11 +250,12 @@ def compare_sessions(
             "embedding_distance": angle_embedding_distance,
         })
 
-    avg_score_delta = sum(score_deltas) / len(score_deltas) if score_deltas else 0.0
+    avg_score_delta = sum(score_deltas) / \
+        len(score_deltas) if score_deltas else 0.0
 
     # Use best available overall delta
     overall_delta = immediate_delta if comparison_method == "embedding" else avg_score_delta
-    overall_trend   = _trend_label(overall_delta)
+    overall_trend = _trend_label(overall_delta)
     stability_index = max(0.0, min(1.0, 1.0 - overall_delta))
 
     return {

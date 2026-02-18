@@ -101,7 +101,8 @@ def _load_trend_score(user_id: str, exclude_session_id: str, n: int = 5) -> Opti
 def _store_angle_embeddings(session_id: str, user_id: str, angle_embeddings: Dict[str, np.ndarray]) -> None:
     """Store per-angle embeddings (idempotent: delete then insert)."""
     supabase = get_supabase_client()
-    supabase.table("angle_embeddings").delete().eq("session_id", session_id).execute()
+    supabase.table("angle_embeddings").delete().eq(
+        "session_id", session_id).execute()
     rows = [
         {
             "session_id": session_id,
@@ -118,7 +119,8 @@ def _store_angle_embeddings(session_id: str, user_id: str, angle_embeddings: Dic
 def _store_session_embedding(session_id: str, user_id: str, embedding: np.ndarray) -> None:
     """Store session-level embedding (idempotent)."""
     supabase = get_supabase_client()
-    supabase.table("session_embeddings").delete().eq("session_id", session_id).execute()
+    supabase.table("session_embeddings").delete().eq(
+        "session_id", session_id).execute()
     supabase.table("session_embeddings").insert({
         "session_id": session_id,
         "user_id": user_id,
@@ -168,7 +170,8 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
             storage_path = image_record.get("storage_path", "")
             processed_image = preprocess_pipeline(storage_path, supabase)
             # Pass user_mean for per-user normalization (subtracts baseline mean)
-            embedding = extract_embedding(processed_image, user_mean=user_baseline)
+            embedding = extract_embedding(
+                processed_image, user_mean=user_baseline)
             image_embeddings_for_angle.append(embedding)
 
         # Angle embedding = mean across all images captured for this angle
@@ -177,7 +180,8 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
         # Change score: distance from baseline; 0 for first session
         if not is_first_session:
-            change_score = min(1.0, _cosine_distance(angle_embedding, user_baseline))
+            change_score = min(1.0, _cosine_distance(
+                angle_embedding, user_baseline))
         else:
             change_score = 0.0
 
@@ -196,7 +200,8 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
     # ── 6. Overall change score ───────────────────────────────────────────────
     if not is_first_session:
-        overall_change_score = min(1.0, _cosine_distance(session_embedding, user_baseline))
+        overall_change_score = min(1.0, _cosine_distance(
+            session_embedding, user_baseline))
     else:
         overall_change_score = 0.0
 
