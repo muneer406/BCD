@@ -99,21 +99,28 @@ def _load_trend_score(user_id: str, exclude_session_id: str, n: int = 5) -> Opti
 # ---------------------------------------------------------------------------
 
 def _store_angle_embeddings(session_id: str, user_id: str, angle_embeddings: Dict[str, np.ndarray]) -> None:
-    """Store per-angle embeddings (idempotent: delete then insert)."""
-    supabase = get_supabase_client()
-    supabase.table("angle_embeddings").delete().eq(
-        "session_id", session_id).execute()
-    rows = [
-        {
-            "session_id": session_id,
-            "user_id": user_id,
-            "angle_type": angle_type,
-            "embedding": embedding.tolist(),
-        }
-        for angle_type, embedding in angle_embeddings.items()
-    ]
-    if rows:
-        supabase.table("angle_embeddings").insert(rows).execute()
+    """Store per-angle embeddings (idempotent: delete then insert).
+    Silently skips if the angle_embeddings table does not exist yet
+    (run PHASE4_MIGRATION.sql to create it).
+    """
+    try:
+        supabase = get_supabase_client()
+        supabase.table("angle_embeddings").delete().eq(
+            "session_id", session_id).execute()
+        rows = [
+            {
+                "session_id": session_id,
+                "user_id": user_id,
+                "angle_type": angle_type,
+                "embedding": embedding.tolist(),
+            }
+            for angle_type, embedding in angle_embeddings.items()
+        ]
+        if rows:
+            supabase.table("angle_embeddings").insert(rows).execute()
+    except Exception:
+        # Table not yet created — skip gracefully until migration is run
+        pass
 
 
 def _store_session_embedding(session_id: str, user_id: str, embedding: np.ndarray) -> None:
