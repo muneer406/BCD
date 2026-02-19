@@ -1,15 +1,20 @@
 """
 BCD Backend - comparison_service.py
-Phase 4: Structured comparison layers — immediate, rolling, monthly, lifetime,
-         plus per-angle embedding comparison.
+Phase 5: Structured comparison layers — immediate, rolling, monthly, lifetime,
+         plus per-angle embedding comparison; variation level and trust indicators.
 """
 
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 import json
 import numpy as np
 
+from ..processing.quality import variation_level
 from .db import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 
 STABLE_THRESHOLD = 0.1
@@ -43,6 +48,17 @@ def _trend_label(distance: float) -> str:
     if distance < MILD_THRESHOLD:
         return "mild_variation"
     return "significant_shift"
+
+
+def _comparison_layers_used(rolling_available: bool, monthly_available: bool, lifetime_available: bool) -> List[str]:
+    layers = ["immediate"]
+    if rolling_available:
+        layers.append("rolling")
+    if monthly_available:
+        layers.append("monthly")
+    if lifetime_available:
+        layers.append("lifetime")
+    return layers
 
 
 def _mean_of_embeddings(embeddings: List[np.ndarray]) -> Optional[np.ndarray]:
@@ -167,7 +183,7 @@ def compare_sessions(
     user_id: str,
 ) -> Dict[str, object]:
     """
-    Phase 4 structured comparison.
+    Phase 5 structured comparison.
 
     Comparison layers:
       1. Immediate   – current vs previous session embedding
@@ -176,8 +192,15 @@ def compare_sessions(
       4. Lifetime    – current vs mean of ALL prior sessions
       5. Angle-level – per-angle embedding distance + score delta
 
+    Phase 5 additions:
+      - variation_level label on all deltas
+      - comparison_layers_used list for API transparency
+      - baseline_used field
+      - processing_time_ms field
+
     Returns full comparison dict consumed by the API handler and frontend.
     """
+    t_start = time.monotonic()
     # ── Load per-angle scores (required) ─────────────────────────────────────
     current_scores = _load_angle_scores(current_session_id)
     previous_scores = _load_angle_scores(previous_session_id)
@@ -254,6 +277,7 @@ def compare_sessions(
             "delta": score_delta,
             "delta_magnitude": abs(score_delta),
             "embedding_distance": angle_embedding_distance,
+            "variation_level": variation_level(abs(score_delta)),
         })
 
     avg_score_delta = sum(score_deltas) / \
@@ -264,27 +288,45 @@ def compare_sessions(
     overall_trend = _trend_label(overall_delta)
     stability_index = max(0.0, min(1.0, 1.0 - overall_delta))
 
+    rolling_available = rolling_delta is not None
+    monthly_available = monthly_delta is not None
+    lifetime_available = lifetime_delta is not None
+
+    elapsed_ms = int((time.monotonic() - t_start) * 1000)
+    logger.info(
+        "compare_sessions complete | current=%s previous=%s time_ms=%d method=%s",
+        current_session_id, previous_session_id, elapsed_ms, comparison_method,
+    )
+
     return {
         "per_angle": per_angle,
         # Immediate comparison
-        "overall_delta":    float(overall_delta),
-        "stability_index":  float(stability_index),
-        "overall_trend":    overall_trend,
-        "comparison_method": comparison_method,
+        "overall_delta":      float(overall_delta),
+        "stability_index":    float(stability_index),
+        "overall_trend":      overall_trend,
+        "overall_variation_level": variation_level(overall_delta),
+        "comparison_method":  comparison_method,
         # Extended comparison layers
         "rolling_baseline": {
             "delta": float(rolling_delta) if rolling_delta is not None else None,
             "trend": _trend_label(rolling_delta) if rolling_delta is not None else None,
-            "available": rolling_delta is not None,
+            "variation_level": variation_level(rolling_delta) if rolling_delta is not None else None,
+            "available": rolling_available,
         },
         "monthly_baseline": {
             "delta": float(monthly_delta) if monthly_delta is not None else None,
             "trend": _trend_label(monthly_delta) if monthly_delta is not None else None,
-            "available": monthly_delta is not None,
+            "variation_level": variation_level(monthly_delta) if monthly_delta is not None else None,
+            "available": monthly_available,
         },
         "lifetime_baseline": {
             "delta": float(lifetime_delta) if lifetime_delta is not None else None,
             "trend": _trend_label(lifetime_delta) if lifetime_delta is not None else None,
-            "available": lifetime_delta is not None,
+            "variation_level": variation_level(lifetime_delta) if lifetime_delta is not None else None,
+            "available": lifetime_available,
         },
+        # Trust and transparency fields (Part 7)
+        "baseline_used": "session_embeddings",
+        "comparison_layers_used": _comparison_layers_used(rolling_available, monthly_available, lifetime_available),
+        "processing_time_ms": elapsed_ms,
     }
