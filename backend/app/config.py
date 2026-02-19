@@ -12,7 +12,7 @@ class Settings:
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     supabase_jwt_public_key: str = os.getenv("SUPABASE_JWT_PUBLIC_KEY", "")
     supabase_jwks_url: str = os.getenv("SUPABASE_JWKS_URL", "")
-    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "RS256")
+    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "ES256")
     api_host: str = os.getenv("API_HOST", "0.0.0.0")
     api_port: int = int(os.getenv("API_PORT", "8000"))
     api_prefix: str = os.getenv("API_PREFIX", "/api")
