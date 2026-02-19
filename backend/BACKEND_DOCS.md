@@ -5,7 +5,7 @@
 **Database:** Supabase (PostgreSQL via Supabase Python SDK)  
 **Storage:** Supabase Storage (`bcd-images` bucket)  
 **Auth:** Supabase JWTs (ES256 algorithm, JWKS verification)  
-**ML:** PyTorch ResNet50 (embedding extraction), OpenCV (preprocessing, silhouette analysis)  
+**ML:** PyTorch EfficientNetV2-S (1280-dim embeddings), OpenCV (CLAHE, contour crop, denoise, sharpen)  
 **Rate Limiting:** slowapi 0.1.9 (20 analyses/day per IP, configurable)  
 **Base URL:** `http://localhost:8000` (dev) | prefix all routes with `/api`  
 **Interactive Docs:** `http://localhost:8000/api/docs`
@@ -20,7 +20,8 @@ backend/
 ├── requirements.txt              # All Python dependencies
 ├── PHASE3_MIGRATION.sql          # DB migration: session_embeddings table
 ├── PHASE4_MIGRATION.sql          # DB migration: angle_embeddings + session_analysis columns
-├── PHASE5_MIGRATION.sql          # DB migration: pgvector, quality score columns, analysis_logs
+├── PHASE5_MIGRATION.sql          # DB migration: pgvector vector(2048) columns, quality score, analysis_logs
+├── PHASE6_MIGRATION.sql          # DB migration: vector(2048)→vector(1280) model upgrade, clear old embeddings
 │
 ├── app/
 │   ├── main.py                   # FastAPI app entrypoint — logging, CORS, rate limiting, routers
@@ -46,20 +47,21 @@ backend/
 │   │   └── report_service.py     # Build report from stored analysis (stub)
 │   │
 │   ├── processing/               # Low-level ML / CV operations
-│   │   ├── preprocessing.py      # Load, EXIF fix, orient, normalize, crop, resize, quality
-│   │   ├── quality.py            # Image quality scoring — blur, brightness, confidence  ← NEW Phase 5
-│   │   └── embedding.py          # ResNet50 model singleton, feature extraction
+│   │   ├── preprocessing.py      # Phase 6: load+EXIF → denoise → CLAHE → torso crop → resize384 → crop224 → sharpen → quality
+│   │   ├── quality.py            # Image quality scoring — blur, brightness, confidence  ← Phase 5
+│   │   └── embedding.py          # EfficientNetV2-S (1280-dim) singleton; loads finetuned weights if present
 │   │
 │   └── utils/
 │       └── security.py           # JWT decode + JWKS fetch with 1hr in-memory cache
 │
 ├── tests/
 │   ├── conftest.py               # sys.path setup for 'app.*' imports
-│   ├── test_quality.py           # 42 unit tests for quality.py and preprocessing steps
+│   ├── test_quality.py           # 55 unit tests — quality.py + Phase 6 preprocessing steps
 │   └── test_api.py               # 13 integration tests — all external calls mocked
 │
 └── tools/
-    └── preview_preprocessing.py  # Dev-only: run pipeline on a local file, inspect output
+    ├── preview_preprocessing.py  # Dev-only: run Phase 6 pipeline on a local file, save step-by-step output images
+    └── finetune_efficientnet.py  # Offline training script — fine-tune EfficientNetV2-S on BreastMNIST/CBIS-DDSM
 ```
 
 **Deleted in Phase 5:**
@@ -371,9 +373,9 @@ Pure quality-scoring module. No ML model involved — all OpenCV.
 
 ---
 
-### `processing/preprocessing.py`
+### `processing/preprocessing.py` (Phase 6 rewrite)
 
-Full image preprocessing pipeline. Returns a `PreprocessResult` dataclass (added in Phase 5).
+Full image preprocessing pipeline. Returns a `PreprocessResult` dataclass.
 
 **`PreprocessResult` dataclass:**
 
@@ -384,46 +386,37 @@ class PreprocessResult:
     quality: ImageQuality
 ```
 
-**Pipeline steps (in order):**
+**Pipeline steps (Phase 6):**
 
-| Step | Function                  | What it does                                                                                                                     |
-| ---- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `load_image_from_storage` | Downloads from Supabase Storage, applies `ImageOps.exif_transpose()` to honour EXIF orientation tag, converts to RGB numpy array |
-| 2    | `auto_orient_image`       | Content-aware rotation correction using silhouette width profile (see below). Returns `(corrected_image, description_string)`    |
-| 3    | `normalize_image`         | Converts to YUV, runs histogram equalization on Y (luminance) channel, converts back to RGB float32                              |
-| 4    | `align_image`             | Center-square crop (loses edges; no padding)                                                                                     |
-| 5    | `resize_image`            | Bilinear downscale to 224×224 (ResNet50 input size)                                                                              |
-| 6    | `compute_image_quality`   | Quality metrics computed on the fully processed image (so scores reflect exactly what the embedding model sees)                  |
+| Step | Function                  | What it does                                                                                                          |
+| ---- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1    | `load_image_from_storage` | Downloads from Supabase Storage, applies `ImageOps.exif_transpose()` (EXIF-only orientation), returns uint8 RGB      |
+| 2    | `denoise_image`           | `cv2.fastNlMeansDenoisingColored` — removes sensor noise (h=6, hColor=6)                                             |
+| 3    | `apply_clahe`             | Converts to LAB, runs CLAHE (clipLimit=2.0, 8×8 tile) on L channel, converts back → float32 [0,1]                   |
+| 4    | `detect_torso_crop`       | Adaptive threshold → contours → largest central contour → crop + 5% padding; fallback to full image if none found    |
+| 5    | `resize_intermediate`     | INTER_LANCZOS4 resize to 384×384                                                                                      |
+| 6    | `center_crop_final`       | Centre-crop to 224×224                                                                                                |
+| 7    | `sharpen_image`           | Unsharp mask (1.8/−0.8 weights, σ=1.5) — restores edge detail lost in resizing                                       |
+| 8    | `compute_image_quality`   | Quality metrics on the final 224×224 image (reflects exactly what the embedding model sees)                          |
 
-**Orientation correction — `auto_orient_image`:**
-
-Two-stage approach:
-
-1. **EXIF** (`ImageOps.exif_transpose` in `load_image_from_storage`) — corrects the metadata orientation tag that phone cameras embed. Handles the vast majority of phone photo orientation issues automatically.
-2. **Silhouette width profile** (`auto_orient_image`) — for images that are genuinely the wrong orientation independent of EXIF:
-   - Runs Canny edge detection → horizontal dilation on each of the 4 possible rotations
-   - Builds a 1D array of body silhouette widths (one value per row)
-   - The neck is the narrowest part of the torso — it should appear near the **top** of a correctly-oriented image
-   - Scores each rotation by `1 - normalised_row_of_minimum_width` (score ≈ 1.0 = narrowest near top)
-   - Picks the rotation with the highest score
-   - Fallback (score < 0.6): enforce portrait orientation (H ≥ W)
-
-**Known limitation with silhouette orientation:** See the "Current Issues" section below.
+**Orientation:** EXIF-only (`ImageOps.exif_transpose` in step 1). The guided capture flow guarantees the user holds the phone correctly; EXIF handles the tag-level cases. The previous silhouette-based `auto_orient_image` was removed in Phase 6 as it added noise rather than fixing anything for this image type.
 
 ---
 
-### `processing/embedding.py`
+### `processing/embedding.py` (Phase 6 upgrade)
 
-ResNet50 feature extractor.
+EfficientNetV2-S feature extractor.
 
-| Thing              | Detail                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------- |
-| Model              | `torchvision.models.resnet50(weights=ResNet50_Weights.DEFAULT)` with final classification layer removed |
-| Output             | 2048-dimensional float32 vector                                                                         |
-| Device             | CUDA if available, else CPU                                                                             |
-| Singleton          | `get_encoder()` loads the model once; first request takes ~2s                                           |
-| Normalisation      | ImageNet mean/std via `transforms.Normalize`                                                            |
-| User normalisation | If `user_mean` provided: `embedding = embedding - user_mean`                                            |
+| Thing              | Detail                                                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Model              | `torchvision.models.efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)` with classifier set to Identity |
+| Output             | **1280-dimensional** float32 vector (was 2048 with ResNet50)                                                   |
+| Device             | CUDA if available, else CPU                                                                                     |
+| Singleton          | `get_encoder()` loads the model once; first request takes ~2–4s                                                |
+| Normalisation      | ImageNet mean/std via `transforms.Normalize`                                                                    |
+| User normalisation | If `user_mean` provided: `embedding = embedding - user_mean`                                                   |
+| Fine-tuned weights | Loads `models/efficientnet_v2_s_finetuned.pth` automatically if present (produced by `tools/finetune_efficientnet.py`) |
+| Constant           | `EMBEDDING_DIM = 1280`                                                                                         |
 
 ---
 
@@ -463,8 +456,8 @@ Shared slowapi `Limiter` singleton. Exists to prevent circular imports between `
 | `images`             | `image_service`, `utility.py`                                     | Per-angle image records with `storage_path`                  |
 | `session_analysis`   | `analyze_session`, `analysis_fetch_service`                       | One row per session: scores, baselines                       |
 | `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session                                |
-| `session_embeddings` | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 session embedding                          |
-| `angle_embeddings`   | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 per-angle embedding                        |
+| `session_embeddings` | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S session embedding (Phase 6 migration clears old 2048-dim data) |
+| `angle_embeddings`   | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S per-angle embedding (Phase 6 migration clears old 2048-dim data) |
 | `analysis_logs`      | (future)                                                          | Per-request processing log — created by PHASE5_MIGRATION.sql |
 
 ### Phase 5 DB Changes (`PHASE5_MIGRATION.sql`)
@@ -552,43 +545,20 @@ Auth is mocked via `app.dependency_overrides[get_current_user]`. All DB/ML/stora
 
 ## Current Issues
 
-### ⚠️ Orientation Correction — Known Ambiguity for Certain Capture Angles
-
-**Problem:** The `auto_orient_image` silhouette-width-profile approach relies on the neck being the narrowest visible part of the torso, sitting near the top of the frame. This works well for full-torso front/left/right shots. It **does not work reliably** for:
-
-- **`down` angle** — camera aimed at the lower chest/abdomen; neck is out of frame
-- **`raised` angle** — arms raised; body silhouette shape changes significantly
-- Any image where the background clutter creates wide edges across all rows
-
-In these cases the scorer returns ~0.5 for all rotations, and the portrait-orientation fallback applies (portrait → no rotation; landscape → 90° CW). This is generally safe since all capture angles in this app are taken with the phone held upright, so EXIF already handles orientation and the fallback is rarely reached.
-
-**Root cause:** There is no body-landmark model in the pipeline. The OpenCV Haar cascade for upper-body was tried first — it doesn't work because these are close-up chest/torso photos without a full upper body in view.
-
-**Potential fixes (not yet implemented):**
-
-| Option                          | What                                                                                                                     | Cost                                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| Trust EXIF + capture flow       | EXIF handles phones; the guided capture UI prevents upside-down shots. Accept ~0% coverage for genuinely inverted images | Zero — this is already working                 |
-| Angle-specific orientation skip | Don't run `auto_orient_image` for `down`/`raised` angles since they're always correctly oriented by the capture flow     | ~10 lines                                      |
-| MediaPipe BlazePose             | Full body-landmark detection — finds shoulder/hip keypoints, gives precise "up" direction                                | New dependency (~100MB), adds ~200ms per image |
+*(Phase 6: the silhouette / `auto_orient_image` issue documented here has been resolved by removing that approach entirely. Orientation is now EXIF-only, which is sufficient because the guided capture flow ensures correct phone orientation and EXIF handles the tag-level cases. No current critical issues remain.)*
 
 ---
 
-## Suggested Future Improvements (Preprocessing)
+## Suggested Future Improvements
 
-The current pipeline does: **EXIF fix → orient → histogram equalisation → centre crop → resize.**
-
-These are not yet implemented but would meaningfully improve analysis quality:
-
-| Improvement                      | What                                                                                       | Why it helps                                                                                                                                            | Effort                |
-| -------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| **Denoise**                      | `cv2.fastNlMeansDenoisingColored`                                                          | Reduces sensor noise in low-light / indoor shots before edge detection and embedding                                                                    | Low — 3 lines         |
-| **CLAHE** (Contrast Limited AHE) | Replace global histogram eq with `cv2.createCLAHE` applied locally                         | Better than global equalisation for images with strong shadows (e.g. one side in shade). Global eq can over-brighten shadow regions and wipe out detail | Low — 5 lines         |
-| **Sharpening / unsharp mask**    | Laplacian sharpening kernel                                                                | Recovers mild blur that didn't trigger `is_blurry` flag; helps embedding model find edges                                                               | Low — 4 lines         |
-| **Colour-cast correction**       | Grey-world or white-patch white-balance                                                    | Corrects yellow/blue colour casts from artificial indoor lighting. Images under warm bulbs look very different from daylight shots of the same person   | Medium — 10 lines     |
-| **Smart/torso-guided crop**      | Instead of blind centre crop, use body edge detection to find the torso bounding box       | Prevents the crop from cutting half the body if the person isn't perfectly centred                                                                      | Medium — 20 lines     |
-| **Slight-tilt correction**       | Detect if the image is tilted a few degrees (via Hough lines on vertical edges) and deskew | Consistent vertical alignment improves embedding consistency across sessions                                                                            | Medium                |
-| **Pose estimation (MediaPipe)**  | Full body keypoint detection                                                               | Would solve orientation, crop, and tilt in one pass; also enables torso-only crop                                                                       | High — new dependency |
+| Improvement                      | What                                                                                              | Why it helps                                                 | Effort                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------- |
+| **Background removal**           | Segmentation model (e.g. MediaPipe SelfieSegmentation or rembg)                                  | Eliminates background clutter from embeddings                | Medium — new dep      |
+| **Colour-cast correction**       | Grey-world or white-patch white-balance                                                           | Fixes yellow/blue casts from indoor artificial lighting       | Low — 10 lines        |
+| **Fine-tuning (run offline)**    | Run `tools/finetune_efficientnet.py` on BreastMNIST/CBIS-DDSM; deploy `efficientnet_v2_s_finetuned.pth` | Improves embedding relevance for breast tissue images        | Medium — offline only |
+| **ONNX export**                  | Export EfficientNetV2-S to ONNX for faster CPU inference                                          | ~2–3× faster on CPU                                          | Low                   |
+| **Tilt correction**              | Detect + deskew small angular offsets via Hough lines on vertical edges                           | Improves embedding consistency                               | Medium                |
+| **Pose estimation (MediaPipe)**  | Full body keypoint detection — shoulders, hips                                                    | Would improve crop precision; currently not needed            | High — new dep        |
 
 ---
 
@@ -607,7 +577,7 @@ These are not yet implemented but would meaningfully improve analysis quality:
 | `httpx`         | 0.27.0   | Async HTTP client (used by FastAPI TestClient)                   |
 | `torch`         | 2.1.0    | PyTorch — ResNet50 inference                                     |
 | `torchvision`   | 0.16.0   | ResNet50 model + ImageNet transforms                             |
-| `opencv-python` | 4.8.1.78 | Preprocessing — histogram eq, Canny, resize, silhouette analysis |
+| `opencv-python` | 4.8.1.78 | Preprocessing — CLAHE, denoise, contour crop, resize, sharpen |
 | `pillow`        | 10.1.0   | Image loading from bytes, EXIF transpose                         |
 | `numpy`         | 1.24.3   | All numerical operations on embeddings and quality scores        |
 | `slowapi`       | 0.1.9    | **NEW Phase 5** — Rate limiting middleware for FastAPI           |
@@ -636,15 +606,17 @@ Browser (Result.tsx)
   │              ├─ Group images by angle_type
   │              ├─ For each angle group:
   │              │    └─ For each image:
-  │              │         ├─ preprocessing.preprocess_pipeline()
+  │              │         ├─ preprocessing.preprocess_pipeline()     ← Phase 6
   │              │         │    ├─ storage.download(path)
-  │              │         │    ├─ ImageOps.exif_transpose()    ← EXIF fix
-  │              │         │    ├─ auto_orient_image()          ← silhouette orient
-  │              │         │    ├─ normalize_image()            ← histogram eq (YUV Y)
-  │              │         │    ├─ align_image()                ← centre crop
-  │              │         │    ├─ resize_image()               ← 224×224
-  │              │         │    └─ compute_image_quality()      ← blur + brightness
-  │              │         └─ embedding.extract_embedding()     ← ResNet50 → 2048-dim
+  │              │         │    ├─ ImageOps.exif_transpose()          ← EXIF orientation
+  │              │         │    ├─ denoise_image()                    ← NLMeans
+  │              │         │    ├─ apply_clahe()                      ← LAB CLAHE → float32
+  │              │         │    ├─ detect_torso_crop()                ← contour crop
+  │              │         │    ├─ resize_intermediate()              ← 384×384
+  │              │         │    ├─ center_crop_final()                ← 224×224
+  │              │         │    ├─ sharpen_image()                    ← unsharp mask
+  │              │         │    └─ compute_image_quality()            ← blur + brightness
+  │              │         └─ embedding.extract_embedding()           ← EfficientNetV2-S → 1280-dim
   │              │    └─ angle_embedding = mean(image_embeddings)
   │              │    └─ angle_quality_score, variation_level
   │              ├─ session_embedding = mean(angle_embeddings)
