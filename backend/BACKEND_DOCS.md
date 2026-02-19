@@ -18,9 +18,10 @@ backend/
 ├── .env                          # Secret env vars — NOT in git
 ├── requirements.txt              # All Python dependencies
 ├── PHASE3_MIGRATION.sql          # DB migration for session_embeddings table
+├── PHASE4_MIGRATION.sql          # DB migration for angle_embeddings + session_analysis columns
 │
 ├── app/
-│   ├── main.py                   # FastAPI app entrypoint, CORS, router registration
+│   ├── main.py                   # FastAPI app entrypoint, CORS, router registration, global exception handler
 │   ├── config.py                 # Settings loader (reads .env via python-dotenv)
 │   ├── dependencies.py           # FastAPI dependencies: get_current_user
 │   │
@@ -114,6 +115,21 @@ The flow:
 
 ## API Endpoints
 
+### `app/main.py` — Global Exception Handler
+
+A catch-all `@app.exception_handler(Exception)` ensures that any unhandled exception produces a `JSONResponse` from **within** FastAPI rather than from Starlette's `ServerErrorMiddleware` (which sits above the CORS middleware). Without this, 500 responses would be generated before CORS headers were added, causing the frontend to receive an opaque network error instead of a useful JSON payload.
+
+```python
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
+    )
+```
+
+---
+
 ### `GET /`
 
 **File:** `app/main.py`  
@@ -150,24 +166,27 @@ The flow:
   "data": {
     "session_id": "uuid",
     "overwritten": false,
+    "is_first_session": false,
     "session_analysis": {
       "per_angle": [
         {"angle_type": "front", "change_score": 0.42, "summary": "Distance-based analysis for front angle."},
         ...
       ],
-      "overall_summary": "Real ML analysis complete. Baseline: establishing."
+      "overall_summary": "ML analysis complete. Scores reflect distance from your personal baseline."
     },
     "scores": {
-      "change_score": 0.0,
-      "confidence": 0.85
+      "change_score": 0.60,
+      "trend_score": 0.58
     }
   }
 }
 ```
 
+`is_first_session` is `true` on the very first analysis (no prior data); in that case `change_score` is `0.0` and `trend_score` is `null`. `overall_summary` is `"Baseline established. Future sessions will be compared to this."` for first sessions.
+
 **Used by:** `frontend/src/pages/Result.tsx` (called directly via `fetch`, not `apiClient`)
 
-**Known limitation:** `confidence: 0.85` is hardcoded. `per_angle[].summary` always says "Distance-based analysis for X angle." — not a real language model summary.
+**Known limitation:** `per_angle[].summary` always says "Distance-based analysis for X angle." — not a real language model summary.
 
 ---
 
@@ -181,13 +200,14 @@ The flow:
 
 **What it does:**
 
-1. Validates both sessions
-2. Calls `comparison_service.compare_sessions()`
+1. Validates both sessions and that they belong to the authenticated user
+2. Calls `comparison_service.compare_sessions(current_session_id, previous_session_id, user_id=user_id)` — `user_id` is required to load the extended comparison layers
 3. Loads `angle_analysis` rows for both sessions from DB
 4. Loads `session_embeddings` for both sessions from DB
-5. Computes per-angle score deltas (current - previous)
-6. Computes embedding cosine distance for overall comparison
-7. Labels trend: `stable` (<0.1), `mild_variation` (0.1–0.25), `significant_shift` (>0.25)
+5. Loads `angle_embeddings` for both sessions from DB (graceful no-op if `PHASE4_MIGRATION.sql` not run)
+6. Computes per-angle score deltas and per-angle embedding distances
+7. Computes 4 comparison layers: immediate, rolling (last 5), monthly (last 30 days), lifetime (all time)
+8. Labels trends: `stable` (<0.1), `mild_variation` (0.1–0.25), `significant_shift` (>0.25)
 
 **Response:**
 
@@ -201,19 +221,25 @@ The flow:
         "current_score": 0.45,
         "previous_score": 0.42,
         "delta": 0.03,
-        "delta_magnitude": 0.03
+        "delta_magnitude": 0.03,
+        "embedding_distance": 0.11
       },
       ...
     ],
     "overall_delta": 0.07,
     "stability_index": 0.93,
     "overall_trend": "stable",
-    "comparison_method": "embedding"
+    "comparison_method": "embedding",
+    "rolling_baseline":  {"delta": 0.09, "trend": "stable",       "available": true},
+    "monthly_baseline": {"delta": 0.09, "trend": "stable",       "available": true},
+    "lifetime_baseline":{"delta": 0.09, "trend": "stable",       "available": true}
   }
 }
 ```
 
-**Fallback:** If embeddings are missing, falls back to score-average delta for `overall_delta` and labels trend from that. `comparison_method` becomes `"score"` in that case.
+`available: false` (and `delta: null`, `trend: null`) is returned for a baseline layer when there are not enough prior sessions in that window. Each layer compares the current session embedding against the mean of all prior session embeddings in its respective time window.
+
+**Fallback:** If session embeddings are missing entirely, falls back to score-average delta for `overall_delta`. `comparison_method` becomes `"score"` in that case.
 
 **Used by:** `frontend/src/pages/Result.tsx` (called directly via `fetch`)
 
@@ -378,32 +404,40 @@ Returns all rows from `images` table for the session. Each row: `{id, image_type
 
 ### `services/analysis_service.py`
 
-The core ML pipeline. Called by `analyze_session` API.
+The core ML pipeline. Called by `analyze_session` API. Fully rewritten in Phase 4.
 
 **`analyze_session(images, user_id, session_id) → dict`**
 
-1. `_load_user_baseline()` — fetches all `session_embeddings` for the user, parses JSON strings (embeddings are stored as JSON text in Supabase), casts to `np.float32`, returns mean vector or `None` if first session
-2. For each image:
-   - `preprocess_pipeline(storage_path, supabase)` — downloads from storage, normalizes, center-crops, resizes to 224×224
-   - `extract_embedding(processed_image, user_mean)` — runs ResNet50, subtracts user mean if available
-   - Computes `change_score` = cosine distance from zero vector (⚠️ see known issues)
-3. Computes mean embedding across all angles → session-level embedding
-4. `_store_session_embedding()` — saves session embedding to `session_embeddings` table (idempotent: deletes before inserting)
-5. Computes overall change score = cosine distance of session embedding from zero vector (⚠️ see known issues)
+Aggregation hierarchy: `image → angle embedding (mean of images for that angle) → session embedding (mean of angle embeddings)`
 
-**⚠️ Known issue in change score calculation:** The per-angle and overall `change_score` is computed as `cosine_distance(embedding, zeros_like(embedding))`. This is always 1.0 because the cosine distance between any nonzero vector and the zero vector is 1.0 (undefined/maximum). This means **all change_score values will be 1.0 for every non-first session**. The correct calculation should be `_cosine_distance(embedding, user_baseline)` to measure distance from the user's personal baseline. This is a bug that needs to be fixed.
+1. `_load_user_baseline(user_id, exclude_session_id)` — queries `session_embeddings` for all prior sessions (excluding current), parses embeddings from JSON text, returns mean `np.float32` vector or `None` if first session
+2. `_load_trend_score(user_id, exclude_session_id, n=5)` — queries `session_analysis` for last 5 sessions' `overall_change_score` values, returns their mean or `None` if no history
+3. Groups all images by `angle_type`
+4. For each angle group:
+   - For each image: `preprocess_pipeline()` → `extract_embedding(processed_image, user_mean=user_baseline)`
+   - Angle embedding = `np.mean(image_embeddings_for_angle, axis=0)`
+   - `change_score = _cosine_distance(angle_embedding, user_baseline)` — correctly compares against the user's personal baseline (first session → 0.0)
+5. Session embedding = `np.mean(list(angle_embeddings.values()), axis=0)`
+6. `_store_angle_embeddings()` — persists per-angle embeddings to `angle_embeddings` table (idempotent; silently skips if `PHASE4_MIGRATION.sql` not run yet)
+7. `_store_session_embedding()` — persists session embedding to `session_embeddings` table (idempotent)
+8. `overall_change_score = _cosine_distance(session_embedding, user_baseline)` (first session → 0.0)
+9. Returns `{per_angle, overall_summary, scores: {overall_change_score, trend_score, is_first_session}}`
 
 ### `services/comparison_service.py`
 
-Called by `compare_sessions` API.
+Called by `compare_sessions` API. Fully rewritten in Phase 4 to support 5 structured comparison layers.
 
-**`compare_sessions(current_session_id, previous_session_id) → dict`**
+**`compare_sessions(current_session_id, previous_session_id, user_id) → dict`**
 
-1. `_load_angle_scores()` — reads `angle_analysis` table for both sessions
-2. `_load_session_embedding()` — reads `session_embeddings` for both sessions, parses JSON strings
-3. Per-angle delta = `current_score - previous_score`
-4. Overall delta = cosine distance between the two session embeddings
-5. Trend threshold: stable < 0.1, mild_variation < 0.25, significant_shift ≥ 0.25
+| Layer           | Loader                                                     | Description                                                     |
+| --------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| 1 – Immediate   | `_load_session_embedding()` ×2                             | Cosine distance between current and previous session embeddings |
+| 2 – Rolling     | `_load_rolling_baseline(user_id, current_session_id, n=5)` | Current vs mean of last 5 prior sessions                        |
+| 3 – Monthly     | `_load_monthly_baseline(user_id, current_session_id)`      | Current vs mean of sessions in the last 30 days                 |
+| 4 – Lifetime    | `_load_lifetime_baseline(user_id, current_session_id)`     | Current vs mean of ALL prior sessions                           |
+| 5 – Angle-level | `_load_angle_embeddings()` ×2 + `_load_angle_scores()` ×2  | Per-angle cosine distance + score delta                         |
+
+All loaders gracefully return `None` / `{}` when no data is available. Trend threshold: `stable` < 0.1, `mild_variation` < 0.25, `significant_shift` ≥ 0.25. Raises `ValueError` if `angle_analysis` rows are missing for either session (i.e. `analyze-session` was never run).
 
 ### `services/analysis_fetch_service.py`
 
@@ -458,13 +492,23 @@ ResNet50 feature extractor. Called only from `analysis_service.py`.
 
 ## Database Tables Used
 
-| Table                | Used by                                                           | Purpose                                                      |
-| -------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
-| `sessions`           | `session_service`, `utility.py` (session-info)                    | Session records with `status` field                          |
-| `images`             | `image_service`, `utility.py` (image-preview, thumbnails)         | Per-angle image records with `storage_path`                  |
-| `session_analysis`   | `analyze_session`, `analysis_fetch_service`, `report_service`     | One row per session: `overall_change_score`                  |
-| `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session: `change_score`, `summary`     |
-| `session_embeddings` | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 embedding per session, stored as JSON text |
+| Table                | Used by                                                           | Purpose                                                                                               |
+| -------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `sessions`           | `session_service`, `utility.py` (session-info)                    | Session records with `status` field                                                                   |
+| `images`             | `image_service`, `utility.py` (image-preview, thumbnails)         | Per-angle image records with `storage_path`                                                           |
+| `session_analysis`   | `analyze_session`, `analysis_fetch_service`, `report_service`     | One row per session: `overall_change_score`, `trend_score`, `rolling/monthly/lifetime_baseline_score` |
+| `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session: `change_score`, `summary`                                              |
+| `session_embeddings` | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 session-level embedding, stored as JSON text                                        |
+| `angle_embeddings`   | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 per-angle embedding; created by `PHASE4_MIGRATION.sql`                              |
+
+**`session_analysis` columns added in Phase 4** (requires `PHASE4_MIGRATION.sql`):
+
+- `trend_score float` — moving average of last 5 sessions' `overall_change_score`
+- `rolling_baseline_score float` — score vs rolling window baseline
+- `monthly_baseline_score float` — score vs 30-day baseline
+- `lifetime_baseline_score float` — score vs lifetime baseline
+
+All new columns are optional; the insert falls back to omitting them if the migration has not yet been run.
 
 **Important — `session_embeddings.embedding` column type:** Embeddings are stored as JSON text (not a native array type). Both `analysis_service.py` and `comparison_service.py` handle this with:
 
@@ -474,7 +518,7 @@ if isinstance(emb, str):
 return np.array(emb, dtype=np.float32)
 ```
 
-If you run the `PHASE3_MIGRATION.sql` to change the column type to a native array, remove this parsing logic.
+If you run `PHASE3_MIGRATION.sql` to change the column type to a native array, remove this parsing logic. The same pattern applies to `angle_embeddings.embedding`.
 
 ---
 
@@ -542,10 +586,9 @@ cd backend
 
 ### Bugs
 
-| #   | Location                         | Issue                                                                                                                                                   |
-| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `analysis_service.py` L110, L133 | `change_score` computed as `_cosine_distance(embedding, np.zeros_like(embedding))` — always 1.0. Should be `_cosine_distance(embedding, user_baseline)` |
-| 2   | `tests/test_api.py` L76          | Mock `run_analysis` signature takes 1 arg but real function takes 3 → `test_analyze_session_success` will `TypeError`                                   |
+| #   | Location                | Issue                                                                                                                 |
+| --- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1   | `tests/test_api.py` L76 | Mock `run_analysis` signature takes 1 arg but real function takes 3 → `test_analyze_session_success` will `TypeError` |
 
 ### Stubs (not yet implemented)
 
@@ -620,26 +663,36 @@ Browser (Result.tsx)
   │         └─ image_service: fetch image records              │
   │         └─ analysis_service.analyze_session()              │
   │              ├─ load_user_baseline() — session_embeddings  │
-  │              ├─ For each image:                            │
-  │              │    ├─ preprocessing.preprocess_pipeline()   │
-  │              │    │    ├─ storage.download(path)           │
-  │              │    │    ├─ normalize (histogram eq)         │
-  │              │    │    ├─ center crop                      │
-  │              │    │    └─ resize to 224×224                │
-  │              │    └─ embedding.extract_embedding()         │
-  │              │         └─ ResNet50 → 2048-dim vector       │
-  │              ├─ mean of all angle embeddings               │
+  │              ├─ load_trend_score() — session_analysis      │
+  │              ├─ Group images by angle_type                 │
+  │              ├─ For each angle group:                      │
+  │              │    ├─ For each image in group:              │
+  │              │    │    ├─ preprocessing.preprocess_pipeline()│
+  │              │    │    │    ├─ storage.download(path)      │
+  │              │    │    │    ├─ normalize (histogram eq)    │
+  │              │    │    │    ├─ center crop                 │
+  │              │    │    │    └─ resize to 224×224           │
+  │              │    │    └─ embedding.extract_embedding()    │
+  │              │    │         └─ ResNet50 → 2048-dim vector  │
+  │              │    └─ angle_embedding = mean(image_embeds)  │
+  │              ├─ session_embedding = mean(angle_embeds)     │
+  │              ├─ store angle_embeddings → angle_embeddings  │
   │              ├─ store session embedding → session_embeds   │
-  │              └─ persist scores → angle_analysis,           │
-  │                                   session_analysis         │
-  │         └─ returns: per_angle scores, overall_summary      │
+  │              └─ persist → angle_analysis, session_analysis │
+  │         └─ returns: per_angle scores, overall_summary,     │
+  │                      is_first_session, trend_score         │
   │                                                            │
   └─ POST /api/compare-sessions/{id}/{prev_id}  ───────────────┘
        └─ compare_sessions.py  (only if not first session)
-            └─ comparison_service.compare_sessions()
+            └─ comparison_service.compare_sessions(current, previous, user_id)
                  ├─ load angle_analysis for both sessions
                  ├─ load session_embeddings for both sessions
-                 ├─ per-angle score deltas
-                 ├─ cosine distance between session embeddings
-                 └─ returns: per_angle deltas, overall_trend
+                 ├─ load angle_embeddings for both sessions (if table exists)
+                 ├─ Layer 1: cosine distance between session embeddings
+                 ├─ Layer 2: rolling baseline (mean of last 5 prior sessions)
+                 ├─ Layer 3: monthly baseline (mean of last 30 days)
+                 ├─ Layer 4: lifetime baseline (mean of all prior sessions)
+                 ├─ Layer 5: per-angle embedding distances + score deltas
+                 └─ returns: per_angle, overall_delta, overall_trend,
+                             rolling/monthly/lifetime_baseline layers
 ```

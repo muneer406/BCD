@@ -1,15 +1,27 @@
 """
 BCD Backend - preprocessing.py
-Production-ready image loading, normalization, alignment, and resizing.
+Phase 5: Production-ready image loading, normalization, alignment, resizing,
+         and quality scoring (blur + brightness).
 """
 
 import io
-import numpy as np
+from dataclasses import dataclass
+
 import cv2
+import numpy as np
 from PIL import Image
 from supabase import Client
 
+from .quality import ImageQuality, compute_image_quality
+
 TARGET_SIZE = (224, 224)
+
+
+@dataclass
+class PreprocessResult:
+    """Holds a preprocessed image together with its quality metrics."""
+    image: np.ndarray
+    quality: ImageQuality
 
 
 def load_image_from_storage(storage_path: str, supabase: Client) -> np.ndarray:
@@ -65,13 +77,19 @@ def resize_image(image: np.ndarray, size: tuple = TARGET_SIZE) -> np.ndarray:
     return image
 
 
-def preprocess_pipeline(storage_path: str, supabase: Client) -> np.ndarray:
+def preprocess_pipeline(storage_path: str, supabase: Client) -> PreprocessResult:
     """
     Full preprocessing pipeline.
+
+    Returns a PreprocessResult containing the processed image (float32, [0,1],
+    224×224 RGB) and the per-image quality metrics computed AFTER normalisation
+    and cropping (so the quality reflects what the embedding model actually sees).
     """
     image = load_image_from_storage(storage_path, supabase)
     image = normalize_image(image)
     image = align_image(image)
     image = resize_image(image)
 
-    return image
+    quality = compute_image_quality(image)
+
+    return PreprocessResult(image=image, quality=quality)
