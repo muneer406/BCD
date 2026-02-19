@@ -16,6 +16,13 @@ class Settings:
     api_host: str = os.getenv("API_HOST", "0.0.0.0")
     api_port: int = int(os.getenv("API_PORT", "8000"))
     api_prefix: str = os.getenv("API_PREFIX", "/api")
+    # Phase 5: CORS and rate limiting
+    # Comma-separated list of allowed origins, or "*" for development.
+    # Example: "https://app.example.com,https://staging.example.com"
+    allowed_origins: str = os.getenv("ALLOWED_ORIGINS", "*")
+    # Max analysis requests per day per user (0 = unlimited)
+    rate_limit_analysis_per_day: int = int(
+        os.getenv("RATE_LIMIT_ANALYSIS_PER_DAY", "20"))
 
 
 def get_settings() -> Settings:
@@ -32,5 +39,7 @@ def get_settings() -> Settings:
             api_host=settings.api_host,
             api_port=settings.api_port,
             api_prefix=settings.api_prefix,
+            allowed_origins=settings.allowed_origins,
+            rate_limit_analysis_per_day=settings.rate_limit_analysis_per_day,
         )
     return settings

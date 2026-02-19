@@ -1,12 +1,19 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from ..dependencies import get_current_user
+from ..limiter import limiter
 from ..services.analysis_service import analyze_session as run_analysis
 from ..services.db import get_supabase_client
 from ..services.image_service import get_session_images
 from ..services.session_service import get_session
 
 router = APIRouter(tags=["analysis"])
+
+# ---------------------------------------------------------------------------
+# In-process async job status registry (Part 6)
+# Map session_id → {"status": "processing"|"completed"|"failed", "error": str|None}
+# ---------------------------------------------------------------------------
+_analysis_jobs: dict = {}
 
 
 def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
@@ -31,37 +38,67 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
             "angle_type": item["angle_type"],
             "change_score": item["change_score"],
             "summary": item["summary"],
+            # Phase 5: angle quality score (graceful fallback if column missing)
+            "angle_quality_score": item.get("angle_quality_score"),
         }
         for item in analysis["per_angle"]
     ]
     if per_angle_rows:
-        supabase.table("angle_analysis").insert(per_angle_rows).execute()
+        try:
+            supabase.table("angle_analysis").insert(per_angle_rows).execute()
+        except Exception:
+            # angle_quality_score column may not exist — retry without it
+            for row in per_angle_rows:
+                row.pop("angle_quality_score", None)
+            supabase.table("angle_analysis").insert(per_angle_rows).execute()
 
     scores = analysis.get("scores", {})
+    quality_summary = analysis.get("image_quality_summary", {})
     session_row = {
         "session_id": session_id,
         "user_id": user_id,
         "overall_change_score": scores.get("overall_change_score", 0.0),
-        "trend_score": scores.get("trend_score"),  # None on first session
+        "trend_score": scores.get("trend_score"),
+        # Phase 5 columns
+        "analysis_confidence_score": scores.get("analysis_confidence_score"),
+        "session_quality_score": quality_summary.get("session_quality_score"),
     }
     try:
         supabase.table("session_analysis").insert(session_row).execute()
     except Exception:
-        # trend_score column may not exist if PHASE4_MIGRATION.sql not run yet
-        session_row.pop("trend_score", None)
-        supabase.table("session_analysis").insert(session_row).execute()
+        # Phase 5 columns may not exist yet — retry with Phase 4 subset
+        try:
+            fallback_row = {k: v for k, v in session_row.items()
+                            if k in ("session_id", "user_id", "overall_change_score", "trend_score")}
+            supabase.table("session_analysis").insert(fallback_row).execute()
+        except Exception:
+            # trend_score column also missing — bare minimum insert
+            bare_row = {
+                "session_id": session_id,
+                "user_id": user_id,
+                "overall_change_score": scores.get("overall_change_score", 0.0),
+            }
+            supabase.table("session_analysis").insert(bare_row).execute()
 
     return overwritten
 
 
 def _process_and_store(session_id: str, user_id: str, images: list) -> None:
-    analysis = run_analysis(images, user_id, session_id)
-    _persist_analysis(session_id, user_id, analysis)
+    """Background task: run analysis, persist results, update job registry."""
+    try:
+        _analysis_jobs[session_id] = {"status": "processing", "error": None}
+        analysis = run_analysis(images, user_id, session_id)
+        _persist_analysis(session_id, user_id, analysis)
+        _analysis_jobs[session_id] = {"status": "completed", "error": None}
+    except Exception as exc:
+        _analysis_jobs[session_id] = {"status": "failed", "error": str(exc)}
 
 
 @router.post("/analyze-session/{session_id}")
+@limiter.limit("20/day")
 def analyze_session(
     session_id: str,
+    request: Request,
     background_tasks: BackgroundTasks,
     async_process: bool = False,
     user=Depends(get_current_user),
@@ -99,6 +136,7 @@ def analyze_session(
         )
 
     if async_process:
+        _analysis_jobs[session_id] = {"status": "processing", "error": None}
         background_tasks.add_task(
             _process_and_store, session_id, user_id, images)
         return {
@@ -113,6 +151,7 @@ def analyze_session(
     overwritten = _persist_analysis(session_id, user_id, analysis)
 
     scores = analysis.get("scores", {})
+    quality_summary = analysis.get("image_quality_summary", {})
     return {
         "success": True,
         "data": {
@@ -125,7 +164,15 @@ def analyze_session(
             },
             "scores": {
                 "change_score": scores.get("overall_change_score", 0.0),
+                "variation_level": scores.get("variation_level"),
                 "trend_score": scores.get("trend_score"),
+                "analysis_confidence_score": scores.get("analysis_confidence_score"),
+                "session_quality_score": scores.get("session_quality_score"),
             },
+            # Part 7: trust and transparency fields
+            "image_quality_summary": quality_summary,
+            "baseline_used": analysis.get("baseline_used"),
+            "comparison_layers_used": analysis.get("comparison_layers_used", []),
+            "processing_time_ms": analysis.get("processing_time_ms"),
         },
     }
