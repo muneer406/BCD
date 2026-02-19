@@ -5,17 +5,17 @@ Phase 6: Feature extraction using EfficientNetV2-S (1280-dim output).
 Model: EfficientNetV2-S (torchvision 0.14+, available in the project's
        torchvision==0.16.0 requirement).
 
-Output: 1280-dimensional float32 L2-normalised vector.
+Output: 1280-dimensional float32 vector.
         Previous ResNet50 output was 2048-dim — all stored embeddings must be
         cleared / migrated (see PHASE6_MIGRATION.sql).
 
-Fine-tuning:
-  Run tools/finetune_efficientnet.py offline to produce
-  models/efficientnet_v2_s_finetuned.pth.
-  This module loads that file automatically when it exists.
+Weights: ImageNet pre-trained only.  No domain-specific fine-tuned weights
+         are used.  The application domain (visible-light phone photos of
+         the external chest surface) has no public labelled dataset suitable
+         for supervised fine-tuning.  ImageNet weights transfer adequately
+         for surface-appearance embedding tasks.
 """
 
-import os
 import logging
 
 import numpy as np
@@ -27,12 +27,6 @@ logger = logging.getLogger(__name__)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Path for optional fine-tuned weights (produced by tools/finetune_efficientnet.py).
-# Resolved relative to this file's location so it works regardless of cwd.
-_HERE = os.path.dirname(os.path.abspath(__file__))
-FINETUNED_WEIGHTS = os.path.join(
-    _HERE, "..", "..", "models", "efficientnet_v2_s_finetuned.pth")
-
 EMBEDDING_DIM = 1280   # EfficientNetV2-S feature dimension
 
 _encoder = None
@@ -42,9 +36,7 @@ class ImageEncoder:
     """
     Wraps EfficientNetV2-S with the classifier head replaced by Identity()
     so the model outputs its 1280-dim penultimate feature vector.
-
-    If a fine-tuned checkpoint exists (FINETUNED_WEIGHTS path), it is loaded
-    on top of the ImageNet pre-trained weights.
+    Uses ImageNet pre-trained weights.
     """
 
     def __init__(self):
@@ -55,19 +47,11 @@ class ImageEncoder:
         # output shape: (batch, 1280)
         model.classifier = torch.nn.Identity()
 
-        # Load fine-tuned weights if available
-        if os.path.isfile(FINETUNED_WEIGHTS):
-            state = torch.load(FINETUNED_WEIGHTS, map_location=DEVICE)
-            model.load_state_dict(state, strict=False)
-            logger.info(
-                "EfficientNetV2-S: loaded fine-tuned weights from %s", FINETUNED_WEIGHTS)
-        else:
-            logger.info(
-                "EfficientNetV2-S: using ImageNet pre-trained weights (no fine-tune file found)")
-
         model.eval()
         model.to(DEVICE)
         self.model = model
+        logger.info(
+            "EfficientNetV2-S loaded (ImageNet weights, device=%s)", DEVICE)
 
         # Standard ImageNet normalisation — same as before.
         self.transform = transforms.Compose([
