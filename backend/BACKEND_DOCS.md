@@ -49,7 +49,7 @@ backend/
 │   ├── processing/               # Low-level ML / CV operations
 │   │   ├── preprocessing.py      # Phase 6: load+EXIF → denoise → CLAHE → torso crop → resize384 → crop224 → sharpen → quality
 │   │   ├── quality.py            # Image quality scoring — blur, brightness, confidence  ← Phase 5
-│   │   └── embedding.py          # EfficientNetV2-S (1280-dim) singleton; loads finetuned weights if present
+│   │   └── embedding.py          # EfficientNetV2-S (1280-dim) singleton, ImageNet pre-trained weights
 │   │
 │   └── utils/
 │       └── security.py           # JWT decode + JWKS fetch with 1hr in-memory cache
@@ -60,8 +60,7 @@ backend/
 │   └── test_api.py               # 13 integration tests — all external calls mocked
 │
 └── tools/
-    ├── preview_preprocessing.py  # Dev-only: run Phase 6 pipeline on a local file, save step-by-step output images
-    └── finetune_efficientnet.py  # Offline training script — fine-tune EfficientNetV2-S on BreastMNIST/CBIS-DDSM
+    └── preview_preprocessing.py  # Dev-only: run Phase 6 pipeline on a local file, save step-by-step output images
 ```
 
 **Deleted in Phase 5:**
@@ -388,16 +387,16 @@ class PreprocessResult:
 
 **Pipeline steps (Phase 6):**
 
-| Step | Function                  | What it does                                                                                                          |
-| ---- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 1    | `load_image_from_storage` | Downloads from Supabase Storage, applies `ImageOps.exif_transpose()` (EXIF-only orientation), returns uint8 RGB      |
-| 2    | `denoise_image`           | `cv2.fastNlMeansDenoisingColored` — removes sensor noise (h=6, hColor=6)                                             |
-| 3    | `apply_clahe`             | Converts to LAB, runs CLAHE (clipLimit=2.0, 8×8 tile) on L channel, converts back → float32 [0,1]                   |
-| 4    | `detect_torso_crop`       | Adaptive threshold → contours → largest central contour → crop + 5% padding; fallback to full image if none found    |
-| 5    | `resize_intermediate`     | INTER_LANCZOS4 resize to 384×384                                                                                      |
-| 6    | `center_crop_final`       | Centre-crop to 224×224                                                                                                |
-| 7    | `sharpen_image`           | Unsharp mask (1.8/−0.8 weights, σ=1.5) — restores edge detail lost in resizing                                       |
-| 8    | `compute_image_quality`   | Quality metrics on the final 224×224 image (reflects exactly what the embedding model sees)                          |
+| Step | Function                  | What it does                                                                                                      |
+| ---- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1    | `load_image_from_storage` | Downloads from Supabase Storage, applies `ImageOps.exif_transpose()` (EXIF-only orientation), returns uint8 RGB   |
+| 2    | `denoise_image`           | `cv2.fastNlMeansDenoisingColored` — removes sensor noise (h=6, hColor=6)                                          |
+| 3    | `apply_clahe`             | Converts to LAB, runs CLAHE (clipLimit=2.0, 8×8 tile) on L channel, converts back → float32 [0,1]                 |
+| 4    | `detect_torso_crop`       | Adaptive threshold → contours → largest central contour → crop + 5% padding; fallback to full image if none found |
+| 5    | `resize_intermediate`     | INTER_LANCZOS4 resize to 384×384                                                                                  |
+| 6    | `center_crop_final`       | Centre-crop to 224×224                                                                                            |
+| 7    | `sharpen_image`           | Unsharp mask (1.8/−0.8 weights, σ=1.5) — restores edge detail lost in resizing                                    |
+| 8    | `compute_image_quality`   | Quality metrics on the final 224×224 image (reflects exactly what the embedding model sees)                       |
 
 **Orientation:** EXIF-only (`ImageOps.exif_transpose` in step 1). The guided capture flow guarantees the user holds the phone correctly; EXIF handles the tag-level cases. The previous silhouette-based `auto_orient_image` was removed in Phase 6 as it added noise rather than fixing anything for this image type.
 
@@ -407,16 +406,16 @@ class PreprocessResult:
 
 EfficientNetV2-S feature extractor.
 
-| Thing              | Detail                                                                                                         |
-| ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| Model              | `torchvision.models.efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)` with classifier set to Identity |
-| Output             | **1280-dimensional** float32 vector (was 2048 with ResNet50)                                                   |
-| Device             | CUDA if available, else CPU                                                                                     |
-| Singleton          | `get_encoder()` loads the model once; first request takes ~2–4s                                                |
-| Normalisation      | ImageNet mean/std via `transforms.Normalize`                                                                    |
-| User normalisation | If `user_mean` provided: `embedding = embedding - user_mean`                                                   |
-| Fine-tuned weights | Loads `models/efficientnet_v2_s_finetuned.pth` automatically if present (produced by `tools/finetune_efficientnet.py`) |
-| Constant           | `EMBEDDING_DIM = 1280`                                                                                         |
+| Thing              | Detail                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Model              | `torchvision.models.efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)` with classifier set to Identity        |
+| Output             | **1280-dimensional** float32 vector (was 2048 with ResNet50)                                                             |
+| Device             | CUDA if available, else CPU                                                                                              |
+| Singleton          | `get_encoder()` loads the model once; first request takes ~2–4s                                                          |
+| Normalisation      | ImageNet mean/std via `transforms.Normalize`                                                                             |
+| User normalisation | If `user_mean` provided: `embedding = embedding - user_mean`                                                             |
+| Fine-tuned weights | No viable training dataset exists for this use-case (see Known Limitations). ImageNet weights are the practical ceiling. |
+| Constant           | `EMBEDDING_DIM = 1280`                                                                                                   |
 
 ---
 
@@ -450,15 +449,15 @@ Shared slowapi `Limiter` singleton. Exists to prevent circular imports between `
 
 ### Tables Used
 
-| Table                | Used by                                                           | Purpose                                                      |
-| -------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
-| `sessions`           | `session_service`, `utility.py`                                   | Session records with `status` field                          |
-| `images`             | `image_service`, `utility.py`                                     | Per-angle image records with `storage_path`                  |
-| `session_analysis`   | `analyze_session`, `analysis_fetch_service`                       | One row per session: scores, baselines                       |
-| `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session                                |
-| `session_embeddings` | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S session embedding (Phase 6 migration clears old 2048-dim data) |
+| Table                | Used by                                                           | Purpose                                                                                        |
+| -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `sessions`           | `session_service`, `utility.py`                                   | Session records with `status` field                                                            |
+| `images`             | `image_service`, `utility.py`                                     | Per-angle image records with `storage_path`                                                    |
+| `session_analysis`   | `analyze_session`, `analysis_fetch_service`                       | One row per session: scores, baselines                                                         |
+| `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session                                                                  |
+| `session_embeddings` | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S session embedding (Phase 6 migration clears old 2048-dim data)   |
 | `angle_embeddings`   | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S per-angle embedding (Phase 6 migration clears old 2048-dim data) |
-| `analysis_logs`      | (future)                                                          | Per-request processing log — created by PHASE5_MIGRATION.sql |
+| `analysis_logs`      | (future)                                                          | Per-request processing log — created by PHASE5_MIGRATION.sql                                   |
 
 ### Phase 5 DB Changes (`PHASE5_MIGRATION.sql`)
 
@@ -543,44 +542,61 @@ Auth is mocked via `app.dependency_overrides[get_current_user]`. All DB/ML/stora
 
 ---
 
-## Current Issues
+## Known Limitations
 
-*(Phase 6: the silhouette / `auto_orient_image` issue documented here has been resolved by removing that approach entirely. Orientation is now EXIF-only, which is sufficient because the guided capture flow ensures correct phone orientation and EXIF handles the tag-level cases. No current critical issues remain.)*
+### Orientation (resolved)
+
+The previous silhouette-based `auto_orient_image` approach was removed in Phase 6. Orientation is now EXIF-only, which is sufficient — the guided capture flow ensures correct phone orientation and EXIF handles the tag-level cases.
+
+### Model Fine-tuning — No Suitable Dataset Exists
+
+EfficientNetV2-S is currently used with **ImageNet pre-trained weights only**. This is intentional — it is not a gap waiting to be filled.
+
+The Phase 6 spec listed BreastMNIST, CBIS-DDSM, and INBreast as candidate fine-tuning datasets. These are all **medical imaging modalities** (ultrasound and mammography X-rays) and are completely incompatible with this application's image domain:
+
+| Dataset     | Modality               | Why it doesn't apply                                                   |
+| ----------- | ---------------------- | ---------------------------------------------------------------------- |
+| BreastMNIST | Ultrasound (greyscale) | Internal tissue echograms — no colour, no surface, no ambient lighting |
+| CBIS-DDSM   | Mammography X-ray      | X-ray density maps of internal tissue — invisible in visible light     |
+| INBreast    | Mammography X-ray      | Same as above                                                          |
+
+This app captures **visible-light RGB phone photos of the external chest surface**. No labelled public dataset exists for sequential self-monitoring photos of this type. Fine-tuning on the above datasets would actively degrade embedding quality by biasing the backbone toward X-ray/ultrasound texture patterns.
+
+**Practical position:** ImageNet pre-trained EfficientNetV2-S transfers reasonably well to surface-appearance tasks (it has seen diverse textures, skin tones, and body photos in ImageNet). The value of this system lies in the **change-detection and comparison logic**, not model domain adaptation. A domain-specific model would require a proprietary longitudinal dataset that does not exist publicly.
 
 ---
 
 ## Suggested Future Improvements
 
-| Improvement                      | What                                                                                              | Why it helps                                                 | Effort                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------- |
-| **Background removal**           | Segmentation model (e.g. MediaPipe SelfieSegmentation or rembg)                                  | Eliminates background clutter from embeddings                | Medium — new dep      |
-| **Colour-cast correction**       | Grey-world or white-patch white-balance                                                           | Fixes yellow/blue casts from indoor artificial lighting       | Low — 10 lines        |
-| **Fine-tuning (run offline)**    | Run `tools/finetune_efficientnet.py` on BreastMNIST/CBIS-DDSM; deploy `efficientnet_v2_s_finetuned.pth` | Improves embedding relevance for breast tissue images        | Medium — offline only |
-| **ONNX export**                  | Export EfficientNetV2-S to ONNX for faster CPU inference                                          | ~2–3× faster on CPU                                          | Low                   |
-| **Tilt correction**              | Detect + deskew small angular offsets via Hough lines on vertical edges                           | Improves embedding consistency                               | Medium                |
-| **Pose estimation (MediaPipe)**  | Full body keypoint detection — shoulders, hips                                                    | Would improve crop precision; currently not needed            | High — new dep        |
+| Improvement                     | What                                                            | Why it helps                                                                   | Effort           |
+| ------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------- |
+| **Background removal**          | Segmentation model (e.g. MediaPipe SelfieSegmentation or rembg) | Strips background from embeddings; largest source of noise in current pipeline | Medium — new dep |
+| **Colour-cast correction**      | Grey-world or white-patch white-balance                         | Corrects yellow/blue indoor lighting casts                                     | Low — 10 lines   |
+| **ONNX export**                 | Export EfficientNetV2-S to ONNX for CPU inference               | ~2–3× faster on CPU; no PyTorch/CUDA needed at runtime                         | Low              |
+| **Tilt correction**             | Detect + deskew small angular offsets via Hough lines on edges  | More consistent framing across sessions                                        | Medium           |
+| **Pose estimation (MediaPipe)** | Full body keypoint detection — shoulders, hips                  | Precise torso crop without contour ambiguity; solves tilt too                  | High — new dep   |
 
 ---
 
 ## Dependencies (`requirements.txt`)
 
-| Package         | Version  | Purpose                                                          |
-| --------------- | -------- | ---------------------------------------------------------------- |
-| `fastapi`       | 0.110.0  | Web framework                                                    |
-| `uvicorn`       | 0.27.1   | ASGI server                                                      |
-| `python-dotenv` | 1.0.1    | Load `.env`                                                      |
-| `supabase`      | 2.10.0   | Supabase Python client (DB + Storage)                            |
-| `python-jose`   | 3.3.0    | JWT decode and JWKS key construction                             |
-| `cryptography`  | 41.0.7   | Required by python-jose for EC key support                       |
-| `requests`      | 2.32.3   | HTTP client for JWKS fetch                                       |
-| `pytest`        | 7.4.0    | Test runner                                                      |
-| `httpx`         | 0.27.0   | Async HTTP client (used by FastAPI TestClient)                   |
-| `torch`         | 2.1.0    | PyTorch — ResNet50 inference                                     |
-| `torchvision`   | 0.16.0   | ResNet50 model + ImageNet transforms                             |
+| Package         | Version  | Purpose                                                       |
+| --------------- | -------- | ------------------------------------------------------------- |
+| `fastapi`       | 0.110.0  | Web framework                                                 |
+| `uvicorn`       | 0.27.1   | ASGI server                                                   |
+| `python-dotenv` | 1.0.1    | Load `.env`                                                   |
+| `supabase`      | 2.10.0   | Supabase Python client (DB + Storage)                         |
+| `python-jose`   | 3.3.0    | JWT decode and JWKS key construction                          |
+| `cryptography`  | 41.0.7   | Required by python-jose for EC key support                    |
+| `requests`      | 2.32.3   | HTTP client for JWKS fetch                                    |
+| `pytest`        | 7.4.0    | Test runner                                                   |
+| `httpx`         | 0.27.0   | Async HTTP client (used by FastAPI TestClient)                |
+| `torch`         | 2.1.0    | PyTorch — ResNet50 inference                                  |
+| `torchvision`   | 0.16.0   | ResNet50 model + ImageNet transforms                          |
 | `opencv-python` | 4.8.1.78 | Preprocessing — CLAHE, denoise, contour crop, resize, sharpen |
-| `pillow`        | 10.1.0   | Image loading from bytes, EXIF transpose                         |
-| `numpy`         | 1.24.3   | All numerical operations on embeddings and quality scores        |
-| `slowapi`       | 0.1.9    | **NEW Phase 5** — Rate limiting middleware for FastAPI           |
+| `pillow`        | 10.1.0   | Image loading from bytes, EXIF transpose                      |
+| `numpy`         | 1.24.3   | All numerical operations on embeddings and quality scores     |
+| `slowapi`       | 0.1.9    | **NEW Phase 5** — Rate limiting middleware for FastAPI        |
 
 ---
 
