@@ -19,9 +19,12 @@ from app.processing.quality import (
 )
 from app.processing.preprocessing import (
     PreprocessResult,
-    align_image,
-    normalize_image,
-    resize_image,
+    apply_clahe,
+    center_crop_final,
+    denoise_image,
+    detect_torso_crop,
+    resize_intermediate,
+    sharpen_image,
 )
 
 
@@ -164,8 +167,10 @@ class TestComputeConsistencyScore:
 
 class TestComputeAnalysisConfidence:
     def test_returning_user_higher_than_first(self):
-        conf_first = compute_analysis_confidence(0.8, 0.9, 6, is_first_session=True)
-        conf_return = compute_analysis_confidence(0.8, 0.9, 6, is_first_session=False)
+        conf_first = compute_analysis_confidence(
+            0.8, 0.9, 6, is_first_session=True)
+        conf_return = compute_analysis_confidence(
+            0.8, 0.9, 6, is_first_session=False)
         assert conf_return > conf_first
 
     def test_full_coverage_higher_than_partial(self):
@@ -205,35 +210,135 @@ class TestPreprocessResult:
 
 
 # ---------------------------------------------------------------------------
-# Preprocessing pipeline steps (unit, no storage)
+# Phase 6 preprocessing pipeline steps (unit, no storage)
 # ---------------------------------------------------------------------------
 
 class TestPreprocessingSteps:
-    def _make_uint8(self, h=300, w=250):
+    """Unit tests for the Phase 6 preprocessing helpers.
+
+    All functions are testable in isolation on synthetic images —
+    no Supabase or network access needed.
+    """
+
+    def _rand_uint8(self, h=300, w=250) -> np.ndarray:
         return (np.random.rand(h, w, 3) * 255).astype(np.uint8)
 
-    def test_normalize_image_output_range(self):
-        img = self._make_uint8()
-        result = normalize_image(img)
+    def _rand_float32(self, h=300, w=250) -> np.ndarray:
+        return np.random.rand(h, w, 3).astype(np.float32)
+
+    # --- denoise_image -------------------------------------------------------
+
+    def test_denoise_accepts_uint8_returns_uint8(self):
+        img = self._rand_uint8()
+        result = denoise_image(img)
+        assert result.dtype == np.uint8
+        assert result.shape == img.shape
+
+    def test_denoise_accepts_float32(self):
+        img = self._rand_float32()
+        result = denoise_image(img)
+        assert result.dtype == np.uint8  # always converts back to uint8
+
+    # --- apply_clahe ---------------------------------------------------------
+
+    def test_clahe_output_is_float32(self):
+        img = self._rand_uint8()
+        result = apply_clahe(img)
+        assert result.dtype == np.float32
+
+    def test_clahe_output_range(self):
+        img = self._rand_uint8()
+        result = apply_clahe(img)
+        assert result.min() >= 0.0
+        assert result.max() <= 1.0
+
+    def test_clahe_preserves_shape(self):
+        img = self._rand_uint8(300, 250)
+        result = apply_clahe(img)
+        assert result.shape == (300, 250, 3)
+
+    # --- detect_torso_crop ---------------------------------------------------
+
+    def test_torso_crop_returns_array(self):
+        img = self._rand_float32(300, 250)
+        result = detect_torso_crop(img)
+        assert isinstance(result, np.ndarray)
+        assert result.ndim == 3 and result.shape[2] == 3
+
+    def test_torso_crop_fallback_on_uniform_image(self):
+        """Uniform image has no contours — should return original unchanged."""
+        img = np.full((300, 250, 3), 0.5, dtype=np.float32)
+        result = detect_torso_crop(img)
+        assert result.shape == img.shape
+
+    def test_torso_crop_never_smaller_than_64(self):
+        img = self._rand_float32(300, 250)
+        result = detect_torso_crop(img)
+        assert result.shape[0] >= 64
+        assert result.shape[1] >= 64
+
+    # --- resize_intermediate --------------------------------------------------
+
+    def test_resize_intermediate_to_384(self):
+        img = self._rand_float32(300, 250)
+        result = resize_intermediate(img)
+        assert result.shape == (384, 384, 3)
+
+    def test_resize_intermediate_float32_output(self):
+        result = resize_intermediate(self._rand_float32())
         assert result.dtype == np.float32
         assert result.min() >= 0.0
         assert result.max() <= 1.0
 
-    def test_align_image_produces_square(self):
-        img = np.random.rand(300, 250, 3).astype(np.float32)
-        aligned = align_image(img)
-        h, w = aligned.shape[:2]
-        assert h == w == 250  # min(300, 250) = 250
+    def test_resize_intermediate_custom_size(self):
+        img = self._rand_float32(300, 250)
+        result = resize_intermediate(img, size=256)
+        assert result.shape == (256, 256, 3)
 
-    def test_resize_image_to_target(self):
-        img = np.random.rand(250, 250, 3).astype(np.float32)
-        resized = resize_image(img)
-        assert resized.shape == (224, 224, 3)
+    # --- center_crop_final ---------------------------------------------------
 
-    def test_normalize_align_resize_pipeline(self):
-        img_uint8 = self._make_uint8(300, 280)
-        normed = normalize_image(img_uint8)
-        aligned = align_image(normed)
-        resized = resize_image(aligned)
-        assert resized.shape == (224, 224, 3)
-        assert resized.dtype == np.float32
+    def test_center_crop_produces_224(self):
+        img = np.random.rand(384, 384, 3).astype(np.float32)
+        result = center_crop_final(img)
+        assert result.shape == (224, 224, 3)
+
+    def test_center_crop_custom_size(self):
+        img = np.random.rand(384, 384, 3).astype(np.float32)
+        result = center_crop_final(img, size=128)
+        assert result.shape == (128, 128, 3)
+
+    # --- sharpen_image -------------------------------------------------------
+
+    def test_sharpen_float32_output_in_range(self):
+        img = self._rand_float32(224, 224)
+        result = sharpen_image(img)
+        assert result.dtype == np.float32
+        assert result.min() >= 0.0
+        assert result.max() <= 1.0
+
+    def test_sharpen_uint8_output(self):
+        img = self._rand_uint8(224, 224)
+        result = sharpen_image(img)
+        assert result.dtype == np.uint8
+        assert result.shape == img.shape
+
+    def test_sharpen_preserves_shape(self):
+        img = self._rand_float32(224, 224)
+        result = sharpen_image(img)
+        assert result.shape == img.shape
+
+    # --- full pipeline chain (no storage) ------------------------------------
+
+    def test_full_pipeline_chain(self):
+        """Verify the 6 steps chain together producing a 224×224 float32 image."""
+        img = self._rand_uint8(480, 360)  # typical phone portrait crop
+        img = denoise_image(img)           # uint8
+        img = apply_clahe(img)             # float32
+        img = detect_torso_crop(img)       # float32
+        img = resize_intermediate(img)     # float32 384×384
+        img = center_crop_final(img)       # float32 224×224
+        img = sharpen_image(img)           # float32
+        assert img.shape == (224, 224, 3)
+        assert img.dtype == np.float32
+        assert 0.0 <= img.min()
+        assert img.max() <= 1.0

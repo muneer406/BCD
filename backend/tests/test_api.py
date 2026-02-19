@@ -12,7 +12,8 @@ from fastapi.testclient import TestClient
 # Shared mocks / fixtures
 # ---------------------------------------------------------------------------
 
-FAKE_USER = {"user_id": "test-user-123", "role": "authenticated", "email": "t@t.com"}
+FAKE_USER = {"user_id": "test-user-123",
+             "role": "authenticated", "email": "t@t.com"}
 FAKE_SESSION_ID = "aaaa-bbbb-cccc-dddd"
 FAKE_PREV_SESSION_ID = "1111-2222-3333-4444"
 
@@ -101,8 +102,10 @@ def client(monkeypatch):
     from app.api import analyze_status as status_module
     from app.api import compare_sessions as compare_module
 
-    _fake_session = lambda session_id, user_id: {"id": session_id, "status": "completed"}
-    _fake_images  = lambda session_id, user_id: [
+    def _fake_session(session_id, user_id): return {
+        "id": session_id, "status": "completed"}
+
+    def _fake_images(session_id, user_id): return [
         {"image_type": at, "storage_path": f"path/{at}.jpg"}
         for at in ["front", "left", "right", "up", "down", "raised"]
     ]
@@ -136,7 +139,8 @@ def client(monkeypatch):
     class _FakeSupabase:
         def table(self, *a): return _FakeTable()
 
-    monkeypatch.setattr(status_module, "get_supabase_client", lambda: _FakeSupabase())
+    monkeypatch.setattr(status_module, "get_supabase_client",
+                        lambda: _FakeSupabase())
 
     yield TestClient(app, raise_server_exceptions=False)
 
@@ -224,7 +228,8 @@ class TestAnalyzeStatus:
 
     def test_processing_when_in_registry(self, client, monkeypatch):
         from app.api import analyze_session as am
-        am._analysis_jobs[FAKE_SESSION_ID] = {"status": "processing", "error": None}
+        am._analysis_jobs[FAKE_SESSION_ID] = {
+            "status": "processing", "error": None}
         try:
             r = client.get(
                 f"/api/analyze-status/{FAKE_SESSION_ID}",
@@ -236,7 +241,8 @@ class TestAnalyzeStatus:
 
     def test_completed_when_in_registry(self, client, monkeypatch):
         from app.api import analyze_session as am
-        am._analysis_jobs[FAKE_SESSION_ID] = {"status": "completed", "error": None}
+        am._analysis_jobs[FAKE_SESSION_ID] = {
+            "status": "completed", "error": None}
         try:
             r = client.get(
                 f"/api/analyze-status/{FAKE_SESSION_ID}",
@@ -248,7 +254,8 @@ class TestAnalyzeStatus:
 
     def test_failed_when_in_registry(self, client, monkeypatch):
         from app.api import analyze_session as am
-        am._analysis_jobs[FAKE_SESSION_ID] = {"status": "failed", "error": "timeout"}
+        am._analysis_jobs[FAKE_SESSION_ID] = {
+            "status": "failed", "error": "timeout"}
         try:
             r = client.get(
                 f"/api/analyze-status/{FAKE_SESSION_ID}",
