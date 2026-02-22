@@ -32,9 +32,10 @@ jobs:
       - name: Clone HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
         run: |
-          git clone "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" hf-space
+          git clone "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" hf-space
 
       # ── 4. Sync backend/ → root of the HF Space ───────────────────────────
       #
@@ -49,6 +50,7 @@ jobs:
       - name: Push to HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
@@ -59,5 +61,5 @@ jobs:
             echo "No changes to sync – skipping push."
           else
             git commit -m "sync: GitHub ${SHORT_SHA}"
-            git push "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" main
+            git push "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" main
           fi
