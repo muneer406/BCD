@@ -1,5 +1,4 @@
 name: Sync backend → HF Space
-
 on:
   push:
     branches:
@@ -7,6 +6,7 @@ on:
       - master
     paths:
       - "backend/**"
+  workflow_dispatch:
 
 jobs:
   sync:
