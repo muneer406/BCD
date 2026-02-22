@@ -31,7 +31,7 @@ jobs:
       #
       - name: Clone HF Space
         env:
-          HF_TOKEN:    ${{ secrets.HF_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
         run: |
           git clone "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" hf-space
@@ -48,7 +48,7 @@ jobs:
       # ── 5. Commit & push (only if something actually changed) ─────────────
       - name: Push to HF Space
         env:
-          HF_TOKEN:    ${{ secrets.HF_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
