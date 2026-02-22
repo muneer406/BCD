@@ -3,7 +3,7 @@
  * Uses VITE_API_URL environment variable to construct request paths
  */
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL || "https://muneer320-bcd-backend.hf.space";
 const API_PREFIX = "/api";
 
 export const apiClient = {
