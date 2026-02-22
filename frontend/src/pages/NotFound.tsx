@@ -1,6 +1,5 @@
 import { ArrowLeft, Home } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button } from "../components/Button";
 import { PageShell } from "../components/PageShell";
 
 export function NotFound() {
