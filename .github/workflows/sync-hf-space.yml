@@ -1,0 +1,63 @@
+name: Sync backend → HF Space
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "backend/**"
+
+jobs:
+  sync:
+    name: Push backend/ to Hugging Face Space
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout the full repo ──────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Configure git identity ──────────────────────────────────────────
+      - name: Configure git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name  "github-actions[bot]"
+
+      # ── 3. Clone the HF Space repo ─────────────────────────────────────────
+      #
+      # HF_TOKEN  → GitHub secret  (HF user access token, read+write on Space)
+      # HF_SPACE_ID → GitHub variable (format: username/space-name)
+      #
+      - name: Clone HF Space
+        env:
+          HF_TOKEN:    ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+        run: |
+          git clone "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" hf-space
+
+      # ── 4. Sync backend/ → root of the HF Space ───────────────────────────
+      #
+      # --delete removes files from the Space that were deleted locally.
+      # .git is excluded so we never clobber the Space's own git history.
+      #
+      - name: Sync files
+        run: |
+          rsync -av --delete --exclude='.git' backend/ hf-space/
+
+      # ── 5. Commit & push (only if something actually changed) ─────────────
+      - name: Push to HF Space
+        env:
+          HF_TOKEN:    ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          cd hf-space
+          git add -A
+          # Exit 0 if nothing changed (git diff --cached --quiet exits 0 = no diff)
+          if git diff --cached --quiet; then
+            echo "No changes to sync – skipping push."
+          else
+            git commit -m "sync: GitHub ${SHORT_SHA}"
+            git push "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" main
+          fi
