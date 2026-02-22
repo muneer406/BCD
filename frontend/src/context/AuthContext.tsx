@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSessionValid, setIsSessionValid] = useState(true);
 
   // Use refs to avoid stale closures
-  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
   const authListenerRef = useRef<(() => void) | null>(null);
 
