@@ -202,7 +202,7 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         for _rec in _angle_images:
             _path = _rec.get("storage_path", "")
             _result = preprocess_pipeline(_path, _supabase)
-            _emb = extract_embedding(_result.image, user_mean=user_baseline)
+            _emb = extract_embedding(_result.image)
             _embeddings.append(_emb)
             _q = _result.quality
             _quality_scores.append(_q.quality_score)

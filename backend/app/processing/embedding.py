@@ -91,20 +91,14 @@ def get_encoder() -> ImageEncoder:
 
 def extract_embedding(image: np.ndarray, user_mean: np.ndarray | None = None) -> np.ndarray:
     """
-    Extract a 1280-dim embedding and optionally centre it by the user mean.
+    Extract a 1280-dim embedding from a preprocessed image.
 
     Args:
         image:     float32 [0,1] 224×224 RGB numpy array (from preprocess_pipeline).
-        user_mean: optional per-user mean embedding (same shape) to subtract
-                   for within-user normalisation (computed by comparison_service).
+        user_mean: unused, kept for API compatibility.
 
     Returns:
         1D float32 numpy array, length EMBEDDING_DIM (1280).
     """
     encoder = get_encoder()
-    embedding = encoder.extract(image)
-
-    if user_mean is not None:
-        embedding = embedding - user_mean
-
-    return embedding
+    return encoder.extract(image)
