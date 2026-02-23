@@ -339,12 +339,19 @@ export function Capture() {
                   )}
 
                   <div className="flex flex-col gap-2">
-                    <label className="flex cursor-pointer items-center justify-center rounded-lg bg-sand-50 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-ink-700 transition-colors hover:bg-sand-100">
+                    <label
+                      className={`flex items-center justify-center rounded-lg bg-sand-50 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
+                        saving
+                          ? "cursor-not-allowed opacity-50 text-ink-400"
+                          : "cursor-pointer text-ink-700 hover:bg-sand-100"
+                      }`}
+                    >
                       <input
                         type="file"
                         accept="image/*"
                         capture="environment"
                         className="hidden"
+                        disabled={saving}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
                           if (!file) return;
@@ -370,6 +377,7 @@ export function Capture() {
                     </label>
                     <Button
                       variant="outline"
+                      disabled={saving}
                       onClick={() => {
                         // Remove the last image of this type
                         if (typeImages.length > 0) {
@@ -383,12 +391,15 @@ export function Capture() {
                   </div>
                 </div>
               ) : (
-                <label className="flex h-40 sm:h-48 cursor-pointer flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors hover:bg-sand-100">
+                <label
+                  className={`flex h-40 sm:h-48 flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors ${saving ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-sand-100"}`}
+                >
                   <input
                     type="file"
                     accept="image/*"
                     capture="environment"
                     className="hidden"
+                    disabled={saving}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (!file) return;
