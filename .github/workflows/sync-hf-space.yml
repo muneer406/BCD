@@ -26,10 +26,6 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name  "github-actions[bot]"
 
-          # Debug: confirm token is present and looks valid
-          echo "HF_TOKEN length   : ${#HF_TOKEN}"
-          echo "HF_TOKEN prefix   : ${HF_TOKEN:0:5}"   # should print 'hf_xx'
-
           # Store credentials so git never prompts / embeds token in URLs
           git config --global credential.helper store
           echo "https://muneer320:${HF_TOKEN}@huggingface.co" > ~/.git-credentials

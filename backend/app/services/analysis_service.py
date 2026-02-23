@@ -7,7 +7,8 @@ Phase 5: Multi-angle aggregation, correct baseline comparison, trend tracking,
 import logging
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional, Tuple
 import json
 import numpy as np
 
@@ -180,57 +181,66 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         angle_type = image_record.get("image_type", "unknown")
         angle_groups[angle_type].append(image_record)
 
-    # ── 3. Extract embeddings per angle with quality scoring ──────────────────
+    # ── 3. Extract embeddings per angle with quality scoring (parallel) ───────
     angle_embeddings: Dict[str, np.ndarray] = {}
     per_angle_results: List[Dict[str, object]] = []
     angle_quality_scores: Dict[str, float] = {}
 
-    for angle_type, angle_images in angle_groups.items():
-        image_embeddings_for_angle: List[np.ndarray] = []
-        image_quality_scores_for_angle: List[float] = []
-        image_quality_details: List[dict] = []
+    def _process_angle(
+        args: Tuple[str, List[dict]]
+    ) -> Tuple[str, np.ndarray, float, List[dict], float]:
+        """Process all images for one angle in a worker thread.
+        Returns (angle_type, embedding, quality_score, quality_details, change_score).
+        Each thread gets its own Supabase client to avoid sharing HTTP connections.
+        """
+        _angle_type, _angle_images = args
+        _supabase = get_supabase_client()
+        _embeddings: List[np.ndarray] = []
+        _quality_scores: List[float] = []
+        _quality_details: List[dict] = []
 
-        for image_record in angle_images:
-            storage_path = image_record.get("storage_path", "")
-            result = preprocess_pipeline(storage_path, supabase)
-            embedding = extract_embedding(
-                result.image, user_mean=user_baseline)
-            image_embeddings_for_angle.append(embedding)
-
-            q = result.quality
-            image_quality_scores_for_angle.append(q.quality_score)
-            image_quality_details.append({
-                "blur_score": q.blur_score,
-                "brightness": q.brightness,
-                "is_blurry": q.is_blurry,
-                "is_too_dark": q.is_too_dark,
-                "is_too_bright": q.is_too_bright,
-                "quality_score": q.quality_score,
+        for _rec in _angle_images:
+            _path = _rec.get("storage_path", "")
+            _result = preprocess_pipeline(_path, _supabase)
+            _emb = extract_embedding(_result.image, user_mean=user_baseline)
+            _embeddings.append(_emb)
+            _q = _result.quality
+            _quality_scores.append(_q.quality_score)
+            _quality_details.append({
+                "blur_score": _q.blur_score,
+                "brightness": _q.brightness,
+                "is_blurry": _q.is_blurry,
+                "is_too_dark": _q.is_too_dark,
+                "is_too_bright": _q.is_too_bright,
+                "quality_score": _q.quality_score,
             })
 
-        # Angle embedding = mean across all images for this angle
-        angle_embedding = np.mean(image_embeddings_for_angle, axis=0)
-        angle_embeddings[angle_type] = angle_embedding
+        _embedding = np.mean(_embeddings, axis=0)
+        _aq = float(np.mean(_quality_scores))
+        _change = (
+            min(1.0, _cosine_distance(_embedding, user_baseline))
+            if not is_first_session
+            else 0.0
+        )
+        return _angle_type, _embedding, _aq, _quality_details, _change
 
-        # Per-angle quality score
-        angle_q = float(np.mean(image_quality_scores_for_angle))
-        angle_quality_scores[angle_type] = round(angle_q, 4)
-
-        # Change score: distance from baseline; 0 for first session
-        if not is_first_session:
-            change_score = min(1.0, _cosine_distance(
-                angle_embedding, user_baseline))
-        else:
-            change_score = 0.0
-
-        per_angle_results.append({
-            "angle_type": angle_type,
-            "change_score": float(change_score),
-            "variation_level": variation_level(change_score),
-            "angle_quality_score": round(angle_q, 4),
-            "image_quality": image_quality_details,
-            "summary": f"Distance-based analysis for {angle_type} angle.",
-        })
+    # Run all angles concurrently — one thread per angle (max 6)
+    n_workers = min(len(angle_groups), 6)
+    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+        futures = {pool.submit(_process_angle, item): item[0]
+                   for item in angle_groups.items()}
+        for future in as_completed(futures):
+            a_type, a_emb, a_q, a_qd, a_change = future.result()
+            angle_embeddings[a_type] = a_emb
+            angle_quality_scores[a_type] = round(a_q, 4)
+            per_angle_results.append({
+                "angle_type": a_type,
+                "change_score": float(a_change),
+                "variation_level": variation_level(a_change),
+                "angle_quality_score": round(a_q, 4),
+                "image_quality": a_qd,
+                "summary": f"Distance-based analysis for {a_type} angle.",
+            })
 
     # ── 4. Session embedding = mean of angle embeddings ──────────────────────
     session_embedding = np.mean(list(angle_embeddings.values()), axis=0)
