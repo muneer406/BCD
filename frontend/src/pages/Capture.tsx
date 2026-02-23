@@ -342,7 +342,7 @@ export function Capture() {
                     <label
                       className={`flex items-center justify-center rounded-lg bg-sand-50 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
                         saving
-                          ? "cursor-not-allowed opacity-50 text-ink-400"
+                          ? "pointer-events-none cursor-not-allowed opacity-50 text-ink-400"
                           : "cursor-pointer text-ink-700 hover:bg-sand-100"
                       }`}
                     >
@@ -392,7 +392,7 @@ export function Capture() {
                 </div>
               ) : (
                 <label
-                  className={`flex h-40 sm:h-48 flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors ${saving ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-sand-100"}`}
+                  className={`flex h-40 sm:h-48 flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors ${saving ? "pointer-events-none cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-sand-100"}`}
                 >
                   <input
                     type="file"

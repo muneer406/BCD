@@ -76,6 +76,37 @@ def _load_user_baseline(user_id: str, exclude_session_id: str) -> Optional[np.nd
     return np.mean(embeddings, axis=0)
 
 
+def _load_per_angle_baselines(user_id: str, exclude_session_id: str) -> Dict[str, np.ndarray]:
+    """
+    For each angle type, compute the mean embedding from ALL prior sessions.
+    This gives an angle-specific baseline so front-view scores reflect
+    distance from prior front-view images, not from a blended session mean.
+    Returns empty dict if no prior angle data exists (first session).
+    """
+    try:
+        supabase = get_supabase_client()
+        result = (
+            supabase.table("angle_embeddings")
+            .select("angle_type, embedding")
+            .eq("user_id", user_id)
+            .neq("session_id", exclude_session_id)
+            .execute()
+        )
+        if not result.data:
+            return {}
+
+        groups: Dict[str, List[np.ndarray]] = {}
+        for row in result.data:
+            emb = _parse_embedding(row["embedding"])
+            if emb is not None:
+                atype = row["angle_type"]
+                groups.setdefault(atype, []).append(emb)
+
+        return {atype: np.mean(embs, axis=0) for atype, embs in groups.items()}
+    except Exception:
+        return {}
+
+
 # ---------------------------------------------------------------------------
 # Trend score
 # ---------------------------------------------------------------------------
@@ -173,6 +204,8 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
     # ── 1. Load prior baseline (excludes current session) ────────────────────
     user_baseline = _load_user_baseline(user_id, exclude_session_id=session_id)
+    per_angle_baselines = _load_per_angle_baselines(
+        user_id, exclude_session_id=session_id)
     is_first_session = user_baseline is None
 
     # ── 2. Group images by angle type (multi-image support) ──────────────────
@@ -217,9 +250,14 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
         _embedding = np.mean(_embeddings, axis=0)
         _aq = float(np.mean(_quality_scores))
+
+        # Use angle-specific baseline if available; fall back to session mean.
+        # This ensures front-view scores reflect distance from prior front-view
+        # embeddings rather than a blended session mean.
+        _angle_baseline = per_angle_baselines.get(_angle_type, user_baseline)
         _change = (
-            min(1.0, _cosine_distance(_embedding, user_baseline))
-            if not is_first_session
+            min(1.0, _cosine_distance(_embedding, _angle_baseline))
+            if not is_first_session and _angle_baseline is not None
             else 0.0
         )
         return _angle_type, _embedding, _aq, _quality_details, _change
