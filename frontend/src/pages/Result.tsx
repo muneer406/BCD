@@ -6,6 +6,7 @@ import {
   Heart,
   AlertCircle,
   Loader,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -97,6 +98,7 @@ export function Result() {
   const [comparisonLoading, setComparisonLoading] = useState(true);
   const [loading, setLoading] = useState(true); // only for session-info
   const [error, setError] = useState<string | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -214,6 +216,39 @@ export function Result() {
       active = false;
     };
   }, [user, sessionId]);
+
+  const handleReanalyze = async () => {
+    if (!user || !sessionId || reanalyzing) return;
+    setReanalyzing(true);
+    setAnalysisLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token || "";
+      const API_URL =
+        import.meta.env.VITE_API_URL ||
+        "https://muneer320-bcd-backend.hf.space";
+
+      const res = await fetch(
+        `${API_URL}/api/analyze-session/${sessionId}?force=true`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (res.ok) {
+        const analysis = (await res.json()) as AnalysisResponse;
+        setAnalysisData(analysis);
+      }
+    } catch (err) {
+      console.error("Re-analyze error:", err);
+    } finally {
+      setAnalysisLoading(false);
+      setReanalyzing(false);
+    }
+  };
 
   const renderPreview = (title: string) => {
     const imageType = imageTypeByTitle[title];
@@ -425,6 +460,22 @@ export function Result() {
               <p className="mt-2 text-sm text-ink-700">
                 {analysisResults.overall_summary}
               </p>
+            </div>
+          )}
+
+          {!analysisLoading && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleReanalyze}
+                disabled={reanalyzing}
+                className="inline-flex items-center gap-1.5 text-xs text-ink-600 hover:text-ink-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Re-run the full ML analysis against your current baseline"
+              >
+                <RefreshCw
+                  className={`h-3 w-3 ${reanalyzing ? "animate-spin" : ""}`}
+                />
+                {reanalyzing ? "Re-analyzing..." : "Re-analyze"}
+              </button>
             </div>
           )}
         </Card>

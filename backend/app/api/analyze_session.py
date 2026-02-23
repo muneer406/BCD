@@ -2,6 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 
 from ..dependencies import get_current_user
 from ..limiter import limiter
+from ..processing.quality import variation_level
+from ..services.analysis_fetch_service import get_session_analysis as fetch_cached_analysis
 from ..services.analysis_service import analyze_session as run_analysis
 from ..services.db import get_supabase_client
 from ..services.image_service import get_session_images
@@ -146,6 +148,46 @@ def analyze_session(
                 "status": "processing",
             },
         }
+
+    # ── Return cached result if analysis already exists (skip re-run) ────────
+    # Pass ?force=true to bypass the cache and re-run the full ML pipeline.
+    force = request.query_params.get("force", "").lower() == "true"
+    if not force:
+        cached = fetch_cached_analysis(session_id, user_id)
+        if cached and cached.get("per_angle"):
+            overall_score = float(cached.get("overall_change_score") or 0.0)
+            trend = cached.get("trend_score")
+            # Infer first-session: overall score == 0 and no trend score
+            is_first = overall_score == 0.0 and trend is None
+            per_angle_with_levels = [
+                {
+                    **row,
+                    "variation_level": variation_level(float(row.get("change_score") or 0.0)),
+                }
+                for row in cached["per_angle"]
+            ]
+            return {
+                "success": True,
+                "data": {
+                    "session_id": session_id,
+                    "overwritten": False,
+                    "from_cache": True,
+                    "is_first_session": is_first,
+                    "session_analysis": {
+                        "per_angle": per_angle_with_levels,
+                        "overall_summary": (
+                            "Baseline established. Future sessions will be compared to this."
+                            if is_first
+                            else "ML analysis complete. Scores reflect distance from your personal baseline."
+                        ),
+                    },
+                    "scores": {
+                        "change_score": overall_score,
+                        "variation_level": variation_level(overall_score),
+                        "trend_score": float(trend) if trend is not None else None,
+                    },
+                },
+            }
 
     analysis = run_analysis(images, user_id, session_id)
     overwritten = _persist_analysis(session_id, user_id, analysis)
