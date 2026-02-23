@@ -110,7 +110,9 @@ export function Result() {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token || "";
-        const API_URL = import.meta.env.VITE_API_URL || "https://muneer320-bcd-backend.hf.space";
+        const API_URL =
+          import.meta.env.VITE_API_URL ||
+          "https://muneer320-bcd-backend.hf.space";
 
         // ── Step 1: Get session info (fast DB lookup) ──────────────────────
         const sessionInfo = await apiClient.getSessionInfo(sessionId, token);
