@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   CheckCircle,
@@ -120,6 +120,10 @@ export function Result() {
   const [previousSessionId, setPreviousSessionId] = useState<string | null>(
     null,
   );
+  // Tracks whether initial load already completed — prevents re-runs from
+  // token refresh events (Supabase recreates the user object on TOKEN_REFRESHED,
+  // which would otherwise re-trigger the effect).
+  const dataLoadedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -129,6 +133,11 @@ export function Result() {
         setLoading(false);
         return;
       }
+
+      // Skip if data was already successfully loaded for this session.
+      // This prevents re-fetching when Supabase fires TOKEN_REFRESHED and
+      // recreates the user object with a different reference.
+      if (dataLoadedRef.current) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -145,6 +154,7 @@ export function Result() {
         setPreviousSessionId(sessionInfo.previous_session_id ?? null);
         if (sessionInfo.is_first_session) setComparisonLoading(false);
         setLoading(false); // Render the page skeleton immediately
+        dataLoadedRef.current = true; // mark loaded — prevents re-run on token refresh
 
         // ── Step 2: Load images + analysis IN PARALLEL ─────────────────────
         const imageTypes = ["front", "left", "right", "up", "down", "raised"];
@@ -236,8 +246,13 @@ export function Result() {
     loadSessionData();
     return () => {
       active = false;
+      // Reset so a new session ID or fresh mount loads its own data
+      dataLoadedRef.current = false;
     };
-  }, [user, sessionId]);
+    // user?.id is a stable string; using `user` directly would cause this effect
+    // to re-run on every TOKEN_REFRESHED event (Supabase recreates the user object).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, sessionId]);
 
   const handleReanalyze = async () => {
     if (!user || !sessionId || reanalyzing) return;
