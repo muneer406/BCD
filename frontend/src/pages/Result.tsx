@@ -42,7 +42,11 @@ type AnalysisResponse = {
     scores?: {
       change_score: number;
       trend_score: number | null;
+      angle_aware_score?: number;
+      angle_aware_variation_level?: string;
+      analysis_version?: string;
     };
+    processing_time_ms?: number;
     image_quality_summary?: {
       session_quality_score: number;
       consistency_score: number;
@@ -414,6 +418,35 @@ export function Result() {
   const analysisResults = analysisData?.data?.session_analysis;
   const changeScore = analysisData?.data?.scores?.change_score ?? 0;
   const trendScore = analysisData?.data?.scores?.trend_score ?? null;
+  const angleAwareScore = analysisData?.data?.scores?.angle_aware_score ?? null;
+  const angleVariationLevel =
+    analysisData?.data?.scores?.angle_aware_variation_level ?? null;
+  const analysisVersion = analysisData?.data?.scores?.analysis_version ?? null;
+  const processingTimeMs = analysisData?.data?.processing_time_ms ?? null;
+
+  // Confidence derived from session image quality score
+  const rawConfidence =
+    analysisData?.data?.image_quality_summary?.session_quality_score ?? null;
+  const confidenceLabel =
+    rawConfidence == null
+      ? null
+      : rawConfidence >= 0.75
+        ? `High (${(rawConfidence * 100).toFixed(0)}%)`
+        : rawConfidence >= 0.5
+          ? `Medium (${(rawConfidence * 100).toFixed(0)}%)`
+          : `Low (${(rawConfidence * 100).toFixed(0)}%)`;
+  const confidenceColor =
+    rawConfidence == null
+      ? "text-ink-600"
+      : rawConfidence >= 0.75
+        ? "text-green-700"
+        : rawConfidence >= 0.5
+          ? "text-amber-600"
+          : "text-red-600";
+
+  // Mismatch: structural (overall) low but angle-aware high → possible positional drift
+  const hasMismatch =
+    !isFirstSession && changeScore < 0.1 && (angleAwareScore ?? 0) > 0.3;
 
   return (
     <PageShell className="space-y-10">
@@ -442,11 +475,87 @@ export function Result() {
                 ? "Your first session establishes the baseline for all future comparisons."
                 : analysisLoading
                   ? "Running analysis..."
-                  : `Overall change score: ${changeScore.toFixed(2)}${trendScore !== null ? ` · Trend avg: ${trendScore.toFixed(2)}` : ""} — see below for details.`}
+                  : `Structural: ${changeScore.toFixed(2)}${
+                      angleAwareScore !== null
+                        ? ` · Angle: ${angleAwareScore.toFixed(2)}`
+                        : ""
+                    }${
+                      trendScore !== null
+                        ? ` · Trend: ${trendScore.toFixed(2)}`
+                        : ""
+                    } — see details below.`}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Analysis scores card — shown after first session */}
+      {!isFirstSession && !analysisLoading && analysisData?.data?.scores && (
+        <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-4">
+          <p className="text-sm font-semibold text-ink-900">Analysis scores</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-xs text-ink-600">Structural change</p>
+              <p className="text-base font-semibold text-ink-900">
+                {changeScore.toFixed(3)}
+              </p>
+              <p className="text-xs text-ink-500">session vs baseline</p>
+            </div>
+            {angleAwareScore !== null && (
+              <div>
+                <p className="text-xs text-ink-600">Angle change</p>
+                <p className="text-base font-semibold text-tide-700">
+                  {angleAwareScore.toFixed(3)}
+                </p>
+                <p className="text-xs text-ink-500 capitalize">
+                  {angleVariationLevel?.replace(/_/g, " ") ?? "—"}
+                </p>
+              </div>
+            )}
+            {confidenceLabel && (
+              <div>
+                <p className="text-xs text-ink-600">Confidence</p>
+                <p className={`text-base font-semibold ${confidenceColor}`}>
+                  {confidenceLabel}
+                </p>
+                <p className="text-xs text-ink-500">image quality</p>
+              </div>
+            )}
+            {trendScore !== null && (
+              <div>
+                <p className="text-xs text-ink-600">Trend avg</p>
+                <p className="text-base font-semibold text-ink-900">
+                  {trendScore.toFixed(3)}
+                </p>
+                <p className="text-xs text-ink-500">rolling baseline</p>
+              </div>
+            )}
+          </div>
+
+          {hasMismatch && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                Positional differences detected — angle positions may differ
+                between sessions, which can lower the structural score.
+              </p>
+            </div>
+          )}
+
+          {(analysisVersion || processingTimeMs !== null) && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-ink-400">
+              {analysisVersion && (
+                <span>{analysisVersion} · EfficientNetV2-S</span>
+              )}
+              {processingTimeMs !== null && (
+                <span>
+                  Analysis completed in {(processingTimeMs / 1000).toFixed(1)}s
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ===== THIS SESSION SECTION ===== */}
       <div className="space-y-6 border-t-2 border-sand-200 pt-8">
@@ -695,12 +804,17 @@ export function Result() {
                     })}
                 </div>
                 {/* Overall trend */}
-                <div className="rounded-2xl bg-white/70 p-4">
+                <div className="rounded-2xl bg-white/70 p-4 space-y-2">
                   <p className="font-semibold text-sm text-ink-900">
                     Overall trend
                   </p>
                   <p className="mt-2 text-sm text-ink-700 capitalize">
                     {comparisonData.data.overall_trend.replace(/_/g, " ")}
+                  </p>
+                  <p className="text-xs text-ink-500">
+                    {comparisonData.data.rolling_baseline?.available
+                      ? "✓ Stable baseline"
+                      : "○ Baseline still forming"}
                   </p>
                 </div>
 

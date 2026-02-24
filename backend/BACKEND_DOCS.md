@@ -1,5 +1,6 @@
 # BCD Backend — Complete Documentation
 
+**Version:** 0.2.0  
 **Framework:** FastAPI (Python)  
 **Runtime:** Uvicorn ASGI  
 **Database:** Supabase (PostgreSQL via Supabase Python SDK)  
@@ -7,8 +8,10 @@
 **Auth:** Supabase JWTs (ES256 algorithm, JWKS verification)  
 **ML:** PyTorch EfficientNetV2-S (1280-dim embeddings), OpenCV (CLAHE, contour crop, denoise, sharpen)  
 **Rate Limiting:** slowapi 0.1.9 (20 analyses/day per IP, configurable)  
-**Base URL:** `http://localhost:8000` (dev) | prefix all routes with `/api`  
-**Interactive Docs:** `http://localhost:8000/api/docs`
+**Deployment:** Hugging Face Spaces Docker (`https://muneer320-bcd-backend.hf.space`), port 7860  
+**Frontend:** React/Vite/TypeScript on Vercel (`VITE_API_URL` env var)  
+**Base URL (dev):** `http://localhost:8000` — prefix all routes with `/api`  
+**Interactive Docs (dev):** `http://localhost:8000/api/docs`
 
 ---
 
@@ -18,10 +21,23 @@
 backend/
 ├── .env                          # Secret env vars — NOT in git
 ├── requirements.txt              # All Python dependencies
-├── PHASE3_MIGRATION.sql          # DB migration: session_embeddings table
-├── PHASE4_MIGRATION.sql          # DB migration: angle_embeddings + session_analysis columns
-├── PHASE5_MIGRATION.sql          # DB migration: pgvector vector(2048) columns, quality score, analysis_logs
-├── PHASE6_MIGRATION.sql          # DB migration: vector(2048)→vector(1280) model upgrade, clear old embeddings
+├── Dockerfile                    # Multi-stage CPU-only PyTorch image, port 7860
+├── docker-compose.yml            # Local Docker compose for testing
+├── .dockerignore                 # Excludes .venv, __pycache__, tests, etc.
+├── Procfile                      # HF Spaces process definition: uvicorn on port 7860
+├── README.md                     # HF Spaces frontmatter + deployment notes
+│
+├── PHASE3_MIGRATION.sql          # DB: add user_id to session_embeddings
+├── PHASE4_MIGRATION.sql          # DB: angle_embeddings table + session_analysis trend columns
+├── PHASE5_MIGRATION.sql          # DB: pgvector vector(2048) columns, quality scores, analysis_logs
+├── PHASE6_MIGRATION.sql          # DB: DESTRUCTIVE — clears 2048-dim data, installs vector(1280) + HNSW indexes
+├── PHASE7_MIGRATION.sql          # DB: angle_aware_score + analysis_version on session_analysis; confidence_score on analysis_logs
+│
+├── PHASE_6_IMPLEMENTATION_FINAL.md  # Phase 6 spec (preprocessing rewrite decisions)
+├── BACKEND_DOCS.md               # This file
+│
+└── scripts/
+    └── dataset_export.py         # Phase 7B: exports all captured images + metadata to disk for dataset collection
 │
 ├── app/
 │   ├── main.py                   # FastAPI app entrypoint — logging, CORS, rate limiting, routers
@@ -29,9 +45,9 @@ backend/
 │   ├── dependencies.py           # FastAPI dependencies: get_current_user
 │   ├── limiter.py                # Shared slowapi Limiter singleton (avoids circular imports)
 │   │
-│   ├── api/                      # HTTP route handlers (thin controllers)
+│   ├── api/                      # HTTP route handlers (thin controllers — validation + delegation only)
 │   │   ├── analyze_session.py    # POST /api/analyze-session/{session_id}
-│   │   ├── analyze_status.py     # GET  /api/analyze-status/{session_id}   ← NEW Phase 5
+│   │   ├── analyze_status.py     # GET  /api/analyze-status/{session_id}
 │   │   ├── compare_sessions.py   # POST /api/compare-sessions/{current}/{previous}
 │   │   ├── session_analysis.py   # GET  /api/sessions/{session_id}/analysis
 │   │   ├── generate_report.py    # POST /api/generate-report/{session_id}
@@ -41,23 +57,23 @@ backend/
 │   │   ├── db.py                 # Supabase client factory
 │   │   ├── session_service.py    # get_session() helper
 │   │   ├── image_service.py      # get_session_images() helper
-│   │   ├── analysis_service.py   # Full ML analysis: preprocess → orient → embed → score → store
-│   │   ├── comparison_service.py # Compare two sessions via embeddings
-│   │   ├── analysis_fetch_service.py # Read stored analysis back from DB
-│   │   └── report_service.py     # Build report from stored analysis (stub)
+│   │   ├── analysis_service.py   # Full ML pipeline: preprocess → embed → score → per-angle baselines → store
+│   │   ├── comparison_service.py # Compare two sessions across 5 structured layers
+│   │   ├── analysis_fetch_service.py # Read stored analysis back from DB (no ML)
+│   │   └── report_service.py     # Stub — returns hardcoded summary, no real report yet
 │   │
 │   ├── processing/               # Low-level ML / CV operations
-│   │   ├── preprocessing.py      # Phase 6: load+EXIF → denoise → CLAHE → torso crop → resize384 → crop224 → sharpen → quality
-│   │   ├── quality.py            # Image quality scoring — blur, brightness, confidence  ← Phase 5
+│   │   ├── preprocessing.py      # Phase 6: 8-step pipeline
+│   │   ├── quality.py            # Image quality scoring — blur, brightness, confidence, variation level
 │   │   └── embedding.py          # EfficientNetV2-S (1280-dim) singleton, ImageNet pre-trained weights
 │   │
 │   └── utils/
 │       └── security.py           # JWT decode + JWKS fetch with 1hr in-memory cache
 │
 ├── tests/
-│   ├── conftest.py               # sys.path setup for 'app.*' imports
-│   ├── test_quality.py           # 55 unit tests — quality.py + Phase 6 preprocessing steps
-│   └── test_api.py               # 13 integration tests — all external calls mocked
+│   ├── conftest.py               # sys.path setup so `app.*` imports resolve from the backend root
+│   ├── test_quality.py           # 42 unit tests — quality.py functions + Phase 6 preprocessing steps
+│   └── test_api.py               # 13 integration tests — all DB/ML/storage calls mocked
 │
 └── tools/
     └── preview_preprocessing.py  # Dev-only: run Phase 6 pipeline on a local file, save step-by-step output images
@@ -65,40 +81,55 @@ backend/
 
 **Deleted in Phase 5:**
 
-- `app/processing/session_analysis.py` — was dead stub, removed
-- `app/processing/trend_analysis.py` — was dead stub, removed
+- `app/processing/session_analysis.py` — was a dead stub; removed
+- `app/processing/trend_analysis.py` — was a dead stub; removed
 
 ---
 
 ## Environment Variables (`.env`)
 
-> `.env` is gitignored. Never commit it. A new developer must create it manually.
+> `.env` is gitignored. **Never commit it.** A new developer must create it manually.
 
-| Variable                      | Value                                      | Purpose                                                     |
-| ----------------------------- | ------------------------------------------ | ----------------------------------------------------------- |
-| `SUPABASE_URL`                | `https://vtpgeaqhkbbpvaigxwgq.supabase.co` | Supabase project URL                                        |
-| `SUPABASE_SERVICE_ROLE_KEY`   | `eyJhbG...` (JWT)                          | Bypasses RLS — used by backend only, never sent to frontend |
-| `JWT_ALGORITHM`               | `ES256`                                    | Supabase uses ES256 (Elliptic Curve), **not** RS256         |
-| `API_HOST`                    | `0.0.0.0`                                  | Bind address for uvicorn                                    |
-| `API_PORT`                    | `8000`                                     | Port                                                        |
-| `API_PREFIX`                  | `/api`                                     | All routes prefixed here                                    |
-| `ALLOWED_ORIGINS`             | `*` (dev) or `https://yourapp.com` (prod)  | **NEW Phase 5** — CORS origins; comma-separated list or `*` |
-| `RATE_LIMIT_ANALYSIS_PER_DAY` | `20`                                       | **NEW Phase 5** — Max analyze-session calls per day per IP  |
+| Variable                      | Example value                              | Purpose                                                          |
+| ----------------------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| `SUPABASE_URL`                | `https://vtpgeaqhkbbpvaigxwgq.supabase.co` | Supabase project URL                                             |
+| `SUPABASE_SERVICE_ROLE_KEY`   | `eyJhbG...` (long JWT)                     | Bypasses RLS — backend only, **never sent to frontend**          |
+| `JWT_ALGORITHM`               | `ES256`                                    | Supabase uses ES256 (Elliptic Curve), **not** RS256              |
+| `API_HOST`                    | `0.0.0.0`                                  | Bind address for uvicorn                                         |
+| `API_PORT`                    | `8000`                                     | Port (HF Spaces Docker overrides this to 7860 in Dockerfile CMD) |
+| `API_PREFIX`                  | `/api`                                     | All routes prefixed here                                         |
+| `ALLOWED_ORIGINS`             | `*` (dev) / `https://yourapp.com` (prod)   | CORS origins — comma-separated list or `*`                       |
+| `RATE_LIMIT_ANALYSIS_PER_DAY` | `20`                                       | Max `analyze-session` calls per day per IP                       |
 
-**Not set but auto-derived:** `SUPABASE_JWKS_URL` — if absent, `config.py` builds it as `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
+**Auto-derived (no need to set):** `SUPABASE_JWKS_URL` — `config.py` builds it as `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` if absent.
 
-**Not used but declared:** `SUPABASE_JWT_PUBLIC_KEY` — was the old RS256 approach; kept in `Settings` but ignored.
+**Declared but unused:** `SUPABASE_JWT_PUBLIC_KEY` — leftover from the old RS256 approach; kept in `Settings` dataclass to avoid errors if it appears in `.env`.
 
 ---
 
 ## How to Run
+
+### Local (development)
 
 ```powershell
 cd backend
 .venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-Server starts at `http://localhost:8000`. The `--reload` flag auto-restarts on file changes.
+Server starts at `http://localhost:8000`. `--reload` restarts on file changes.
+
+### Docker (local testing)
+
+```powershell
+cd backend
+docker compose up --build
+```
+
+Maps container port 7860 to host port 7860.
+
+### HF Spaces (production)
+
+Deployed automatically via `.github/workflows/sync-hf.yml`, which pushes `backend/` to the `muneer320/bcd-backend` HF Space repository on every push to `master` using `HF_TOKEN` (a Hugging Face write token stored as a GitHub secret). HF Spaces builds the Docker image and starts uvicorn on port 7860.
 
 ---
 
@@ -110,16 +141,18 @@ Every endpoint (except `GET /`) requires a valid Supabase JWT in the `Authorizat
 Authorization: Bearer <supabase-access-token>
 ```
 
-The flow:
+Flow:
 
-1. Frontend calls `supabase.auth.getSession()` to get the access token
-2. Frontend sends it as a Bearer token
-3. Backend `get_current_user()` dependency extracts it
-4. `security.py` fetches JWKS from Supabase (cached for 1 hour), finds the matching key by `kid`, and verifies the JWT signature
-5. If valid, returns `{"user_id": str, "role": str, "email": str}` which all handlers receive as the `user` parameter
-6. If invalid or missing → `401 Unauthorized`
+1. Frontend calls `supabase.auth.getSession()` to obtain the access token
+2. Frontend includes it as `Authorization: Bearer <token>` on every API request
+3. Backend `get_current_user()` dependency (`dependencies.py`) extracts the Bearer token
+4. `security.py` fetches JWKS from Supabase (cached for 1 hour), finds the matching key by `kid`, and verifies the JWT signature using `python-jose`
+5. If valid → returns `{"user_id": str, "role": str, "email": str}` to the route handler
+6. If missing, malformed, or signature-invalid → `401 Unauthorized`
 
-**Key detail:** `verify_aud: False` is set because Supabase JWTs have `aud: "authenticated"` but python-jose's audience check requires explicit opt-in. Disabling it is safe because the signature is still fully verified.
+**Why `verify_aud: False`:** Supabase JWTs have `aud: "authenticated"`. python-jose's audience check requires the expected audience be passed explicitly. Disabling it is safe because the signature is still fully cryptographically verified.
+
+**JWKS cache:** Keys fetched once are reused for up to 3600 seconds. On `kid` mismatch (key rotation), the cache is busted and JWKS is re-fetched once.
 
 ---
 
@@ -128,7 +161,14 @@ The flow:
 ### `GET /`
 
 **File:** `app/main.py` | **Auth:** None  
-Health check — returns `{"status": "ok"}`
+Legacy health check — returns `{"status": "ok"}`
+
+---
+
+### `GET /health`
+
+**File:** `app/main.py` | **Auth:** None  
+Explicit health check for load-balancers, uptime monitors, and Hugging Face Spaces. Returns `{"status": "ok"}`.
 
 ---
 
@@ -136,21 +176,25 @@ Health check — returns `{"status": "ok"}`
 
 **File:** `app/api/analyze_session.py` | **Auth:** Required  
 **Rate limit:** 20 requests/day per IP (configurable via `RATE_LIMIT_ANALYSIS_PER_DAY`)  
-**Query param:** `?async_process=false` (optional)
+**Query params:**
 
-**What it does (sync mode):**
+- `?async_process=false` — default sync mode; `true` for background processing
+- `?force=true` — bypass cache and re-run the full ML pipeline
 
-1. Validates session exists and belongs to the authenticated user
-2. Checks session `status == "completed"`
+**What it does (sync mode, cache miss):**
+
+1. Validates the session exists and belongs to the authenticated user
+2. Checks `session.status == "completed"` (frontend must mark session complete before calling)
 3. Fetches image records via `get_session_images()`
-4. Requires **at least 3 angles** (fails 400 if fewer)
-5. Calls `analysis_service.analyze_session()` — full ML + quality pipeline
-6. Persists results to `angle_analysis` and `session_analysis` tables (idempotent)
-7. Returns analysis JSON including Phase 5 trust/quality fields
+4. Requires **at least 3 angles** — returns 400 if fewer (full set is `{front, left, right, up, down, raised}` but 3 minimum is accepted)
+5. **Cache check:** If analysis rows already exist in `session_analysis` AND `?force=true` is NOT set → returns the stored result immediately with `from_cache: true`, skipping ML entirely
+6. Calls `analysis_service.analyze_session()` — full Phase 6 ML + quality pipeline
+7. Persists results to `angle_analysis` and `session_analysis` tables (idempotent: delete-then-insert)
+8. Returns analysis JSON including Phase 5 trust/quality fields
 
-**Async mode** (`?async_process=true`): Registers the job in `_analysis_jobs` dict, enqueues as a FastAPI `BackgroundTask`, returns `{"status": "processing"}` immediately. Poll `GET /api/analyze-status/{session_id}` for completion.
+**Async mode** (`?async_process=true`): Registers the job in the in-process `_analysis_jobs` dict, enqueues it as a FastAPI `BackgroundTask`, and returns `{"status": "processing"}` immediately. Poll `GET /api/analyze-status/{session_id}` for completion.
 
-**Response (sync):**
+**Response (sync, cache miss):**
 
 ```json
 {
@@ -158,6 +202,7 @@ Health check — returns `{"status": "ok"}`
   "data": {
     "session_id": "uuid",
     "overwritten": false,
+    "from_cache": false,
     "is_first_session": false,
     "session_analysis": {
       "per_angle": [
@@ -166,18 +211,30 @@ Health check — returns `{"status": "ok"}`
           "change_score": 0.42,
           "variation_level": "Moderate Variation",
           "angle_quality_score": 0.78,
+          "image_quality": [
+            {
+              "blur_score": 300.0,
+              "brightness": 0.5,
+              "is_blurry": false,
+              "is_too_dark": false,
+              "is_too_bright": false,
+              "quality_score": 0.78
+            }
+          ],
           "summary": "Distance-based analysis for front angle."
         }
       ],
-      "overall_summary": "ML analysis complete."
+      "overall_summary": "ML analysis complete. Scores reflect distance from your personal baseline."
     },
     "scores": {
-      "overall_change_score": 0.42,
+      "change_score": 0.42,
       "variation_level": "Moderate Variation",
       "trend_score": 0.38,
-      "is_first_session": false,
       "analysis_confidence_score": 0.82,
-      "session_quality_score": 0.77
+      "session_quality_score": 0.77,
+      "angle_aware_score": 0.39,
+      "angle_aware_variation_level": "Mild Variation",
+      "analysis_version": "v0.7"
     },
     "image_quality_summary": {
       "session_quality_score": 0.77,
@@ -188,19 +245,33 @@ Health check — returns `{"status": "ok"}`
       "total_images": 6
     },
     "baseline_used": "lifetime_mean",
-    "comparison_layers_used": ["immediate", "rolling", "monthly", "lifetime"],
+    "comparison_layers_used": ["lifetime_baseline"],
     "processing_time_ms": 2500
   }
 }
 ```
 
+**Response (cache hit):** Same shape but `from_cache: true`, `overwritten: false`. The `image_quality_summary`, `baseline_used`, `comparison_layers_used`, and `processing_time_ms` fields are omitted (only stored scores are returned). `is_first_session` is inferred: `overall_score == 0.0 AND trend_score == null`.
+
+**First session:** `is_first_session: true`, `change_score: 0.0`, `trend_score: null`, `overall_summary: "Baseline established."` All change scores are 0.0 — no prior baseline to compare against.
+
+**Known limitation:** `per_angle[].summary` always says `"Distance-based analysis for {angle} angle."` — not generated by a language model.
+
+**Used by:** `frontend/src/pages/Result.tsx`
+
 ---
 
-### `GET /api/analyze-status/{session_id}` ← NEW Phase 5
+### `GET /api/analyze-status/{session_id}`
 
 **File:** `app/api/analyze_status.py` | **Auth:** Required
 
-Polls the status of an async analysis job. Checks the in-memory `_analysis_jobs` registry first, then falls back to querying the `session_analysis` DB table.
+Polls the status of an async analysis job.
+
+**Check order:**
+
+1. In-memory `_analysis_jobs` registry (imported from `analyze_session.py`) — most accurate for recently-queued jobs
+2. `session_analysis` DB table — catches jobs completed before in-memory state was queried
+3. Neither found → `not_started`
 
 **Response:**
 
@@ -208,18 +279,21 @@ Polls the status of an async analysis job. Checks the in-memory `_analysis_jobs`
 {
   "success": true,
   "data": {
-    "status": "processing", // "processing" | "completed" | "failed" | "not_started"
-    "error": null // string on failure, null otherwise
+    "session_id": "uuid",
+    "status": "completed",
+    "error": null
   }
 }
 ```
 
 **Status values:**
 
-- `not_started` — no job found in registry and no DB row
-- `processing` — job is running
-- `completed` — job finished successfully (DB row confirms)
-- `failed` — job threw an exception; `error` contains the message
+| Value         | Meaning                                                     |
+| ------------- | ----------------------------------------------------------- |
+| `not_started` | No job found in registry and no DB row exists               |
+| `processing`  | Background job is running                                   |
+| `completed`   | Job finished successfully (DB row confirmed)                |
+| `failed`      | Job threw an exception; `error` contains the message string |
 
 ---
 
@@ -227,10 +301,11 @@ Polls the status of an async analysis job. Checks the in-memory `_analysis_jobs`
 
 **File:** `app/api/compare_sessions.py` | **Auth:** Required
 
-**What it does:**
-Compares two sessions using stored embeddings and per-angle scores across 4 baseline layers.
+Compares two sessions using stored embeddings and per-angle scores across 5 structured layers.
 
-**Response (Phase 5 additions highlighted):**
+**Preconditions:** Both sessions must exist, belong to the user, have `status == "completed"`, and have been previously analyzed. Returns 400 if both IDs are the same. Raises 404 if `angle_analysis` rows are missing.
+
+**Response:**
 
 ```json
 {
@@ -277,26 +352,38 @@ Compares two sessions using stored embeddings and per-angle scores across 4 base
 }
 ```
 
+`available: false` (with `delta: null`, `trend: null`, `variation_level: null`) is returned for baselines with insufficient data.
+
+**Fallback:** If session embeddings are missing, `overall_delta` = mean of per-angle score deltas. `comparison_method` = `"score"`.
+
+**Used by:** `frontend/src/pages/Result.tsx`
+
 ---
 
 ### `GET /api/session-info/{session_id}`
 
 **File:** `app/api/utility.py` | **Auth:** Required
 
-Returns session metadata: is it the first? what is the previous session id? how many total?
+Returns metadata about a session.
+
+**DB queries (4):** ownership verify; total `sessions` count; oldest session (for `is_first_session`); two most recent sessions (for `is_current` and `previous_session_id`).
 
 **Response:**
 
 ```json
 {
   "session_id": "uuid",
-  "is_first_session": true,
+  "is_first_session": false,
   "is_current": true,
-  "total_sessions": 1,
-  "created_at": "2026-02-16T10:00:00",
-  "previous_session_id": null
+  "total_sessions": 3,
+  "created_at": "2026-02-16T10:00:00Z",
+  "previous_session_id": "prev-uuid"
 }
 ```
+
+`previous_session_id` is the **second most recent** session, used as comparison target. `null` if this is the first session.
+
+**Used by:** `frontend/src/lib/apiClient.ts` → `apiClient.getSessionInfo()` → `Result.tsx`
 
 ---
 
@@ -304,651 +391,9 @@ Returns session metadata: is it the first? what is the previous session id? how 
 
 **File:** `app/api/utility.py` | **Auth:** Required
 
-Generates a 1-hour signed URL for a single image (uses the service role key server-side).
+Generates a 1-hour signed URL for a single image from Supabase Storage. Service role key used server-side — never exposed to the frontend.
 
 `image_type` values: `front`, `left`, `right`, `up`, `down`, `raised`
-
----
-
-### `GET /api/session-thumbnails/{session_id}`
-
-**File:** `app/api/utility.py` | **Auth:** Required
-
-Batch version of image-preview — returns signed URLs for all 6 angles in one request. Implemented and working but **not currently called by any frontend page**.
-
----
-
-### `GET /api/sessions/{session_id}/analysis`
-
-**File:** `app/api/session_analysis.py` | **Auth:** Required
-
-Read back already-stored analysis results without re-running ML. Returns 404 if never analyzed. **Not currently called anywhere in the frontend.**
-
----
-
-### `POST /api/generate-report/{session_id}`
-
-**File:** `app/api/generate_report.py` | **Auth:** Required  
-**⚠️ STUB.** Returns a hardcoded summary string. No PDF, no email, not yet implemented.
-
----
-
-## Processing Layer
-
-### `processing/quality.py` ← NEW Phase 5
-
-Pure quality-scoring module. No ML model involved — all OpenCV.
-
-**`ImageQuality` dataclass:**
-
-| Field           | Type    | Description                                                     |
-| --------------- | ------- | --------------------------------------------------------------- |
-| `blur_score`    | `float` | Laplacian variance of the image (higher = sharper)              |
-| `brightness`    | `float` | Mean pixel value in [0, 1]                                      |
-| `is_blurry`     | `bool`  | `True` if `blur_score < 80.0`                                   |
-| `is_too_dark`   | `bool`  | `True` if `brightness < 0.15`                                   |
-| `is_too_bright` | `bool`  | `True` if `brightness > 0.90`                                   |
-| `quality_score` | `float` | Composite [0, 1]: 60% blur component + 40% brightness component |
-
-**Key functions:**
-
-| Function                                                                | Description                                                          |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `compute_image_quality(image)`                                          | Per-image quality from a float32 [0,1] image                         |
-| `compute_session_quality(angle_quality_scores)`                         | Mean of per-angle scores × coverage factor (÷6 angles)               |
-| `compute_consistency_score(angle_change_scores)`                        | `1 - std/0.5` — how consistent change scores are across angles       |
-| `compute_analysis_confidence(quality, consistency, n_angles, is_first)` | Weighted: 40% quality + 30% consistency + 20% coverage + 10% history |
-| `variation_level(score)`                                                | Maps cosine distance to a neutral label (see table below)            |
-
-**`variation_level` mapping — deliberately non-medical language:**
-
-| Score range | Label              |
-| ----------- | ------------------ |
-| 0.00 – 0.10 | Stable             |
-| 0.10 – 0.25 | Mild Variation     |
-| 0.25 – 0.45 | Moderate Variation |
-| 0.45 – 0.70 | Higher Variation   |
-| 0.70 – 1.00 | Strong Variation   |
-
----
-
-### `processing/preprocessing.py` (Phase 6 rewrite)
-
-Full image preprocessing pipeline. Returns a `PreprocessResult` dataclass.
-
-**`PreprocessResult` dataclass:**
-
-```python
-@dataclass
-class PreprocessResult:
-    image: np.ndarray    # float32 [0,1], 224×224 RGB
-    quality: ImageQuality
-```
-
-**Pipeline steps (Phase 6):**
-
-| Step | Function                  | What it does                                                                                                      |
-| ---- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 1    | `load_image_from_storage` | Downloads from Supabase Storage, applies `ImageOps.exif_transpose()` (EXIF-only orientation), returns uint8 RGB   |
-| 2    | `denoise_image`           | `cv2.fastNlMeansDenoisingColored` — removes sensor noise (h=6, hColor=6)                                          |
-| 3    | `apply_clahe`             | Converts to LAB, runs CLAHE (clipLimit=2.0, 8×8 tile) on L channel, converts back → float32 [0,1]                 |
-| 4    | `detect_torso_crop`       | Adaptive threshold → contours → largest central contour → crop + 5% padding; fallback to full image if none found |
-| 5    | `resize_intermediate`     | INTER_LANCZOS4 resize to 384×384                                                                                  |
-| 6    | `center_crop_final`       | Centre-crop to 224×224                                                                                            |
-| 7    | `sharpen_image`           | Unsharp mask (1.8/−0.8 weights, σ=1.5) — restores edge detail lost in resizing                                    |
-| 8    | `compute_image_quality`   | Quality metrics on the final 224×224 image (reflects exactly what the embedding model sees)                       |
-
-**Orientation:** EXIF-only (`ImageOps.exif_transpose` in step 1). The guided capture flow guarantees the user holds the phone correctly; EXIF handles the tag-level cases. The previous silhouette-based `auto_orient_image` was removed in Phase 6 as it added noise rather than fixing anything for this image type.
-
----
-
-### `processing/embedding.py` (Phase 6 upgrade)
-
-EfficientNetV2-S feature extractor.
-
-| Thing              | Detail                                                                                                                   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Model              | `torchvision.models.efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)` with classifier set to Identity        |
-| Output             | **1280-dimensional** float32 vector (was 2048 with ResNet50)                                                             |
-| Device             | CUDA if available, else CPU                                                                                              |
-| Singleton          | `get_encoder()` loads the model once; first request takes ~2–4s                                                          |
-| Normalisation      | ImageNet mean/std via `transforms.Normalize`                                                                             |
-| User normalisation | If `user_mean` provided: `embedding = embedding - user_mean`                                                             |
-| Fine-tuned weights | No viable training dataset exists for this use-case (see Known Limitations). ImageNet weights are the practical ceiling. |
-| Constant           | `EMBEDDING_DIM = 1280`                                                                                                   |
-
----
-
-## Services Layer
-
-### `services/analysis_service.py` (Phase 5 rewrite)
-
-**`analyze_session(images, user_id, session_id) → dict`**
-
-Now integrates the full quality pipeline:
-
-1. For each image: `preprocess_pipeline()` → `PreprocessResult` → `result.image` for embedding, `result.quality` for quality metrics
-2. Per-angle: `angle_quality_score`, `image_quality` list, `variation_level` label
-3. Session aggregation: `compute_session_quality()`, `compute_consistency_score()`, `compute_analysis_confidence()`
-4. Return dict now includes: `variation_level`, `analysis_confidence_score`, `session_quality_score`, `image_quality_summary`, `baseline_used`, `comparison_layers_used`, `processing_time_ms`
-5. Structured logging for each completed analysis
-
-### `services/comparison_service.py` (Phase 5 updates)
-
-Now returns per-angle `variation_level` labels, `overall_variation_level`, `baseline_used`, `comparison_layers_used`, `processing_time_ms`. All baseline layers now include a `variation_level` field.
-
----
-
-## `app/limiter.py` ← NEW Phase 5
-
-Shared slowapi `Limiter` singleton. Exists to prevent circular imports between `main.py` (which registers the exception handler) and `analyze_session.py` (which applies the `@limiter.limit()` decorator). Falls back to a no-op `_NoOpLimiter` if slowapi is not installed.
-
----
-
-## Database
-
-### Tables Used
-
-| Table                | Used by                                                           | Purpose                                                                                        |
-| -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `sessions`           | `session_service`, `utility.py`                                   | Session records with `status` field                                                            |
-| `images`             | `image_service`, `utility.py`                                     | Per-angle image records with `storage_path`                                                    |
-| `session_analysis`   | `analyze_session`, `analysis_fetch_service`                       | One row per session: scores, baselines                                                         |
-| `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session                                                                  |
-| `session_embeddings` | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S session embedding (Phase 6 migration clears old 2048-dim data)   |
-| `angle_embeddings`   | `analysis_service`, `comparison_service`                          | **1280-dim** EfficientNetV2-S per-angle embedding (Phase 6 migration clears old 2048-dim data) |
-| `analysis_logs`      | (future)                                                          | Per-request processing log — created by PHASE5_MIGRATION.sql                                   |
-
-### Phase 5 DB Changes (`PHASE5_MIGRATION.sql`)
-
-Run this in the Supabase SQL Editor when ready:
-
-```sql
--- pgvector extension (for future native vector storage)
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- New columns on session_analysis
-ALTER TABLE session_analysis
-  ADD COLUMN IF NOT EXISTS analysis_confidence_score float,
-  ADD COLUMN IF NOT EXISTS session_quality_score float;
-
--- New column on angle_analysis
-ALTER TABLE angle_analysis
-  ADD COLUMN IF NOT EXISTS angle_quality_score float;
-
--- analysis_logs table (RLS blocks public access)
-CREATE TABLE IF NOT EXISTS analysis_logs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id uuid,
-  user_id uuid,
-  processing_time_ms int,
-  status text,
-  error_message text,
-  created_at timestamptz DEFAULT now()
-);
-```
-
-The code uses a 3-level graceful fallback — it attempts to store the new columns, catches errors if the migration hasn't been run yet, and falls back to the basic insert. **No production breakage** if migration is delayed.
-
----
-
-## Security & Production Concerns
-
-### CORS (Phase 5)
-
-`main.py` reads `ALLOWED_ORIGINS` from env and splits comma-separated values:
-
-```python
-# In production
-ALLOWED_ORIGINS="https://yourapp.com,https://staging.yourapp.com"
-
-# In dev (default)
-ALLOWED_ORIGINS="*"
-```
-
-When `"*"`, `allow_credentials=False` is automatically set (wildcard + credentials violates the CORS spec).
-
-### Rate Limiting (Phase 5)
-
-`POST /api/analyze-session/{session_id}` is decorated with `@limiter.limit("20/day")` (or whatever `RATE_LIMIT_ANALYSIS_PER_DAY` is set to). The ML pipeline takes 2–4 seconds per call and is the most expensive endpoint. Rate limited by remote IP via slowapi.
-
-### Structured Logging (Phase 5)
-
-`logging.config.dictConfig` is called at startup. All `app.*` logger calls produce timestamped JSON-friendly lines. `uvicorn.access` logs are suppressed to reduce noise. Key events logged:
-
-- `analyze_session complete | session=... processing_time_ms=...`
-- `compare_sessions complete | ...`
-- All unhandled exceptions via `logger.exception()`
-
----
-
-## Tests
-
-**Run:**
-
-```powershell
-cd backend
-.venv\Scripts\python.exe -m pytest tests/ -v
-```
-
-**Current result: 55/55 passing.**
-
-| File              | Tests    | What's covered                                                                                                                                                                                                                                                        |
-| ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `test_quality.py` | 42 tests | `variation_level` (15 parametrised cases + no-medical-language check), `compute_image_quality`, `compute_session_quality`, `compute_consistency_score`, `compute_analysis_confidence`, `PreprocessResult`, preprocessing steps (normalize/align/resize/full pipeline) |
-| `test_api.py`     | 13 tests | Health check, `analyze-session` (200, required fields, variation_level, image_quality_summary), `analyze-status` (all 4 status values), `compare-sessions` (200, trust fields, per-angle variation_level, baseline layers, same-id 400)                               |
-
-Auth is mocked via `app.dependency_overrides[get_current_user]`. All DB/ML/storage calls are monkeypatched on the module-level names (not the service module) to match Python import semantics.
-
----
-
-## Known Limitations
-
-### Orientation (resolved)
-
-The previous silhouette-based `auto_orient_image` approach was removed in Phase 6. Orientation is now EXIF-only, which is sufficient — the guided capture flow ensures correct phone orientation and EXIF handles the tag-level cases.
-
-### Model Fine-tuning — No Suitable Dataset Exists
-
-EfficientNetV2-S is currently used with **ImageNet pre-trained weights only**. This is intentional — it is not a gap waiting to be filled.
-
-The Phase 6 spec listed BreastMNIST, CBIS-DDSM, and INBreast as candidate fine-tuning datasets. These are all **medical imaging modalities** (ultrasound and mammography X-rays) and are completely incompatible with this application's image domain:
-
-| Dataset     | Modality               | Why it doesn't apply                                                   |
-| ----------- | ---------------------- | ---------------------------------------------------------------------- |
-| BreastMNIST | Ultrasound (greyscale) | Internal tissue echograms — no colour, no surface, no ambient lighting |
-| CBIS-DDSM   | Mammography X-ray      | X-ray density maps of internal tissue — invisible in visible light     |
-| INBreast    | Mammography X-ray      | Same as above                                                          |
-
-This app captures **visible-light RGB phone photos of the external chest surface**. No labelled public dataset exists for sequential self-monitoring photos of this type. Fine-tuning on the above datasets would actively degrade embedding quality by biasing the backbone toward X-ray/ultrasound texture patterns.
-
-**Practical position:** ImageNet pre-trained EfficientNetV2-S transfers reasonably well to surface-appearance tasks (it has seen diverse textures, skin tones, and body photos in ImageNet). The value of this system lies in the **change-detection and comparison logic**, not model domain adaptation. A domain-specific model would require a proprietary longitudinal dataset that does not exist publicly.
-
----
-
-## Suggested Future Improvements
-
-| Improvement                     | What                                                            | Why it helps                                                                   | Effort           |
-| ------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------- |
-| **Background removal**          | Segmentation model (e.g. MediaPipe SelfieSegmentation or rembg) | Strips background from embeddings; largest source of noise in current pipeline | Medium — new dep |
-| **Colour-cast correction**      | Grey-world or white-patch white-balance                         | Corrects yellow/blue indoor lighting casts                                     | Low — 10 lines   |
-| **ONNX export**                 | Export EfficientNetV2-S to ONNX for CPU inference               | ~2–3× faster on CPU; no PyTorch/CUDA needed at runtime                         | Low              |
-| **Tilt correction**             | Detect + deskew small angular offsets via Hough lines on edges  | More consistent framing across sessions                                        | Medium           |
-| **Pose estimation (MediaPipe)** | Full body keypoint detection — shoulders, hips                  | Precise torso crop without contour ambiguity; solves tilt too                  | High — new dep   |
-
----
-
-## Dependencies (`requirements.txt`)
-
-| Package         | Version  | Purpose                                                       |
-| --------------- | -------- | ------------------------------------------------------------- |
-| `fastapi`       | 0.110.0  | Web framework                                                 |
-| `uvicorn`       | 0.27.1   | ASGI server                                                   |
-| `python-dotenv` | 1.0.1    | Load `.env`                                                   |
-| `supabase`      | 2.10.0   | Supabase Python client (DB + Storage)                         |
-| `python-jose`   | 3.3.0    | JWT decode and JWKS key construction                          |
-| `cryptography`  | 41.0.7   | Required by python-jose for EC key support                    |
-| `requests`      | 2.32.3   | HTTP client for JWKS fetch                                    |
-| `pytest`        | 7.4.0    | Test runner                                                   |
-| `httpx`         | 0.27.0   | Async HTTP client (used by FastAPI TestClient)                |
-| `torch`         | 2.1.0    | PyTorch — ResNet50 inference                                  |
-| `torchvision`   | 0.16.0   | ResNet50 model + ImageNet transforms                          |
-| `opencv-python` | 4.8.1.78 | Preprocessing — CLAHE, denoise, contour crop, resize, sharpen |
-| `pillow`        | 10.1.0   | Image loading from bytes, EXIF transpose                      |
-| `numpy`         | 1.24.3   | All numerical operations on embeddings and quality scores     |
-| `slowapi`       | 0.1.9    | **NEW Phase 5** — Rate limiting middleware for FastAPI        |
-
----
-
-## Data Flow — Full Session Analysis (Phase 5)
-
-```
-Browser (Result.tsx)
-  │
-  ├─ GET /api/session-info/{id}
-  │    └─ sessions table (4 queries) → is_first_session, previous_session_id
-  │
-  ├─ GET /api/image-preview/{id}/{type}  ×6 parallel
-  │    └─ images table + storage.create_signed_url() → 1hr signed URLs
-  │
-  ├─ POST /api/analyze-session/{id}
-  │    └─ analyze_session.py
-  │         ├─ Rate limit check (20/day per IP)
-  │         ├─ session_service: verify ownership + completed status
-  │         ├─ image_service: fetch image records (need ≥3 angles)
-  │         └─ analysis_service.analyze_session()
-  │              ├─ load_user_baseline()  — session_embeddings table
-  │              ├─ load_trend_score()    — session_analysis table
-  │              ├─ Group images by angle_type
-  │              ├─ For each angle group:
-  │              │    └─ For each image:
-  │              │         ├─ preprocessing.preprocess_pipeline()     ← Phase 6
-  │              │         │    ├─ storage.download(path)
-  │              │         │    ├─ ImageOps.exif_transpose()          ← EXIF orientation
-  │              │         │    ├─ denoise_image()                    ← NLMeans
-  │              │         │    ├─ apply_clahe()                      ← LAB CLAHE → float32
-  │              │         │    ├─ detect_torso_crop()                ← contour crop
-  │              │         │    ├─ resize_intermediate()              ← 384×384
-  │              │         │    ├─ center_crop_final()                ← 224×224
-  │              │         │    ├─ sharpen_image()                    ← unsharp mask
-  │              │         │    └─ compute_image_quality()            ← blur + brightness
-  │              │         └─ embedding.extract_embedding()           ← EfficientNetV2-S → 1280-dim
-  │              │    └─ angle_embedding = mean(image_embeddings)
-  │              │    └─ angle_quality_score, variation_level
-  │              ├─ session_embedding = mean(angle_embeddings)
-  │              ├─ compute_session_quality()
-  │              ├─ compute_consistency_score()
-  │              ├─ compute_analysis_confidence()
-  │              ├─ store angle_embeddings → angle_embeddings table
-  │              ├─ store session_embedding → session_embeddings table
-  │              └─ persist → angle_analysis (with angle_quality_score)
-  │                        → session_analysis (with analysis_confidence_score,
-  │                                            session_quality_score)
-  │              └─ returns: per_angle, scores, image_quality_summary,
-  │                          variation_level, analysis_confidence_score,
-  │                          baseline_used, comparison_layers_used,
-  │                          processing_time_ms
-  │
-  └─ POST /api/compare-sessions/{id}/{prev_id}   (only if not first session)
-       └─ comparison_service.compare_sessions()
-            ├─ load angle_analysis for both sessions
-            ├─ load session_embeddings for both sessions
-            ├─ load angle_embeddings for both sessions
-            ├─ Layer 1 (immediate):  cosine distance between session embeddings
-            ├─ Layer 2 (rolling):    current vs mean of last 5 prior sessions
-            ├─ Layer 3 (monthly):    current vs mean of sessions in last 30 days
-            ├─ Layer 4 (lifetime):   current vs mean of ALL prior sessions
-            ├─ Layer 5 (per-angle):  per-angle embedding distances + score deltas
-            │                         + variation_level per angle
-            └─ returns: per_angle, overall_delta, overall_variation_level,
-                        rolling/monthly/lifetime baselines (each with variation_level),
-                        baseline_used, comparison_layers_used, processing_time_ms
-```
-
-**Framework:** FastAPI (Python)  
-**Runtime:** Uvicorn ASGI  
-**Database:** Supabase (PostgreSQL via Supabase Python SDK)  
-**Storage:** Supabase Storage (`bcd-images` bucket)  
-**Auth:** Supabase JWTs (ES256 algorithm, JWKS verification)  
-**ML:** PyTorch ResNet50 (embedding extraction), OpenCV (preprocessing)  
-**Base URL:** `http://localhost:8000` (dev) | prefix all routes with `/api`  
-**Interactive Docs:** `http://localhost:8000/api/docs`
-
----
-
-## Directory Structure
-
-```
-backend/
-├── .env                          # Secret env vars — NOT in git
-├── requirements.txt              # All Python dependencies
-├── PHASE3_MIGRATION.sql          # DB migration for session_embeddings table
-├── PHASE4_MIGRATION.sql          # DB migration for angle_embeddings + session_analysis columns
-│
-├── app/
-│   ├── main.py                   # FastAPI app entrypoint, CORS, router registration, global exception handler
-│   ├── config.py                 # Settings loader (reads .env via python-dotenv)
-│   ├── dependencies.py           # FastAPI dependencies: get_current_user
-│   │
-│   ├── api/                      # HTTP route handlers (thin controllers)
-│   │   ├── analyze_session.py    # POST /api/analyze-session/{session_id}
-│   │   ├── compare_sessions.py   # POST /api/compare-sessions/{current}/{previous}
-│   │   ├── session_analysis.py   # GET  /api/sessions/{session_id}/analysis
-│   │   ├── generate_report.py    # POST /api/generate-report/{session_id}
-│   │   └── utility.py            # GET  /api/image-preview, /session-info, /session-thumbnails
-│   │
-│   ├── services/                 # Business logic and DB access
-│   │   ├── db.py                 # Supabase client factory
-│   │   ├── session_service.py    # get_session() helper
-│   │   ├── image_service.py      # get_session_images() helper
-│   │   ├── analysis_service.py   # Full ML analysis: preprocess → embed → score → store
-│   │   ├── comparison_service.py # Compare two sessions via embeddings
-│   │   ├── analysis_fetch_service.py # Read stored analysis back from DB
-│   │   └── report_service.py     # Build report from stored analysis (stub)
-│   │
-│   ├── processing/               # Low-level ML / CV operations
-│   │   ├── preprocessing.py      # Image load from storage, normalize, align, resize
-│   │   ├── embedding.py          # ResNet50 model singleton, feature extraction
-│   │   ├── session_analysis.py   # compute_session_scores() — NOT currently used (stub)
-│   │   └── trend_analysis.py     # compute_trend() — NOT currently used (stub)
-│   │
-│   └── utils/
-│       └── security.py           # JWT decode + JWKS fetch with 1hr in-memory cache
-│
-└── tests/
-    └── test_api.py               # pytest unit tests with monkeypatching
-```
-
----
-
-## Environment Variables (`.env`)
-
-> `.env` is gitignored. Never commit it. A new developer must create it manually.
-
-| Variable                    | Value                                      | Purpose                                                     |
-| --------------------------- | ------------------------------------------ | ----------------------------------------------------------- |
-| `SUPABASE_URL`              | `https://vtpgeaqhkbbpvaigxwgq.supabase.co` | Supabase project URL                                        |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbG...` (JWT)                          | Bypasses RLS — used by backend only, never sent to frontend |
-| `JWT_ALGORITHM`             | `ES256`                                    | Supabase uses ES256 (Elliptic Curve), **not** RS256         |
-| `API_HOST`                  | `0.0.0.0`                                  | Bind address for uvicorn                                    |
-| `API_PORT`                  | `8000`                                     | Port                                                        |
-| `API_PREFIX`                | `/api`                                     | All routes prefixed here                                    |
-
-**Not set but auto-derived:** `SUPABASE_JWKS_URL` — if absent, `config.py` builds it as `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
-
-**Not used but declared:** `SUPABASE_JWT_PUBLIC_KEY` — was the old RS256 approach; kept in `Settings` dataclass but ignored since the switch to JWKS.
-
----
-
-## How to Run
-
-```powershell
-cd backend
-.venv\Scripts\python.exe -m uvicorn app.main:app --reload
-```
-
-Or if `uvicorn` is on PATH:
-
-```powershell
-uvicorn app.main:app --reload
-```
-
-Server starts at `http://localhost:8000`. The `--reload` flag auto-restarts on file changes.
-
----
-
-## Authentication Flow
-
-Every endpoint (except `GET /`) requires a valid Supabase JWT in the `Authorization` header:
-
-```
-Authorization: Bearer <supabase-access-token>
-```
-
-The flow:
-
-1. Frontend calls `supabase.auth.getSession()` to get the access token
-2. Frontend sends it as a Bearer token
-3. Backend `get_current_user()` dependency in `dependencies.py` extracts it
-4. `security.py` fetches JWKS from Supabase (cached for 1 hour), finds the matching key by `kid`, and verifies the JWT signature using `python-jose`
-5. If valid, returns `{"user_id": str, "role": str, "email": str}` which all handlers receive as the `user` parameter
-6. If invalid or missing → `401 Unauthorized`
-
-**Key detail:** `verify_aud: False` is set because Supabase JWTs have `aud: "authenticated"` but python-jose's audience check requires explicit opt-in configuration. Disabling it is safe because the signature is still fully verified.
-
----
-
-## API Endpoints
-
-### `app/main.py` — Global Exception Handler
-
-A catch-all `@app.exception_handler(Exception)` ensures that any unhandled exception produces a `JSONResponse` from **within** FastAPI rather than from Starlette's `ServerErrorMiddleware` (which sits above the CORS middleware). Without this, 500 responses would be generated before CORS headers were added, causing the frontend to receive an opaque network error instead of a useful JSON payload.
-
-```python
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
-    )
-```
-
----
-
-### `GET /`
-
-**File:** `app/main.py`  
-**Auth:** None  
-**Purpose:** Health check  
-**Response:** `{"status": "ok"}`
-
----
-
-### `POST /api/analyze-session/{session_id}`
-
-**File:** `app/api/analyze_session.py`  
-**Auth:** Required  
-**Query param:** `?async_process=false` (optional, default `false`)  
-**Purpose:** Run the full ML pipeline on a session's images; store results in DB.
-
-**What it does (sync mode):**
-
-1. Validates session exists and belongs to the authenticated user
-2. Checks session `status == "completed"`
-3. Fetches image records from `images` table via `get_session_images()`
-4. Requires **at least 3 angles** (fails with 400 if fewer)
-5. Calls `analysis_service.analyze_session()` — the full ML pipeline
-6. Persists results to `angle_analysis` and `session_analysis` tables (idempotent: deletes existing before inserting)
-7. Returns analysis JSON
-
-**Async mode** (`?async_process=true`): Enqueues the ML work as a FastAPI `BackgroundTask` and returns `{"status": "processing"}` immediately. Works but there is no polling/webhook endpoint to check completion — the result just silently appears in the DB.
-
-**Response (sync):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "session_id": "uuid",
-    "overwritten": false,
-    "is_first_session": false,
-    "session_analysis": {
-      "per_angle": [
-        {"angle_type": "front", "change_score": 0.42, "summary": "Distance-based analysis for front angle."},
-        ...
-      ],
-      "overall_summary": "ML analysis complete. Scores reflect distance from your personal baseline."
-    },
-    "scores": {
-      "change_score": 0.60,
-      "trend_score": 0.58
-    }
-  }
-}
-```
-
-`is_first_session` is `true` on the very first analysis (no prior data); in that case `change_score` is `0.0` and `trend_score` is `null`. `overall_summary` is `"Baseline established. Future sessions will be compared to this."` for first sessions.
-
-**Used by:** `frontend/src/pages/Result.tsx` (called directly via `fetch`, not `apiClient`)
-
-**Known limitation:** `per_angle[].summary` always says "Distance-based analysis for X angle." — not a real language model summary.
-
----
-
-### `POST /api/compare-sessions/{current_session_id}/{previous_session_id}`
-
-**File:** `app/api/compare_sessions.py`  
-**Auth:** Required  
-**Purpose:** Compare two sessions using stored embeddings and per-angle scores.
-
-**Preconditions:** Both sessions must exist, belong to the user, and have `status == "completed"`. They must have been previously analyzed (embeddings and `angle_analysis` rows must exist).
-
-**What it does:**
-
-1. Validates both sessions and that they belong to the authenticated user
-2. Calls `comparison_service.compare_sessions(current_session_id, previous_session_id, user_id=user_id)` — `user_id` is required to load the extended comparison layers
-3. Loads `angle_analysis` rows for both sessions from DB
-4. Loads `session_embeddings` for both sessions from DB
-5. Loads `angle_embeddings` for both sessions from DB (graceful no-op if `PHASE4_MIGRATION.sql` not run)
-6. Computes per-angle score deltas and per-angle embedding distances
-7. Computes 4 comparison layers: immediate, rolling (last 5), monthly (last 30 days), lifetime (all time)
-8. Labels trends: `stable` (<0.1), `mild_variation` (0.1–0.25), `significant_shift` (>0.25)
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "per_angle": [
-      {
-        "angle_type": "front",
-        "current_score": 0.45,
-        "previous_score": 0.42,
-        "delta": 0.03,
-        "delta_magnitude": 0.03,
-        "embedding_distance": 0.11
-      },
-      ...
-    ],
-    "overall_delta": 0.07,
-    "stability_index": 0.93,
-    "overall_trend": "stable",
-    "comparison_method": "embedding",
-    "rolling_baseline":  {"delta": 0.09, "trend": "stable",       "available": true},
-    "monthly_baseline": {"delta": 0.09, "trend": "stable",       "available": true},
-    "lifetime_baseline":{"delta": 0.09, "trend": "stable",       "available": true}
-  }
-}
-```
-
-`available: false` (and `delta: null`, `trend: null`) is returned for a baseline layer when there are not enough prior sessions in that window. Each layer compares the current session embedding against the mean of all prior session embeddings in its respective time window.
-
-**Fallback:** If session embeddings are missing entirely, falls back to score-average delta for `overall_delta`. `comparison_method` becomes `"score"` in that case.
-
-**Used by:** `frontend/src/pages/Result.tsx` (called directly via `fetch`)
-
----
-
-### `GET /api/session-info/{session_id}`
-
-**File:** `app/api/utility.py`  
-**Auth:** Required  
-**Purpose:** Return metadata about a session: is it the first ever? what is previous session? how many total?
-
-**DB queries made (4 total):**
-
-1. `get_session()` — verify ownership
-2. `sessions` count where `user_id = ?` — total count
-3. Oldest session (`order by created_at asc, limit 1`) — to determine `is_first_session`
-4. Two most recent sessions (`order by created_at desc, limit 2`) — for `is_current` and `previous_session_id`
-
-**Response:**
-
-```json
-{
-  "session_id": "uuid",
-  "is_first_session": true,
-  "is_current": true,
-  "total_sessions": 1,
-  "created_at": "2026-02-16T10:00:00",
-  "previous_session_id": null
-}
-```
-
-`previous_session_id` is the **second most recent** session (not the oldest), used for comparison. It is `null` if this is the first session.
-
-**Used by:** `frontend/src/lib/apiClient.ts` → `apiClient.getSessionInfo()` → called from `Result.tsx`
-
----
-
-### `GET /api/image-preview/{session_id}/{image_type}`
-
-**File:** `app/api/utility.py`  
-**Auth:** Required  
-**Purpose:** Generate a 1-hour signed URL for a single image. Uses the service role key server-side so signed URLs are never generated from the frontend with the anon key.
-
-**`image_type` values:** `front`, `left`, `right`, `up`, `down`, `raised`
 
 **Response:**
 
@@ -960,94 +405,145 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 }
 ```
 
-**Signed URL detection:** The Supabase Python SDK returns the URL differently depending on version (`signedUrl` key in dict, or wrapped in a `.data` object). The code handles both formats.
+**SDK quirk:** The Supabase Python SDK returns the URL in different formats depending on version (either `{"signedUrl": "..."}` directly, or wrapped in a `.data` attribute). Both are handled.
 
-**Used by:** `frontend/src/lib/apiClient.ts` → `apiClient.getImagePreview()` → called from `Result.tsx` (6 parallel calls, one per angle)
+**Used by:** `apiClient.getImagePreview()` → `Result.tsx` (6 parallel calls)
 
 ---
 
 ### `GET /api/session-thumbnails/{session_id}`
 
-**File:** `app/api/utility.py`  
-**Auth:** Required  
-**Purpose:** Batch version of image-preview — returns signed URLs for all images in a session in one request.
+**File:** `app/api/utility.py` | **Auth:** Required
 
-**Response:**
+Batch version of image-preview — signed URLs for all images in one request.
 
-```json
-{
-  "session_id": "uuid",
-  "thumbnails": {
-    "front": "https://...",
-    "left": "https://...",
-    "right": "https://...",
-    "up": "https://...",
-    "down": "https://...",
-    "raised": "https://..."
-  },
-  "count": 6
-}
-```
+**Response:** `{"session_id": "uuid", "thumbnails": {"front": "...", ...}, "count": 6}`
 
-**Used by:** `frontend/src/lib/apiClient.ts` → `apiClient.getSessionThumbnails()` — **currently not called by any frontend page** (History.tsx was updated to remove thumbnail loading for privacy reasons). This endpoint is implemented and working but unused.
+**Status:** Implemented and working. **Not currently called by any frontend page.**
 
 ---
 
 ### `GET /api/sessions/{session_id}/analysis`
 
-**File:** `app/api/session_analysis.py`  
-**Auth:** Required  
-**Purpose:** Read back already-stored analysis results from the database without re-running ML. Useful for revisiting a session that was already analyzed.
+**File:** `app/api/session_analysis.py` | **Auth:** Required
 
-**Response:**
+Read back stored analysis from DB without re-running ML. Returns 404 if never analyzed.
 
-```json
-{
-  "success": true,
-  "data": {
-    "session_analysis": {
-      "session_id": "uuid",
-      "overall_change_score": 0.42,
-      "created_at": "2026-02-16T10:00:00",
-      "per_angle": [
-        {"angle_type": "front", "change_score": 0.1, "summary": "..."},
-        ...
-      ]
-    }
-  }
-}
-```
+**Response:** `{"success": true, "data": {"session_analysis": {"session_id": ..., "overall_change_score": ..., "trend_score": ..., "created_at": ..., "per_angle": [...]}}}`
 
-Returns 404 if the session has never been analyzed.
-
-**Used by:** Not currently called anywhere in the frontend. Available for future use (e.g. loading historic session detail without re-running ML).
+**Status:** Implemented. **Not currently called anywhere in the frontend.**
 
 ---
 
 ### `POST /api/generate-report/{session_id}`
 
-**File:** `app/api/generate_report.py`  
-**Auth:** Required  
-**Purpose:** Generate a summary report for a session.
+**File:** `app/api/generate_report.py` | **Auth:** Required  
+**⚠️ STUB.** Returns the stored analysis rows with a hardcoded `"Placeholder report generated from stored analysis."` summary. No PDF, no email, no real report logic.
 
-**⚠️ STATUS: STUB.** `report_service.py` reads `session_analysis` and `angle_analysis` from DB and returns:
+---
 
-```json
-{
-  "success": true,
-  "data": {
-    "session_id": "uuid",
-    "overall_change_score": 0.42,
-    "created_at": "...",
-    "per_angle": [...],
-    "summary": "Placeholder report generated from stored analysis."
-  }
-}
+## Processing Layer
+
+### `processing/quality.py`
+
+Pure quality-scoring module. No ML — OpenCV only.
+
+**`ImageQuality` dataclass:**
+
+| Field           | Type    | Description                                                        |
+| --------------- | ------- | ------------------------------------------------------------------ |
+| `blur_score`    | `float` | Laplacian variance of the image. Higher = sharper. Threshold: 80.0 |
+| `brightness`    | `float` | Mean pixel value in [0, 1]                                         |
+| `is_blurry`     | `bool`  | `True` if `blur_score < 80.0`                                      |
+| `is_too_dark`   | `bool`  | `True` if `brightness < 0.15`                                      |
+| `is_too_bright` | `bool`  | `True` if `brightness > 0.90`                                      |
+| `quality_score` | `float` | Composite [0,1]: 60% blur + 40% brightness                         |
+
+**Quality score formula:**
+
+```
+blur_component       = min(1.0, blur_score / 400)
+brightness_component = 1.0 - abs(brightness - 0.5) / 0.5
+quality_score        = 0.6 * blur_component + 0.4 * brightness_component
 ```
 
-`summary` is a hardcoded string. No PDF generation, no email, no real report logic. Needs to be built out before this endpoint is useful.
+**Functions:**
 
-**Used by:** Nothing in the frontend currently.
+| Function                                                                | Description                                                                                                     |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `compute_image_quality(image)`                                          | Per-image quality from a float32 [0,1] 224×224 image                                                            |
+| `compute_session_quality(angle_quality_scores)`                         | Mean of per-angle scores × coverage factor (÷ 6 angles). Penalises partial sessions.                            |
+| `compute_consistency_score(angle_change_scores)`                        | `max(0, 1 - std/0.5)` — uniformity of change scores across angles. 1.0 = identical scores.                      |
+| `compute_analysis_confidence(quality, consistency, n_angles, is_first)` | Weighted: 40% quality + 30% consistency + 20% coverage + 10% history (history component = 0.7 if first session) |
+| `variation_level(score)`                                                | Maps cosine distance to a neutral label (see table below)                                                       |
+
+**`variation_level` labels** — deliberately non-medical language:
+
+| Score range | Label              |
+| ----------- | ------------------ |
+| 0.00 – 0.10 | Stable             |
+| 0.10 – 0.25 | Mild Variation     |
+| 0.25 – 0.45 | Moderate Variation |
+| 0.45 – 0.70 | Higher Variation   |
+| 0.70 – 1.00 | Strong Variation   |
+
+Words like "risk", "abnormal", "suspicious", "concerning" are explicitly excluded — enforced by a unit test.
+
+---
+
+### `processing/preprocessing.py` — Phase 6 rewrite
+
+8-step pipeline. Returns `PreprocessResult(image: np.ndarray, quality: ImageQuality)` where `image` is float32 [0,1] shape (224, 224, 3).
+
+**Constants:**
+
+| Constant            | Value | Purpose                          |
+| ------------------- | ----- | -------------------------------- |
+| `PRE_DENOISE_MAX`   | 640   | Max dimension before NLMeans     |
+| `INTERMEDIATE_SIZE` | 384   | Resize target before centre-crop |
+| `TARGET_SIZE`       | 224   | Final model input size           |
+
+**Pipeline:**
+
+| Step | Function                                  | What it does                                                                                                                                                | Why                                                                                                                                            |
+| ---- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `load_image_from_storage(path, supabase)` | Downloads from Supabase Storage, `ImageOps.exif_transpose()`, converts to RGB uint8                                                                         | EXIF-only orientation — guided capture guarantees correct phone orientation; silhouette-based auto-orient was removed in Phase 6 (added noise) |
+| 1b   | `fast_downscale(image, max_dim=640)`      | Downscales to ≤640px on longest side if larger; returns uint8                                                                                               | `fastNlMeansDenoisingColored` on a 4K phone photo took 30–90 seconds. At ≤640px it takes ~0.1 seconds. **Biggest single performance fix.**     |
+| 2    | `denoise_image(image)`                    | `cv2.fastNlMeansDenoisingColored(h=6, hColor=6, templateWindowSize=7, searchWindowSize=21)`. Always returns uint8.                                          | Removes sensor/compression noise before feature extraction                                                                                     |
+| 3    | `apply_clahe(image)`                      | Convert to LAB, CLAHE (clipLimit=2.0, tileGridSize=8×8) on L channel, back to RGB float32 [0,1]                                                             | Replaces old `cv2.equalizeHist` — CLAHE preserves local contrast; global equalisation over-amplifies bright phone photos                       |
+| 4    | `detect_torso_crop(image)`                | Adaptive threshold → contours → largest contour in central band (20–80% width, ≥5% area) → crop + 5% padding; fallback to full image if no suitable contour | Replaces blind centre-crop; isolates the torso region and reduces uninformative background proportion                                          |
+| 5    | `resize_intermediate(image, size=384)`    | `INTER_LANCZOS4` resize to 384×384; returns float32                                                                                                         | Two-step resize avoids distortion from directly resizing to 224×224; Lanczos4 preserves edge detail                                            |
+| 6    | `center_crop_final(image, size=224)`      | Centre-crop 384×384 → 224×224; returns float32                                                                                                              | Discards outermost resize-distorted pixels; model input size                                                                                   |
+| 7    | `sharpen_image(image)`                    | Unsharp mask: `clip(1.8×img − 0.8×GaussianBlur(img, σ=1.5))`; accepts and returns float32 or uint8                                                          | Restores edge detail softened by Lanczos resize                                                                                                |
+| 8    | `compute_image_quality(image)`            | Quality metrics on the final 224×224                                                                                                                        | Assesses exactly what the model sees                                                                                                           |
+
+---
+
+### `processing/embedding.py` — Phase 6 upgrade
+
+EfficientNetV2-S feature extractor.
+
+| Property          | Detail                                                                                                                                                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model             | `efficientnet_v2_s(weights=DEFAULT)` — classifier replaced with `torch.nn.Identity()`                                                                                                                                                                                                                            |
+| Output            | **1280-dim** float32 vector (was 2048-dim with ResNet50)                                                                                                                                                                                                                                                         |
+| Device            | CUDA if available, else CPU                                                                                                                                                                                                                                                                                      |
+| Singleton         | `get_encoder()` creates `_encoder` once; first call ~2–4 seconds                                                                                                                                                                                                                                                 |
+| Transforms        | `ToTensor()` + `Normalize([0.485,0.456,0.406], [0.229,0.224,0.225])`                                                                                                                                                                                                                                             |
+| `EMBEDDING_DIM`   | `1280`                                                                                                                                                                                                                                                                                                           |
+| `user_mean` param | **UNUSED / NO-OP.** `extract_embedding(image, user_mean=None)` — kept for API compatibility but does nothing. Previously subtracted the user's lifetime mean before returning, which caused identical images to score ~1.0 cosine distance from themselves (mean subtraction breaks cosine similarity). Removed. |
+
+**Why EfficientNetV2-S:** 15% fewer parameters than ResNet50, higher ImageNet accuracy, better surface-texture representations at lower compute cost. Output dimension change (2048 → 1280) required `PHASE6_MIGRATION.sql` to wipe all stored embeddings.
+
+**Why ImageNet weights (no fine-tuning):** No public domain-specific labelled dataset exists for sequential visible-light phone photos of the external chest surface. Candidate datasets from Phase 6 spec:
+
+| Dataset     | Modality               | Why incompatible                                               |
+| ----------- | ---------------------- | -------------------------------------------------------------- |
+| BreastMNIST | Ultrasound (greyscale) | Internal tissue echograms — no colour, no surface, no lighting |
+| CBIS-DDSM   | Mammography X-ray      | X-ray density of internal tissue — invisible in visible light  |
+| INBreast    | Mammography X-ray      | Same as above                                                  |
+
+Fine-tuning on these would actively degrade embedding quality. ImageNet transfers well for surface-appearance tasks.
 
 ---
 
@@ -1055,243 +551,303 @@ Returns 404 if the session has never been analyzed.
 
 ### `services/db.py`
 
-Creates and returns a Supabase client using `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. Called by every service and some API handlers. A new client is instantiated on every call (no connection pooling — acceptable for Supabase's HTTP-based API).
+`get_supabase_client() → Client` — creates a new Supabase client per call using service role key. No pooling needed (HTTP-based API).
+
+---
 
 ### `services/session_service.py`
 
-`get_session(session_id, user_id) → dict`  
-Queries `sessions` table, filters by both `id` and `user_id` to enforce ownership. Returns `{}` if not found (not `None`, so callers must check truthiness with `if not session:`).
+`get_session(session_id, user_id) → dict` — queries `sessions` table filtered by both `id` and `user_id`. Returns `{}` if not found (not `None`).
+
+---
 
 ### `services/image_service.py`
 
-`get_session_images(session_id, user_id) → list[dict]`  
-Returns all rows from `images` table for the session. Each row: `{id, image_type, storage_path, created_at}`.
+`get_session_images(session_id, user_id) → list[dict]` — returns `{id, image_type, storage_path, created_at}` for all images in the session.
 
-### `services/analysis_service.py`
+---
 
-The core ML pipeline. Called by `analyze_session` API. Fully rewritten in Phase 4.
+### `services/analysis_service.py` — Core ML pipeline
 
 **`analyze_session(images, user_id, session_id) → dict`**
 
-Aggregation hierarchy: `image → angle embedding (mean of images for that angle) → session embedding (mean of angle embeddings)`
+Aggregation: `image → angle embedding (mean of images per angle) → session embedding (mean of angle embeddings)`
 
-1. `_load_user_baseline(user_id, exclude_session_id)` — queries `session_embeddings` for all prior sessions (excluding current), parses embeddings from JSON text, returns mean `np.float32` vector or `None` if first session
-2. `_load_trend_score(user_id, exclude_session_id, n=5)` — queries `session_analysis` for last 5 sessions' `overall_change_score` values, returns their mean or `None` if no history
-3. Groups all images by `angle_type`
-4. For each angle group:
-   - For each image: `preprocess_pipeline()` → `extract_embedding(processed_image, user_mean=user_baseline)`
-   - Angle embedding = `np.mean(image_embeddings_for_angle, axis=0)`
-   - `change_score = _cosine_distance(angle_embedding, user_baseline)` — correctly compares against the user's personal baseline (first session → 0.0)
-5. Session embedding = `np.mean(list(angle_embeddings.values()), axis=0)`
-6. `_store_angle_embeddings()` — persists per-angle embeddings to `angle_embeddings` table (idempotent; silently skips if `PHASE4_MIGRATION.sql` not run yet)
-7. `_store_session_embedding()` — persists session embedding to `session_embeddings` table (idempotent)
-8. `overall_change_score = _cosine_distance(session_embedding, user_baseline)` (first session → 0.0)
-9. Returns `{per_angle, overall_summary, scores: {overall_change_score, trend_score, is_first_session}}`
+**Internal helpers:**
 
-### `services/comparison_service.py`
+| Helper                                                           | Description                                                                                                       |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `_parse_embedding(raw)`                                          | Parses DB embedding: handles JSON string, list, or None → `np.float32` array                                      |
+| `_cosine_distance(a, b)`                                         | `1 − cosine_similarity(a, b)`. Returns 1.0 if either vector is zero-norm.                                         |
+| `_load_user_baseline(user_id, exclude_session_id)`               | Mean of ALL prior session embeddings (session-level). Returns `None` if first session.                            |
+| `_load_per_angle_baselines(user_id, exclude_session_id)`         | Per-angle mean embeddings from `angle_embeddings` table, grouped by `angle_type`. Returns `{}` if first session.  |
+| `_load_trend_score(user_id, exclude_session_id, n=5)`            | Moving average of last 5 sessions' `overall_change_score`. Returns `None` if no history.                          |
+| `_store_angle_embeddings(session_id, user_id, angle_embeddings)` | Delete-then-insert to `angle_embeddings` table. Silently skips if table doesn't exist (PHASE4 migration not run). |
+| `_store_session_embedding(session_id, user_id, embedding)`       | Delete-then-insert to `session_embeddings` table.                                                                 |
 
-Called by `compare_sessions` API. Fully rewritten in Phase 4 to support 5 structured comparison layers.
+**Pipeline steps:**
 
-**`compare_sessions(current_session_id, previous_session_id, user_id) → dict`**
+1. Load `user_baseline` (session-level) and `per_angle_baselines` (angle-level)
+2. Group images by `angle_type`
+3. **Parallel processing** via `ThreadPoolExecutor(max_workers=min(n_angles, 6))` — one thread per angle, each with its own Supabase client
+4. Per thread: `preprocess_pipeline()` for each image → `extract_embedding()` → mean angle embedding → `angle_quality_score`
+5. **Per-angle baseline comparison:** `angle_baseline = per_angle_baselines.get(angle_type, user_baseline)` — uses angle-specific prior mean if available, else session-level fallback. This is the critical fix: front scores compare against prior fronts, not a blended session mean.
+6. `change_score = cosine_distance(angle_embedding, angle_baseline)` (0.0 if first session)
+7. Session embedding = mean of angle embeddings
+8. Store both sets of embeddings
+9. `overall_change_score` = cosine distance between session embedding and `user_baseline`
+10. Compute `trend_score`, `session_quality_score`, `consistency_score`, `analysis_confidence_score`
 
-| Layer           | Loader                                                     | Description                                                     |
-| --------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
-| 1 – Immediate   | `_load_session_embedding()` ×2                             | Cosine distance between current and previous session embeddings |
-| 2 – Rolling     | `_load_rolling_baseline(user_id, current_session_id, n=5)` | Current vs mean of last 5 prior sessions                        |
-| 3 – Monthly     | `_load_monthly_baseline(user_id, current_session_id)`      | Current vs mean of sessions in the last 30 days                 |
-| 4 – Lifetime    | `_load_lifetime_baseline(user_id, current_session_id)`     | Current vs mean of ALL prior sessions                           |
-| 5 – Angle-level | `_load_angle_embeddings()` ×2 + `_load_angle_scores()` ×2  | Per-angle cosine distance + score delta                         |
+**Phase 7 additions to the pipeline:**
 
-All loaders gracefully return `None` / `{}` when no data is available. Trend threshold: `stable` < 0.1, `mild_variation` < 0.25, `significant_shift` ≥ 0.25. Raises `ValueError` if `angle_analysis` rows are missing for either session (i.e. `analyze-session` was never run).
+- **`ANALYSIS_VERSION = "v0.7"`** constant (defined at module level after logger) — included in every return dict.
+- **Step 8b — `angle_aware_score`:** After per-angle scores are collected, `angle_aware_score = float(np.mean(angle_change_scores_list))`. This is the mean of per-angle cosine distances and is **angle-assignment-sensitive** (i.e. swapping angle labels changes it). Distinct from `overall_change_score`, which is the cosine distance between the session embedding (mean of angle embeddings — order-invariant) and the baseline. Previously `overall_change_score` could be 0.00 even when individual angles showed variation, because session embedding averaging collapsed them.
+- **Step 10 — `analysis_logs` write:** After all scores are computed, writes `{session_id, user_id, processing_time_ms, status: "completed", confidence_score: analysis_confidence_score}` to the `analysis_logs` table. Wrapped in `try/except` — gracefully skipped if the table or `confidence_score` column doesn't exist (PHASE5/7 migration not yet run).
+
+**Return dict keys:** `per_angle`, `overall_summary`, `scores`, `image_quality_summary`, `baseline_used`, `comparison_layers_used`, `processing_time_ms`
+
+**`scores` dict keys (Phase 7):** `change_score`, `variation_level`, `trend_score`, `analysis_confidence_score`, `session_quality_score`, `angle_aware_score`, `angle_aware_variation_level`, `analysis_version`
+
+**Key decision — why per-angle baselines matter:** The original system blended all 6 angle embeddings into a single session mean and compared every angle against that blend. This means a front-view embedding was being compared against a blend of front, left, right, up, down, and raised views — a category error. With per-angle baselines, each angle's historical mean is computed independently, making change scores anatomically meaningful.
+
+---
+
+### `services/comparison_service.py` — 5-layer comparison
+
+**`compare_sessions(current, previous, user_id) → dict`**
+
+| Layer         | Description                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1 – Immediate | `cosine_distance(current_emb, previous_emb)`                                                                   |
+| 2 – Rolling   | `cosine_distance(current_emb, mean_of_last_5_prior_session_embs)`                                              |
+| 3 – Monthly   | `cosine_distance(current_emb, mean_of_last_30_days_session_embs)`                                              |
+| 4 – Lifetime  | `cosine_distance(current_emb, mean_of_ALL_prior_session_embs)`                                                 |
+| 5 – Per-angle | Per-angle `cosine_distance(current_angle_emb, previous_angle_emb)` + numeric score delta from `angle_analysis` |
+
+For per-angle results: `delta = current_score - previous_score`, `delta_magnitude = abs(delta)`, `variation_level = variation_level(delta_magnitude)`.
+
+Trend labels: `stable` (< 0.1), `mild_variation` (< 0.25), `significant_shift` (≥ 0.25).
+`stability_index = max(0, min(1, 1 - overall_delta))`.
+
+**Raises `ValueError`** if `angle_analysis` rows are missing for either session — propagated as 404 by the API handler. All baseline layers return `null` gracefully if data is insufficient.
+
+---
 
 ### `services/analysis_fetch_service.py`
 
-`get_session_analysis(session_id, user_id) → dict`  
-Read-only. Queries `session_analysis` and `angle_analysis` tables and returns structured results. No ML. Used by the `GET /api/sessions/{session_id}/analysis` endpoint.
+`get_session_analysis(session_id, user_id) → dict`
+
+Read-only. Queries `session_analysis` (`overall_change_score, trend_score, created_at, angle_aware_score, analysis_version`) and `angle_analysis` (`angle_type`, `change_score`, `summary`, `angle_quality_score`). Returns `{}` if no rows.
+
+Return dict includes: `overall_change_score`, `trend_score`, `created_at`, `angle_aware_score`, `analysis_version`, `per_angle`.
+
+---
 
 ### `services/report_service.py`
 
-`generate_report(session_id, user_id) → dict`  
-Stub. Same DB reads as `analysis_fetch_service` with a hardcoded `summary` field appended. Needs real implementation.
+`generate_report(session_id, user_id) → dict` — **Stub.** Same reads as `analysis_fetch_service` + `summary: "Placeholder report generated from stored analysis."`. Needs real implementation.
 
 ---
 
-## Processing Layer
+## `app/main.py` — Application Entry Point
 
-### `processing/preprocessing.py`
+**Logging:** `logging.config.dictConfig` at startup. `uvicorn.access` suppressed. All `app.*` loggers produce timestamped structured output.
 
-Full image preprocessing pipeline. Called only from `analysis_service.py`.
+**CORS:** Reads `ALLOWED_ORIGINS`. When `"*"`, `allow_credentials=False` is automatically set. In production: set to the Vercel deployment URL.
 
-| Function                                  | What it does                                                                                       |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `load_image_from_storage(path, supabase)` | Downloads from `bcd-images` bucket using service role, opens with PIL, converts to RGB numpy array |
-| `normalize_image(image)`                  | Converts to YUV, runs histogram equalization on Y channel, converts back to RGB float              |
-| `align_image(image)`                      | Center-square crop                                                                                 |
-| `resize_image(image)`                     | Resizes to 224×224 (ResNet input size) using INTER_AREA                                            |
-| `preprocess_pipeline(path, supabase)`     | Runs all four steps in sequence                                                                    |
+**Rate limiting:** `SlowAPIMiddleware` registered with the shared `Limiter`. `POST /api/analyze-session` is the only rate-limited route.
 
-### `processing/embedding.py`
+**Global exception handler:** Forces 500 responses through FastAPI's pipeline so CORS headers are applied. Without this, 500s from unhandled exceptions would be generated by Starlette's `ServerErrorMiddleware` (above CORS middleware), producing opaque network errors to the frontend.
 
-ResNet50 feature extractor. Called only from `analysis_service.py`.
+**Routers:**
 
-| Thing              | Detail                                                                                                                            |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Model              | `torchvision.models.resnet50(weights=ResNet50_Weights.DEFAULT)` with the final classification layer removed                       |
-| Output             | 2048-dimensional float32 vector                                                                                                   |
-| Device             | CUDA if available, else CPU                                                                                                       |
-| Singleton          | `get_encoder()` loads the model once into `_encoder` global; subsequent calls reuse it. First request takes ~2s to load the model |
-| Normalization      | ImageNet mean/std applied via `transforms.Normalize` during preprocessing                                                         |
-| User normalization | If `user_mean` is provided, the embedding is mean-subtracted: `embedding = embedding - user_mean`                                 |
-
-### `processing/session_analysis.py`
-
-`compute_session_scores(embeddings) → dict`  
-**⚠️ STUB. NOT USED.** Returns hardcoded `{"overall_change_score": 0.1}`. The real logic lives in `analysis_service.py`. This file is dead code.
-
-### `processing/trend_analysis.py`
-
-`compute_trend(scores) → dict`  
-**⚠️ STUB. NOT USED.** Returns hardcoded `{"overall_trend": "stable"}`. The real trend logic lives in `comparison_service.py`. This file is dead code.
+| Router                    | Module                 | Tag          |
+| ------------------------- | ---------------------- | ------------ |
+| `analyze.router`          | `api.analyze_session`  | `analysis`   |
+| `status.router`           | `api.analyze_status`   | `analysis`   |
+| `compare.router`          | `api.compare_sessions` | `comparison` |
+| `report.router`           | `api.generate_report`  | `reports`    |
+| `session_analysis.router` | `api.session_analysis` | `analysis`   |
+| `utility.router`          | `api.utility`          | `utility`    |
 
 ---
 
-## Database Tables Used
+## `app/limiter.py`
 
-| Table                | Used by                                                           | Purpose                                                                                               |
-| -------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `sessions`           | `session_service`, `utility.py` (session-info)                    | Session records with `status` field                                                                   |
-| `images`             | `image_service`, `utility.py` (image-preview, thumbnails)         | Per-angle image records with `storage_path`                                                           |
-| `session_analysis`   | `analyze_session`, `analysis_fetch_service`, `report_service`     | One row per session: `overall_change_score`, `trend_score`, `rolling/monthly/lifetime_baseline_score` |
-| `angle_analysis`     | `analyze_session`, `analysis_fetch_service`, `comparison_service` | One row per angle per session: `change_score`, `summary`                                              |
-| `session_embeddings` | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 session-level embedding, stored as JSON text                                        |
-| `angle_embeddings`   | `analysis_service`, `comparison_service`                          | 2048-dim ResNet50 per-angle embedding; created by `PHASE4_MIGRATION.sql`                              |
+Shared `Limiter(key_func=get_remote_address)` singleton. Exists to prevent a circular import between `main.py` (registers exception handler) and `api/analyze_session.py` (applies decorator). Falls back to `_NoOpLimiter` if slowapi is not installed.
 
-**`session_analysis` columns added in Phase 4** (requires `PHASE4_MIGRATION.sql`):
+---
 
-- `trend_score float` — moving average of last 5 sessions' `overall_change_score`
-- `rolling_baseline_score float` — score vs rolling window baseline
-- `monthly_baseline_score float` — score vs 30-day baseline
-- `lifetime_baseline_score float` — score vs lifetime baseline
+## Database
 
-All new columns are optional; the insert falls back to omitting them if the migration has not yet been run.
+### Tables
 
-**Important — `session_embeddings.embedding` column type:** Embeddings are stored as JSON text (not a native array type). Both `analysis_service.py` and `comparison_service.py` handle this with:
+| Table                | Purpose                           | Key columns                                                                                                                                                                       |
+| -------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `sessions`           | Session records                   | `id`, `user_id`, `status`                                                                                                                                                         |
+| `images`             | Per-angle image records           | `id`, `session_id`, `user_id`, `image_type`, `storage_path`                                                                                                                       |
+| `session_analysis`   | Per-session analysis results      | `session_id`, `user_id`, `overall_change_score`, `trend_score`, `analysis_confidence_score`, `session_quality_score`, `angle_aware_score` (Phase 7), `analysis_version` (Phase 7) |
+| `angle_analysis`     | Per-angle results                 | `session_id`, `user_id`, `angle_type`, `change_score`, `summary`, `angle_quality_score`                                                                                           |
+| `session_embeddings` | Session-level 1280-dim embeddings | `session_id`, `user_id`, `embedding` (JSON text), `embedding_vector` (vector(1280))                                                                                               |
+| `angle_embeddings`   | Per-angle 1280-dim embeddings     | `session_id`, `user_id`, `angle_type`, `embedding` (JSON text), `embedding_vector` (vector(1280))                                                                                 |
+| `analysis_logs`      | Per-analysis processing metadata  | `session_id`, `user_id`, `processing_time_ms`, `status`, `error_message`, `confidence_score` (Phase 7), `created_at`                                                              | Written to by `analysis_service.py` (Phase 7). |
+
+**RLS:** All backend tables have `ENABLE ROW LEVEL SECURITY` with `USING (false)` policies — block all public access. The service role key bypasses RLS entirely.
+
+### Embedding Storage
+
+Stored in `embedding` (JSON text column). Parsing:
 
 ```python
-if isinstance(emb, str):
-    emb = json.loads(emb)
-return np.array(emb, dtype=np.float32)
+if isinstance(raw, str):
+    raw = json.loads(raw)
+return np.array(raw, dtype=np.float32)
 ```
 
-If you run `PHASE3_MIGRATION.sql` to change the column type to a native array, remove this parsing logic. The same pattern applies to `angle_embeddings.embedding`.
+The `embedding_vector vector(1280)` column and HNSW index exist for future ANN search but are not yet used by the application code.
+
+### Migration History
+
+| File                      | What it does                                                                                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_MIGRATIONS.sql` | Initial: `sessions`, `images`, `session_analysis`, `angle_analysis`, `session_embeddings`                                                                                                       |
+| `PHASE3_MIGRATION.sql`    | Adds `user_id` + index to `session_embeddings`; RLS policies                                                                                                                                    |
+| `PHASE4_MIGRATION.sql`    | Creates `angle_embeddings` table + indexes; adds trend/baseline score columns to `session_analysis`                                                                                             |
+| `PHASE5_MIGRATION.sql`    | `vector` extension; `embedding_vector vector(2048)` on both embedding tables; `analysis_confidence_score`, `session_quality_score` columns; `angle_quality_score` column; `analysis_logs` table |
+| `PHASE6_MIGRATION.sql`    | **DESTRUCTIVE:** clears all stored 2048-dim embeddings; replaces `embedding_vector vector(2048)` with `vector(1280)`; creates HNSW cosine-distance indexes                                      |
+| `PHASE7_MIGRATION.sql`    | Adds `angle_aware_score FLOAT` and `analysis_version TEXT DEFAULT 'v0.7'` to `session_analysis`; adds `confidence_score FLOAT` to `analysis_logs`                                               |
+
+After `PHASE6_MIGRATION.sql`: all stored embeddings are wiped. All users must re-submit their sessions.
 
 ---
 
-## Auth & Security
+## Security & Production
 
-### `utils/security.py`
+### CORS
 
-**`decode_supabase_jwt(token, jwks_url, algorithm) → dict`**
+```
+ALLOWED_ORIGINS=https://bcd-frontend.vercel.app
+```
 
-1. Parses JWT header (unverified) to get `kid`
-2. Checks in-memory `_jwks_cache` dict (`{url: (keys_list, fetched_at)}`) — keys are reused for up to 1 hour without hitting Supabase
-3. Fetches JWKS via HTTP GET if cache is stale
-4. Finds key matching `kid`; if not found, invalidates cache and refreshes once (handles key rotation)
-5. Constructs EC key via `jwk.construct(key_data)` from `python-jose`
-6. Calls `jwt.decode(token, key, algorithms=["ES256"], options={"verify_aud": False})`
-7. Returns `{user_id, role, email}`
+In dev (`"*"`), `allow_credentials=False` is set automatically.
 
-**Why ES256 not RS256:** Supabase switched to ES256 for all JWTs. RS256 will raise `"The specified alg value is not allowed"`.
+### Rate Limiting
 
-**Why `verify_aud: False`:** Supabase JWTs carry `aud: "authenticated"`. python-jose's audience verification requires the expected audience be passed explicitly; disabling it is safe because the signature is still cryptographically verified.
+`POST /api/analyze-session` only: 20/day per IP. All other endpoints are unlimited.
 
-### `app/dependencies.py`
+### Service Role Key
 
-**`get_current_user(authorization: str | None)`** — FastAPI dependency injected into every protected route via `Depends(get_current_user)`. Extracts Bearer token, calls `decode_supabase_jwt`, raises `401` on any failure.
+Never expose `SUPABASE_SERVICE_ROLE_KEY` in frontend code, browser logs, or client-side env vars. Backend-only.
 
 ---
 
-## Request/Response Contract with Frontend
-
-The frontend (`frontend/src/lib/apiClient.ts`) calls these endpoints:
-
-| `apiClient` method                        | Backend endpoint                            | Notes                                                     |
-| ----------------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
-| `getSessionInfo(sessionId, token)`        | `GET /api/session-info/{sessionId}`         | Called first on Result page                               |
-| `getImagePreview(sessionId, type, token)` | `GET /api/image-preview/{sessionId}/{type}` | Called 6× in parallel on Result page                      |
-| `getSessionThumbnails(sessionId, token)`  | `GET /api/session-thumbnails/{sessionId}`   | Defined in apiClient but not called by any page currently |
-
-The `analyze-session` and `compare-sessions` calls in `Result.tsx` are made directly via `fetch()`, not through `apiClient`.
-
----
-
-## Tests (`tests/test_api.py`)
-
-Uses `pytest` + FastAPI `TestClient` with dependency overrides and `monkeypatch`.
-
-| Test                                  | What it checks                                                |
-| ------------------------------------- | ------------------------------------------------------------- |
-| `test_analyze_session_success`        | Happy path: 6 images, mock ML, returns 200 with correct shape |
-| `test_analyze_session_missing_angles` | Only 1 image → must return 400                                |
-| `test_compare_sessions_success`       | Two valid sessions, mock comparison → 200                     |
-| `test_fetch_session_analysis`         | Stored analysis GET → 200                                     |
-
-**How to run:**
+## Tests
 
 ```powershell
 cd backend
 .venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
-**Note:** Tests mock out `get_session`, `get_session_images`, `run_analysis`, `run_comparison`, and `get_supabase_client` so no real DB or ML is needed. The `run_analysis` mock in `test_analyze_session_success` has a signature mismatch — it accepts only `_images` but the real `run_analysis` (imported as `analyze_session`) takes `(images, user_id, session_id)`. This causes a `TypeError` on that test. Needs to be fixed.
+**55 tests — all passing.**
+
+| File                    | Count | Coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_quality.py` | 42    | `variation_level` (15 parametrised + no-medical-language); `compute_image_quality` (sharp/blurry/dark/bright/bounds); `compute_session_quality` (full/partial/empty/bounds); `compute_consistency_score` (identical/high-variance/single/empty/bounds); `compute_analysis_confidence` (first vs returning / full vs partial coverage / high vs low quality / bounds / perfect); `PreprocessResult` dataclass; all 6 Phase 6 preprocessing steps (denoise/CLAHE/torso-crop/resize_intermediate/center_crop/sharpen) with dtype/shape/range assertions; full pipeline chain |
+| `tests/test_api.py`     | 13    | Health check; analyze-session (200, required fields, `variation_level`, `analysis_confidence_score`, `session_quality_score`, `image_quality_summary`); analyze-status (all 4 statuses); compare-sessions (200, trust fields, per-angle `variation_level`, baseline layers, same-id 400)                                                                                                                                                                                                                                                                                  |
+
+**Infrastructure:** `conftest.py` adds `backend/` to `sys.path`. Auth bypassed via `app.dependency_overrides[get_current_user]`. All DB/ML/storage calls patched on module-local symbols (not source modules). `_persist_analysis` is also patched to skip DB writes.
 
 ---
 
-## Known Issues & TODOs
+## Known Limitations & Outstanding Issues
 
-### Bugs
+| Item                                 | Detail                                                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report_service.py` is a stub        | Returns hardcoded summary. No PDF/email/structured format.                                                                                                                |
+| `_analysis_jobs` is in-process only  | Job status lost on server restart. A production system would persist job state to DB. In a multi-worker uvicorn deployment, status is not shared across worker processes. |
+| `per_angle[].summary` is hardcoded   | Not an LLM-generated summary.                                                                                                                                             |
+| `session-thumbnails` endpoint unused | Implemented, not called by any frontend page.                                                                                                                             |
+| `GET /sessions/{id}/analysis` unused | Implemented, not called by any frontend page.                                                                                                                             |
+| `embedding_vector` column unused     | HNSW index exists but backend uses JSON text `embedding` column for all reads/writes.                                                                                     |
 
-| #   | Location                | Issue                                                                                                                 |
-| --- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 1   | `tests/test_api.py` L76 | Mock `run_analysis` signature takes 1 arg but real function takes 3 → `test_analyze_session_success` will `TypeError` |
+---
 
-### Stubs (not yet implemented)
+## Scripts
 
-| #   | Location                         | What's needed                                              |
-| --- | -------------------------------- | ---------------------------------------------------------- |
-| 3   | `services/report_service.py`     | Real report generation (PDF? structured summary? email?)   |
-| 4   | `processing/session_analysis.py` | Dead code — `compute_session_scores()` not called anywhere |
-| 5   | `processing/trend_analysis.py`   | Dead code — `compute_trend()` not called anywhere          |
+### `scripts/dataset_export.py` — Phase 7B Dataset Collection
 
-### Missing features
+Exports all captured images and associated metadata to a local directory for use in future model training or analysis.
 
-| #   | What                             | Notes                                                                                                            |
-| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 6   | Async analysis status endpoint   | `?async_process=true` enqueues work but there's no `GET /api/analyze-status/{session_id}` to poll for completion |
-| 7   | CORS lockdown                    | `allow_origins=["*"]` — fine for dev, should be restricted to the frontend domain in production                  |
-| 8   | Rate limiting                    | No rate limiting on any endpoint; the ML endpoint is expensive (~2-4s per call)                                  |
-| 9   | `session_embeddings` column type | Stored as JSON string; could be changed to native `vector` type (pgvector) or `float[]` for efficiency           |
+**Usage:**
+
+```powershell
+cd backend
+# export everything
+python scripts/dataset_export.py --out-dir dataset
+
+# export a single user
+python scripts/dataset_export.py --out-dir dataset --user-filter <user_uuid>
+```
+
+**Requires:** `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env vars (auto-loaded from `backend/.env` if present).
+
+**Output structure:**
+
+```
+dataset/
+    manifest.csv                          ← all rows in flat CSV
+    <user_id>/
+        <session_id>/
+            front.jpg                     ← downloaded images, one per angle
+            left.jpg
+            ...
+            metadata.json                 ← session + angle metadata
+```
+
+**`manifest.csv` columns:** `user_id`, `session_id`, `angle_type`, `image_path` (relative), `storage_path`, `timestamp`, `quality_score`, `embedding` (JSON string).
+
+**Progress target:** 20 users × 10 sessions × 6 angles = 1200 images. The script prints progress toward this target after export.
+
+**Install extra dep (not in `requirements.txt`):**
+
+```powershell
+pip install python-dotenv
+```
+
+---
+
+## Suggested Future Improvements
+
+| Improvement            | What                                              | Why                                                                        | Effort           |
+| ---------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- | ---------------- |
+| Background removal     | MediaPipe SelfieSegmentation or `rembg`           | Strips background before embedding — single largest remaining noise source | Medium (new dep) |
+| Colour-cast correction | Grey-world or white-patch white balance           | Corrects indoor lighting colour casts                                      | Low (~10 lines)  |
+| ONNX export            | Export EfficientNetV2-S to ONNX for `onnxruntime` | ~2–3× faster on CPU; no PyTorch needed at runtime; smaller container       | Low              |
+| Tilt correction        | Hough-line deskew on edge map                     | More consistent framing across sessions                                    | Medium           |
+| Pose estimation        | MediaPipe full-body keypoints                     | Precise torso crop; solves tilt; more robust than contour detection        | High (new dep)   |
+| DB job state           | Persist async status to `analysis_logs`           | Works across restarts and multi-worker deployments                         | Low              |
 
 ---
 
 ## Dependencies (`requirements.txt`)
 
-| Package         | Version  | Purpose                                        |
-| --------------- | -------- | ---------------------------------------------- |
-| `fastapi`       | 0.110.0  | Web framework                                  |
-| `uvicorn`       | 0.27.1   | ASGI server                                    |
-| `python-dotenv` | 1.0.1    | Load `.env` into `os.environ`                  |
-| `supabase`      | 2.10.0   | Supabase Python client (DB + Storage)          |
-| `python-jose`   | 3.3.0    | JWT decode and JWKS key construction           |
-| `cryptography`  | 41.0.7   | Required by python-jose for EC key support     |
-| `requests`      | 2.32.3   | HTTP client for JWKS fetch                     |
-| `pytest`        | 7.4.0    | Test runner                                    |
-| `httpx`         | 0.27.0   | Async HTTP client (used by FastAPI TestClient) |
-| `torch`         | 2.1.0    | PyTorch — ResNet50 inference                   |
-| `torchvision`   | 0.16.0   | ResNet50 model + ImageNet transforms           |
-| `opencv-python` | 4.8.1.78 | Image normalization (histogram eq), resize     |
-| `pillow`        | 10.1.0   | Image loading from bytes                       |
-| `numpy`         | 1.24.3   | All numerical operations on embeddings         |
+| Package                  | Version  | Purpose                                                                                        |
+| ------------------------ | -------- | ---------------------------------------------------------------------------------------------- |
+| `fastapi`                | 0.110.0  | Web framework                                                                                  |
+| `uvicorn`                | 0.27.1   | ASGI server                                                                                    |
+| `python-dotenv`          | 1.0.1    | Load `.env`                                                                                    |
+| `supabase`               | 2.10.0   | Supabase Python client (DB + Storage)                                                          |
+| `python-jose`            | 3.3.0    | JWT decode + JWKS key construction                                                             |
+| `cryptography`           | 41.0.7   | Required by python-jose for EC (ES256) key support                                             |
+| `requests`               | 2.32.3   | HTTP client for JWKS fetch                                                                     |
+| `pytest`                 | 7.4.0    | Test runner                                                                                    |
+| `httpx`                  | 0.27.0   | Async HTTP client (required by FastAPI `TestClient`)                                           |
+| `torch`                  | 2.1.0    | PyTorch — EfficientNetV2-S inference (CPU-only build in Docker)                                |
+| `torchvision`            | 0.16.0   | EfficientNetV2-S model + ImageNet transforms                                                   |
+| `opencv-python-headless` | 4.8.1.78 | NLMeans denoise, CLAHE, contour crop, resize, sharpen (`-headless` = no GUI deps, Docker-safe) |
+| `pillow`                 | 10.1.0   | Image loading from bytes, EXIF transpose                                                       |
+| `numpy`                  | 1.24.3   | All numerical operations on embeddings and quality scores                                      |
+| `slowapi`                | 0.1.9    | Rate limiting middleware for FastAPI                                                           |
 
 **Install:**
 
@@ -1302,62 +858,85 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-> `torch` and `torchvision` are large (~1-2GB). The first install will take several minutes.
+> `torch` and `torchvision` are ~1–2 GB. In Docker, CPU-only wheels from `https://download.pytorch.org/whl/cpu` are used to avoid the full GPU package.
 
 ---
 
-## Data Flow — Full Session Analysis
+## Data Flow — Full Session Analysis (Phase 6 current state)
 
 ```
 Browser (Result.tsx)
   │
-  ├─ GET /api/session-info/{id}  ──────────────────────────────┐
-  │    └─ utility.py                                           │
-  │         └─ sessions table (4 queries)                      │
-  │         └─ returns: is_first_session, previous_session_id  │
-  │                                                            │
-  ├─ GET /api/image-preview/{id}/{type}  ×6 (parallel) ────────┤
-  │    └─ utility.py                                           │
-  │         └─ images table (1 query per call)                 │
-  │         └─ supabase.storage.create_signed_url()            │
-  │         └─ returns: preview_url (1hr signed URL)           │
-  │                                                            │
-  ├─ POST /api/analyze-session/{id}  ──────────────────────────┤
-  │    └─ analyze_session.py                                   │
-  │         └─ session_service: verify session ownership       │
-  │         └─ image_service: fetch image records              │
-  │         └─ analysis_service.analyze_session()              │
-  │              ├─ load_user_baseline() — session_embeddings  │
-  │              ├─ load_trend_score() — session_analysis      │
-  │              ├─ Group images by angle_type                 │
-  │              ├─ For each angle group:                      │
-  │              │    ├─ For each image in group:              │
-  │              │    │    ├─ preprocessing.preprocess_pipeline()│
-  │              │    │    │    ├─ storage.download(path)      │
-  │              │    │    │    ├─ normalize (histogram eq)    │
-  │              │    │    │    ├─ center crop                 │
-  │              │    │    │    └─ resize to 224×224           │
-  │              │    │    └─ embedding.extract_embedding()    │
-  │              │    │         └─ ResNet50 → 2048-dim vector  │
-  │              │    └─ angle_embedding = mean(image_embeds)  │
-  │              ├─ session_embedding = mean(angle_embeds)     │
-  │              ├─ store angle_embeddings → angle_embeddings  │
-  │              ├─ store session embedding → session_embeds   │
-  │              └─ persist → angle_analysis, session_analysis │
-  │         └─ returns: per_angle scores, overall_summary,     │
-  │                      is_first_session, trend_score         │
-  │                                                            │
-  └─ POST /api/compare-sessions/{id}/{prev_id}  ───────────────┘
-       └─ compare_sessions.py  (only if not first session)
-            └─ comparison_service.compare_sessions(current, previous, user_id)
-                 ├─ load angle_analysis for both sessions
-                 ├─ load session_embeddings for both sessions
-                 ├─ load angle_embeddings for both sessions (if table exists)
-                 ├─ Layer 1: cosine distance between session embeddings
-                 ├─ Layer 2: rolling baseline (mean of last 5 prior sessions)
-                 ├─ Layer 3: monthly baseline (mean of last 30 days)
-                 ├─ Layer 4: lifetime baseline (mean of all prior sessions)
-                 ├─ Layer 5: per-angle embedding distances + score deltas
-                 └─ returns: per_angle, overall_delta, overall_trend,
-                             rolling/monthly/lifetime_baseline layers
+  ├─ GET /api/session-info/{id}
+  │    └─ sessions table (4 queries: verify, count, oldest, 2 most-recent)
+  │    └─ returns: is_first_session, previous_session_id, total_sessions
+  │
+  ├─ GET /api/image-preview/{id}/{type}  x6 in parallel
+  │    └─ images table + supabase.storage.create_signed_url() → 1hr signed URLs
+  │
+  ├─ POST /api/analyze-session/{id}     (?force=true bypasses cache)
+  │    └─ analyze_session.py
+  │         ├─ Rate limit check (20/day per IP)
+  │         ├─ session_service: verify ownership + status == "completed"
+  │         ├─ image_service: fetch image records, require >= 3 angle types
+  │         │
+  │         ├─ [CACHE CHECK] fetch_cached_analysis()
+  │         │    └─ If session_analysis rows exist AND ?force != "true"
+  │         │         → return immediately with from_cache: true (no ML run)
+  │         │
+  │         └─ [ML PIPELINE] analysis_service.analyze_session()
+  │              ├─ _load_user_baseline()        → session_embeddings (all prior) → mean vector
+  │              ├─ _load_per_angle_baselines()  → angle_embeddings (per angle_type) → {"front": vec, ...}
+  │              ├─ _load_trend_score()          → session_analysis (last 5 scores) → moving average
+  │              │
+  │              ├─ Group images by angle_type
+  │              │
+  │              ├─ ThreadPoolExecutor (max_workers = min(n_angles, 6))
+  │              │    └─ Per-angle worker thread:
+  │              │         ├─ For each image in angle group:
+  │              │         │    ├─ preprocessing.preprocess_pipeline()
+  │              │         │    │    ├─ storage.download(path)
+  │              │         │    │    ├─ ImageOps.exif_transpose()        ← EXIF orientation
+  │              │         │    │    ├─ fast_downscale(max=640px)         ← 4K → 640px before NLMeans
+  │              │         │    │    ├─ denoise_image()                   ← NLMeans (h=6)
+  │              │         │    │    ├─ apply_clahe()                     ← LAB CLAHE clipLimit=2.0
+  │              │         │    │    ├─ detect_torso_crop()               ← adaptive threshold → contour crop
+  │              │         │    │    ├─ resize_intermediate(384x384)      ← Lanczos4
+  │              │         │    │    ├─ center_crop_final(224x224)        ← centre crop
+  │              │         │    │    ├─ sharpen_image()                   ← unsharp mask 1.8/-0.8
+  │              │         │    │    └─ compute_image_quality()           ← blur + brightness on final image
+  │              │         │    └─ embedding.extract_embedding()
+  │              │         │         └─ EfficientNetV2-S → 1280-dim float32
+  │              │         │              (user_mean subtraction: DISABLED — was causing identical images ~1.0)
+  │              │         │
+  │              │         ├─ angle_embedding = mean(image_embeddings_for_this_angle)
+  │              │         ├─ angle_baseline = per_angle_baselines[angle_type] ?? user_baseline
+  │              │         └─ change_score = cosine_distance(angle_embedding, angle_baseline)
+  │              │              ← KEY: front compared to prior fronts, not to blended session mean
+  │              │
+  │              ├─ session_embedding = mean(angle_embeddings)
+  │              ├─ _store_angle_embeddings() → angle_embeddings table (delete-then-insert)
+  │              ├─ _store_session_embedding() → session_embeddings table (delete-then-insert)
+  │              ├─ overall_change_score = cosine_distance(session_embedding, user_baseline)
+              ├─ angle_aware_score = mean(per_angle_change_scores)   ← Phase 7: angle-assignment-sensitive
+              ├─ compute_session_quality()
+              ├─ compute_consistency_score()
+              ├─ compute_analysis_confidence()
+              └─ analysis_logs write: {session_id, user_id, processing_time_ms, confidence_score}  ← Phase 7
+  │
+  │         └─ _persist_analysis()
+  │              ├─ angle_analysis (delete-then-insert, graceful fallback if angle_quality_score col missing)
+  │              └─ session_analysis (delete-then-insert, 4-level fallback: Phase7 → Phase5 → Phase4 → bare minimum)
+  │
+  └─ POST /api/compare-sessions/{id}/{prev_id}   (skipped if is_first_session)
+       └─ comparison_service.compare_sessions()
+            ├─ _load_angle_scores() x2        → angle_analysis table
+            ├─ _load_session_embedding() x2   → session_embeddings table
+            ├─ _load_angle_embeddings() x2    → angle_embeddings table
+            ├─ Layer 1 (immediate):  cosine_distance(current_emb, previous_emb)
+            ├─ Layer 2 (rolling):   current_emb vs mean of last 5 prior session_embeddings
+            ├─ Layer 3 (monthly):   current_emb vs mean of last-30-day session_embeddings
+            ├─ Layer 4 (lifetime):  current_emb vs mean of ALL prior session_embeddings
+            └─ Layer 5 (per-angle): cosine_distance per angle + score delta from angle_analysis
+                                    variation_level per angle
 ```

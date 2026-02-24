@@ -139,9 +139,15 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 
 # ---------------------------------------------------------------------------
-# Health check
+# Health checks
 # ---------------------------------------------------------------------------
 
 @app.get("/")
 def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/health")
+def health_check_named():
+    """Explicit /health endpoint for load-balancers, uptime monitors, and HF Spaces."""
     return {"status": "ok"}
