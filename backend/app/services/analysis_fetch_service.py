@@ -8,7 +8,10 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
 
     session_result = (
         supabase.table("session_analysis")
-        .select("overall_change_score, trend_score, created_at")
+        .select(
+            "overall_change_score, trend_score, created_at, "
+            "angle_aware_score, analysis_version"
+        )
         .eq("session_id", session_id)
         .eq("user_id", user_id)
         .limit(1)
@@ -27,10 +30,13 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
     )
     angle_rows: List[Dict[str, object]] = angle_result.data or []
 
+    row = session_rows[0]
     return {
         "session_id": session_id,
-        "overall_change_score": session_rows[0].get("overall_change_score", 0.0),
-        "trend_score": session_rows[0].get("trend_score"),
-        "created_at": session_rows[0].get("created_at"),
+        "overall_change_score": row.get("overall_change_score", 0.0),
+        "trend_score": row.get("trend_score"),
+        "angle_aware_score": row.get("angle_aware_score"),
+        "analysis_version": row.get("analysis_version"),
+        "created_at": row.get("created_at"),
         "per_angle": angle_rows,
     }

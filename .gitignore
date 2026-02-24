@@ -55,6 +55,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 build/
 develop-eggs/
@@ -74,6 +75,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*cache*
+.pytest_cache/
 
 # Misc
 *.bak

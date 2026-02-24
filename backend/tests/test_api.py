@@ -44,6 +44,10 @@ def _make_analysis_result(is_first=False):
             "is_first_session": is_first,
             "analysis_confidence_score": 0.82,
             "session_quality_score": 0.77,
+            # Phase 7
+            "angle_aware_score": 0.0 if is_first else 0.39,
+            "angle_aware_variation_level": variation_level(0.0 if is_first else 0.39),
+            "analysis_version": "v0.7",
         },
         "image_quality_summary": {
             "session_quality_score": 0.77,
@@ -114,6 +118,10 @@ def client(monkeypatch):
     monkeypatch.setattr(status_module,  "get_session",        _fake_session)
     monkeypatch.setattr(compare_module, "get_session",        _fake_session)
 
+    # ── Cache bypass (returns {} = cache miss; prevents real Supabase call) ───
+    monkeypatch.setattr(analyze_module, "fetch_cached_analysis",
+                        lambda session_id, user_id: {})
+
     # ── ML pipeline ──────────────────────────────────────────────────────────
     monkeypatch.setattr(analyze_module, "run_analysis",
                         lambda images, user_id, session_id: _make_analysis_result())
@@ -155,6 +163,12 @@ def client(monkeypatch):
 class TestHealthCheck:
     def test_health_ok(self, client):
         r = client.get("/")
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok"}
+
+    def test_health_named_endpoint(self, client):
+        """Phase 7A: explicit /health endpoint for uptime monitors."""
+        r = client.get("/health")
         assert r.status_code == 200
         assert r.json() == {"status": "ok"}
 
@@ -211,6 +225,18 @@ class TestAnalyzeSession:
         assert "consistency_score" in qs
         assert "low_quality_angles" in qs
         assert "blurry_images_count" in qs
+
+    def test_scores_has_phase7_fields(self, client):
+        """Phase 7D: angle_aware_score, angle_aware_variation_level, analysis_version."""
+        r = client.post(
+            f"/api/analyze-session/{FAKE_SESSION_ID}",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        scores = r.json()["data"]["scores"]
+        assert "angle_aware_score" in scores
+        assert "angle_aware_variation_level" in scores
+        assert "analysis_version" in scores
+        assert scores["analysis_version"] == "v0.7"
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 BCD Backend - analysis_service.py
 Phase 5: Multi-angle aggregation, correct baseline comparison, trend tracking,
          image quality scoring, confidence scoring, and variation level mapping.
+Phase 7: angle_aware_score (mean of per-angle change scores — angle-assignment-sensitive);
+         analysis_version tag; analysis_logs table writes.
 """
 
 import logging
@@ -23,6 +25,8 @@ from ..processing.quality import (
 from .db import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+ANALYSIS_VERSION = "v0.7"   # Bump when model or pipeline changes
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +313,17 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         is_first_session=is_first_session,
     )
 
+    # ── 8b. Angle-aware score (Phase 7) ──────────────────────────────────────
+    # Mean of per-angle change_scores.  Unlike overall_change_score (which uses
+    # the session-level mean embedding and is order-invariant), this score is
+    # ANGLE-ASSIGNMENT-SENSITIVE: if images are swapped between angle slots the
+    # score will change even if the session-level embedding stays the same.
+    angle_aware_score = (
+        float(np.mean(angle_change_scores_list))
+        if angle_change_scores_list
+        else 0.0
+    )
+
     # ── 9. Image quality summary for API trust response ───────────────────────
     all_image_details: List[dict] = []
     for angle_result in per_angle_results:
@@ -336,10 +351,23 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
     elapsed_ms = int((time.monotonic() - t_start) * 1000)
     logger.info(
-        "analyze_session complete | session=%s user=%s time_ms=%d confidence=%.3f angles=%d",
-        session_id, user_id, elapsed_ms, analysis_confidence_score, len(
-            angle_groups),
+        "analyze_session complete | session=%s user=%s time_ms=%d confidence=%.3f angles=%d angle_aware=%.3f",
+        session_id, user_id, elapsed_ms, analysis_confidence_score,
+        len(angle_groups), angle_aware_score,
     )
+
+    # ── 10. Write analysis log (Phase 7) ─────────────────────────────────────
+    try:
+        supabase.table("analysis_logs").insert({
+            "session_id": session_id,
+            "user_id": user_id,
+            "processing_time_ms": elapsed_ms,
+            "status": "completed",
+            "confidence_score": analysis_confidence_score,
+        }).execute()
+    except Exception as log_err:
+        # Gracefully skip if table or column doesn't exist yet (PHASE5/7 migration not run)
+        logger.warning("analysis_logs write skipped: %s", log_err)
 
     return {
         "per_angle": per_angle_results,
@@ -351,10 +379,13 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         "scores": {
             "overall_change_score": float(overall_change_score),
             "variation_level": variation_level(overall_change_score),
+            "angle_aware_score": angle_aware_score,
+            "angle_aware_variation_level": variation_level(angle_aware_score),
             "trend_score": float(trend_score) if trend_score is not None else None,
             "is_first_session": is_first_session,
             "analysis_confidence_score": analysis_confidence_score,
             "session_quality_score": session_quality_score,
+            "analysis_version": ANALYSIS_VERSION,
         },
         "image_quality_summary": image_quality_summary,
         "baseline_used": "lifetime_mean" if not is_first_session else "none",
