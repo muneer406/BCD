@@ -20,7 +20,7 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
 
     angle_result = (
         supabase.table("angle_analysis")
-        .select("angle_type, change_score, summary")
+        .select("angle_type, change_score, summary, angle_quality_score")
         .eq("session_id", session_id)
         .eq("user_id", user_id)
         .execute()
