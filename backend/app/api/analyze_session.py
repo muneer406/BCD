@@ -64,23 +64,33 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         # Phase 5 columns
         "analysis_confidence_score": scores.get("analysis_confidence_score"),
         "session_quality_score": quality_summary.get("session_quality_score"),
+        # Phase 7 columns
+        "angle_aware_score": scores.get("angle_aware_score"),
+        "analysis_version": scores.get("analysis_version"),
     }
     try:
         supabase.table("session_analysis").insert(session_row).execute()
     except Exception:
-        # Phase 5 columns may not exist yet — retry with Phase 4 subset
+        # Phase 7 columns may not exist yet — retry without them
         try:
-            fallback_row = {k: v for k, v in session_row.items()
-                            if k in ("session_id", "user_id", "overall_change_score", "trend_score")}
-            supabase.table("session_analysis").insert(fallback_row).execute()
+            p5_row = {k: v for k, v in session_row.items()
+                      if k not in ("angle_aware_score", "analysis_version")}
+            supabase.table("session_analysis").insert(p5_row).execute()
         except Exception:
-            # trend_score column also missing — bare minimum insert
-            bare_row = {
-                "session_id": session_id,
-                "user_id": user_id,
-                "overall_change_score": scores.get("overall_change_score", 0.0),
-            }
-            supabase.table("session_analysis").insert(bare_row).execute()
+            # Phase 5 columns also missing — retry with Phase 4 subset
+            try:
+                fallback_row = {k: v for k, v in session_row.items()
+                                if k in ("session_id", "user_id", "overall_change_score", "trend_score")}
+                supabase.table("session_analysis").insert(
+                    fallback_row).execute()
+            except Exception:
+                # trend_score column also missing — bare minimum insert
+                bare_row = {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "overall_change_score": scores.get("overall_change_score", 0.0),
+                }
+                supabase.table("session_analysis").insert(bare_row).execute()
 
     return overwritten
 
@@ -166,6 +176,8 @@ def analyze_session(
                 }
                 for row in cached["per_angle"]
             ]
+            angle_aware = cached.get("angle_aware_score")
+            analysis_ver = cached.get("analysis_version")
             return {
                 "success": True,
                 "data": {
@@ -184,7 +196,10 @@ def analyze_session(
                     "scores": {
                         "change_score": overall_score,
                         "variation_level": variation_level(overall_score),
+                        "angle_aware_score": float(angle_aware) if angle_aware is not None else None,
+                        "angle_aware_variation_level": variation_level(float(angle_aware)) if angle_aware is not None else None,
                         "trend_score": float(trend) if trend is not None else None,
+                        "analysis_version": analysis_ver,
                     },
                 },
             }
@@ -199,6 +214,7 @@ def analyze_session(
         "data": {
             "session_id": session_id,
             "overwritten": overwritten,
+            "from_cache": False,
             "is_first_session": scores.get("is_first_session", False),
             "session_analysis": {
                 "per_angle": analysis["per_angle"],
@@ -207,9 +223,12 @@ def analyze_session(
             "scores": {
                 "change_score": scores.get("overall_change_score", 0.0),
                 "variation_level": scores.get("variation_level"),
+                "angle_aware_score": scores.get("angle_aware_score"),
+                "angle_aware_variation_level": scores.get("angle_aware_variation_level"),
                 "trend_score": scores.get("trend_score"),
                 "analysis_confidence_score": scores.get("analysis_confidence_score"),
                 "session_quality_score": scores.get("session_quality_score"),
+                "analysis_version": scores.get("analysis_version"),
             },
             # Part 7: trust and transparency fields
             "image_quality_summary": quality_summary,
