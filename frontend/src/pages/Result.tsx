@@ -34,6 +34,7 @@ type AnalysisResponse = {
       per_angle: Array<{
         angle_type: string;
         change_score: number;
+        angle_quality_score?: number;
         summary: string;
       }>;
       overall_summary: string;
@@ -41,6 +42,13 @@ type AnalysisResponse = {
     scores?: {
       change_score: number;
       trend_score: number | null;
+    };
+    image_quality_summary?: {
+      session_quality_score: number;
+      consistency_score: number;
+      low_quality_angles: string[];
+      blurry_images_count: number;
+      total_images: number;
     };
   };
   error?: string;
@@ -83,6 +91,16 @@ function Skeleton({ className = "" }: { className?: string }) {
   );
 }
 
+function angleQualityLabel(score: number | null | undefined): {
+  text: string;
+  color: string;
+} {
+  if (score == null) return { text: "—", color: "text-ink-600" };
+  if (score >= 0.8) return { text: "Good", color: "text-green-700" };
+  if (score >= 0.6) return { text: "Acceptable", color: "text-amber-600" };
+  return { text: "Low quality", color: "text-red-600" };
+}
+
 export function Result() {
   const { user } = useAuth();
   const { sessionId } = useParams();
@@ -99,6 +117,9 @@ export function Result() {
   const [loading, setLoading] = useState(true); // only for session-info
   const [error, setError] = useState<string | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [previousSessionId, setPreviousSessionId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -121,6 +142,7 @@ export function Result() {
         if (!active) return;
 
         setIsFirstSession(sessionInfo.is_first_session);
+        setPreviousSessionId(sessionInfo.previous_session_id ?? null);
         if (sessionInfo.is_first_session) setComparisonLoading(false);
         setLoading(false); // Render the page skeleton immediately
 
@@ -221,6 +243,7 @@ export function Result() {
     if (!user || !sessionId || reanalyzing) return;
     setReanalyzing(true);
     setAnalysisLoading(true);
+    if (!isFirstSession) setComparisonLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token || "";
@@ -228,6 +251,7 @@ export function Result() {
         import.meta.env.VITE_API_URL ||
         "https://muneer320-bcd-backend.hf.space";
 
+      // Force re-run the ML pipeline
       const res = await fetch(
         `${API_URL}/api/analyze-session/${sessionId}?force=true`,
         {
@@ -242,10 +266,36 @@ export function Result() {
         const analysis = (await res.json()) as AnalysisResponse;
         setAnalysisData(analysis);
       }
+      setAnalysisLoading(false);
+
+      // Also refresh the comparison (Over time) data
+      if (!isFirstSession && previousSessionId) {
+        try {
+          const compRes = await fetch(
+            `${API_URL}/api/compare-sessions/${sessionId}/${previousSessionId}`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+          if (compRes.ok) {
+            const comparison = (await compRes.json()) as ComparisonResponse;
+            setComparisonData(comparison);
+          }
+        } catch (err) {
+          console.error("Re-compare error:", err);
+        } finally {
+          setComparisonLoading(false);
+        }
+      }
     } catch (err) {
       console.error("Re-analyze error:", err);
-    } finally {
       setAnalysisLoading(false);
+      setComparisonLoading(false);
+    } finally {
       setReanalyzing(false);
     }
   };
@@ -376,8 +426,8 @@ export function Result() {
               {isFirstSession
                 ? "Your first session establishes the baseline for all future comparisons."
                 : analysisLoading
-                  ? "Calculating change score..."
-                  : `Change score: ${changeScore.toFixed(2)}${trendScore !== null ? ` · Trend avg: ${trendScore.toFixed(2)}` : ""}`}
+                  ? "Running analysis..."
+                  : `Overall change score: ${changeScore.toFixed(2)}${trendScore !== null ? ` · Trend avg: ${trendScore.toFixed(2)}` : ""} — see below for details.`}
             </p>
           </div>
         </div>
@@ -390,7 +440,8 @@ export function Result() {
             This session
           </h2>
           <p className="mt-1 text-sm text-ink-700">
-            Detailed observations from each angle captured.
+            Image quality check for each angle — how well-captured are these
+            photos?
           </p>
         </div>
 
@@ -422,6 +473,7 @@ export function Result() {
                     Object.entries(imageTypeByTitle).find(
                       ([, v]) => v === result.angle_type,
                     )?.[0] || result.angle_type;
+                  const ql = angleQualityLabel(result.angle_quality_score);
                   return (
                     <div
                       key={result.angle_type}
@@ -430,11 +482,10 @@ export function Result() {
                       <p className="text-sm font-semibold text-ink-900">
                         {title}
                       </p>
-                      <p className="mt-1 text-xs font-semibold text-tide-600">
-                        Score: {result.change_score.toFixed(2)}
-                      </p>
-                      <p className="mt-2 text-sm text-ink-700">
-                        {result.summary}
+                      <p className={`mt-1 text-xs font-semibold ${ql.color}`}>
+                        Image quality: {ql.text}
+                        {result.angle_quality_score != null &&
+                          ` (${(result.angle_quality_score * 100).toFixed(0)}%)`}
                       </p>
                       <details className="mt-3">
                         <summary className="cursor-pointer text-xs font-semibold text-ink-900">
@@ -452,14 +503,56 @@ export function Result() {
             </p>
           )}
 
-          {analysisResults && (
-            <div className="rounded-2xl bg-white/70 p-4">
+          {analysisData?.data?.image_quality_summary && (
+            <div className="rounded-2xl bg-white/70 p-4 space-y-3">
               <p className="text-sm font-semibold text-ink-900">
-                Session summary
+                Session quality
               </p>
-              <p className="mt-2 text-sm text-ink-700">
-                {analysisResults.overall_summary}
-              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs text-ink-600">Overall quality</p>
+                  <p className="text-sm font-semibold text-ink-900">
+                    {(
+                      analysisData.data.image_quality_summary
+                        .session_quality_score * 100
+                    ).toFixed(0)}
+                    %
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-ink-600">Consistency</p>
+                  <p className="text-sm font-semibold text-ink-900">
+                    {(
+                      analysisData.data.image_quality_summary
+                        .consistency_score * 100
+                    ).toFixed(0)}
+                    %
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-ink-600">Images analyzed</p>
+                  <p className="text-sm font-semibold text-ink-900">
+                    {analysisData.data.image_quality_summary.total_images}
+                  </p>
+                </div>
+              </div>
+              {analysisData.data.image_quality_summary.low_quality_angles
+                .length > 0 && (
+                <p className="text-xs text-amber-700">
+                  ⚠ Low quality angles:{" "}
+                  {analysisData.data.image_quality_summary.low_quality_angles.join(
+                    ", ",
+                  )}
+                </p>
+              )}
+              {analysisData.data.image_quality_summary.blurry_images_count >
+                0 && (
+                <p className="text-xs text-amber-700">
+                  ⚠{" "}
+                  {analysisData.data.image_quality_summary.blurry_images_count}{" "}
+                  blurry image(s) detected — retaking may improve accuracy.
+                </p>
+              )}
             </div>
           )}
 
@@ -489,7 +582,8 @@ export function Result() {
               Over time
             </h2>
             <p className="mt-1 text-sm text-ink-700">
-              How this session compares to your previous session.
+              How each angle has shifted since your last session, relative to
+              your personal baseline.
             </p>
           </div>
 
@@ -550,8 +644,22 @@ export function Result() {
                           <p className="text-sm font-semibold text-ink-900">
                             {title}
                           </p>
-                          <p className="mt-1 text-xs font-semibold text-tide-600">
-                            Delta: {result.delta > 0 ? "+" : ""}
+                          {(() => {
+                            const analysisAngle =
+                              analysisResults?.per_angle.find(
+                                (a) => a.angle_type === result.angle_type,
+                              );
+                            return analysisAngle ? (
+                              <p className="mt-1 text-xs text-ink-600">
+                                vs baseline:{" "}
+                                <span className="font-semibold text-tide-600">
+                                  {analysisAngle.change_score.toFixed(2)}
+                                </span>
+                              </p>
+                            ) : null;
+                          })()}
+                          <p className="mt-0.5 text-xs font-semibold text-tide-600">
+                            vs last session: {result.delta > 0 ? "+" : ""}
                             {result.delta.toFixed(2)}
                           </p>
                           <p className="mt-2 text-xs text-ink-700">
