@@ -4,7 +4,7 @@
 **Framework:** FastAPI (Python)  
 **Runtime:** Uvicorn ASGI  
 **Database:** Supabase (PostgreSQL via Supabase Python SDK)  
-**Storage:** Supabase Storage (`bcd-images` bucket)  
+**Storage:** Supabase Storage
 **Auth:** Supabase JWTs (ES256 algorithm, JWKS verification)  
 **ML:** PyTorch EfficientNetV2-S (1280-dim embeddings), OpenCV (CLAHE, contour crop, denoise, sharpen)  
 **Rate Limiting:** slowapi 0.1.9 (20 analyses/day per IP, configurable)  
