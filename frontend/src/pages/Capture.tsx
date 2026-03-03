@@ -124,6 +124,7 @@ export function Capture() {
 
       const sessionId = sessionData.id as string;
       const failedImages: string[] = [];
+      const uploadedPaths: string[] = [];
 
       // Save all images (including duplicates per type)
       for (const image of images) {
@@ -146,6 +147,7 @@ export function Capture() {
             failedImages.push(`${image.label}: ${saveError.message}`);
             continue;
           }
+          uploadedPaths.push(path);
 
           // Save metadata with storage path
           const { error: dbError } = await supabase.from("images").insert({
@@ -172,8 +174,57 @@ export function Capture() {
       }
 
       if (failedImages.length > 0) {
+        const cleanupErrors: string[] = [];
+
+        // Best-effort cleanup of storage objects uploaded during this attempt
+        try {
+          const chunkSize = 100;
+          for (
+            let start = 0;
+            start < uploadedPaths.length;
+            start += chunkSize
+          ) {
+            const chunk = uploadedPaths.slice(start, start + chunkSize);
+            if (chunk.length === 0) continue;
+            const { error: removeError } = await supabase.storage
+              .from("bcd-images")
+              .remove(chunk);
+            if (removeError) {
+              cleanupErrors.push(
+                `Storage cleanup failed: ${removeError.message}`,
+              );
+            }
+          }
+        } catch (cleanupErr) {
+          cleanupErrors.push(
+            `Storage cleanup error: ${cleanupErr instanceof Error ? cleanupErr.message : "Unknown error"}`,
+          );
+        }
+
+        // Remove session so any inserted image rows are rolled back via cascade
+        try {
+          const { error: sessionDeleteError } = await supabase
+            .from("sessions")
+            .delete()
+            .eq("id", sessionId)
+            .eq("user_id", user.id);
+          if (sessionDeleteError) {
+            cleanupErrors.push(
+              `Session rollback failed: ${sessionDeleteError.message}`,
+            );
+          }
+        } catch (rollbackErr) {
+          cleanupErrors.push(
+            `Session rollback error: ${rollbackErr instanceof Error ? rollbackErr.message : "Unknown error"}`,
+          );
+        }
+
+        const cleanupSuffix =
+          cleanupErrors.length > 0
+            ? `\n\nRollback warnings:\n${cleanupErrors.join("\n")}`
+            : "";
         throw new Error(
-          `Failed to save ${failedImages.length} image(s):\n${failedImages.join("\n")}`,
+          `Failed to save ${failedImages.length} image(s):\n${failedImages.join("\n")}${cleanupSuffix}`,
         );
       }
 

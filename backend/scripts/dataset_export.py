@@ -12,7 +12,7 @@ Output structure:
         manifest.csv                    ← all rows in flat CSV
         <user_id>/
             <session_id>/
-                <angle_type>.jpg        ← downloaded image
+                <original_filename>     ← downloaded image from bucket
                 metadata.json           ← session + angle metadata
 
 CSV columns:
@@ -34,6 +34,7 @@ import csv
 import json
 import os
 import sys
+from collections import defaultdict, deque
 from pathlib import Path
 
 # Allow running from either the project root or the backend directory.
@@ -72,14 +73,104 @@ def _require_env() -> None:
 # ---------------------------------------------------------------------------
 
 def _load_all_images(supabase, user_filter: str | None) -> list[dict]:
-    """Fetch all rows from the images table (or filtered by user)."""
-    query = supabase.table("images").select(
-        "id, session_id, user_id, image_type, storage_path, created_at"
-    )
-    if user_filter:
-        query = query.eq("user_id", user_filter)
-    result = query.execute()
-    return result.data or []
+    """Fetch all rows from the images table (or filtered by user), paginated."""
+    all_rows: list[dict] = []
+    page_size = 1000
+    start = 0
+
+    while True:
+        query = supabase.table("images").select(
+            "id, session_id, user_id, image_type, storage_path, created_at"
+        )
+        if user_filter:
+            query = query.eq("user_id", user_filter)
+        page = query.range(start, start + page_size - 1).execute().data or []
+        all_rows.extend(page)
+        if len(page) < page_size:
+            break
+        start += page_size
+
+    return all_rows
+
+
+def _load_all_bucket_objects(supabase, user_filter: str | None) -> list[dict]:
+    """Fetch all objects from the bucket using Storage API (recursive, paginated)."""
+    storage = supabase.storage.from_(STORAGE_BUCKET)
+    all_rows: list[dict] = []
+    page_size = 1000
+
+    to_scan = deque([""])
+
+    while to_scan:
+        prefix = to_scan.popleft()
+        offset = 0
+
+        while True:
+            options = {
+                "limit": page_size,
+                "offset": offset,
+                "sortBy": {"column": "name", "order": "asc"},
+            }
+
+            response = storage.list(prefix, options)
+            page = response.data if hasattr(response, "data") else response
+            page = page or []
+
+            if not isinstance(page, list):
+                page = []
+
+            for item in page:
+                name = item.get("name")
+                if not name:
+                    continue
+
+                full_path = f"{prefix}/{name}" if prefix else name
+                is_folder = item.get("id") is None or item.get(
+                    "type") == "folder"
+
+                if is_folder:
+                    to_scan.append(full_path)
+                    continue
+
+                if user_filter and not full_path.startswith(f"{user_filter}/"):
+                    continue
+
+                all_rows.append({
+                    "name": full_path,
+                    "created_at": item.get("created_at"),
+                })
+
+            if len(page) < page_size:
+                break
+            offset += page_size
+
+    all_rows.sort(key=lambda x: x.get("name") or "")
+    return all_rows
+
+
+def _infer_from_storage_path(storage_path: str) -> dict[str, str | None]:
+    """Infer user/session/angle metadata from storage path."""
+    p = Path(storage_path)
+    parts = p.parts
+
+    user_id = parts[0] if len(parts) >= 1 else None
+    session_id = parts[1] if len(parts) >= 2 else None
+
+    filename = p.name
+    stem = p.stem
+    angle_type = stem.split("_", 1)[0] if "_" in stem else stem
+
+    return {
+        "user_id": user_id,
+        "session_id": session_id,
+        "angle_type": angle_type,
+        "filename": filename,
+    }
+
+
+def _is_supported_image(storage_path: str) -> bool:
+    ext = Path(storage_path).suffix.lower()
+    return ext in {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _load_angle_analysis(supabase, session_id: str) -> dict[str, float]:
@@ -136,13 +227,23 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
     out_path.mkdir(parents=True, exist_ok=True)
 
     print(
-        f"Fetching image records{f' for user {user_filter}' if user_filter else ''}...")
-    images = _load_all_images(supabase, user_filter)
-    print(f"Found {len(images)} image records.")
+        f"Fetching bucket object list{f' for user {user_filter}' if user_filter else ''}...")
+    bucket_objects = _load_all_bucket_objects(supabase, user_filter)
+    print(f"Found {len(bucket_objects)} objects in bucket metadata.")
 
-    if not images:
-        print("Nothing to export.")
+    if not bucket_objects:
+        print("Nothing to export from bucket.")
         return
+
+    print("Fetching image rows from DB for metadata enrichment...")
+    image_rows = _load_all_images(supabase, user_filter)
+    print(f"Found {len(image_rows)} image rows in DB.")
+
+    images_by_path: dict[str, dict] = {
+        row["storage_path"]: row
+        for row in image_rows
+        if row.get("storage_path")
+    }
 
     # Cache quality scores per session to avoid duplicate queries
     _quality_cache: dict[str, dict[str, float]] = {}
@@ -150,15 +251,33 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
     _emb_cache: dict[tuple[str, str], list | None] = {}
 
     manifest_rows: list[dict] = []
-    session_metadata: dict[str, list[dict]] = {}
+    session_metadata: dict[str, list[dict]] = defaultdict(list)
 
-    total = len(images)
-    for i, row in enumerate(images, 1):
-        session_id = row["session_id"]
-        user_id = row["user_id"]
-        angle_type = row["image_type"]
-        storage_path = row["storage_path"]
-        created_at = row["created_at"]
+    total = len(bucket_objects)
+    for i, obj in enumerate(bucket_objects, 1):
+        storage_path = obj.get("name")
+        if not storage_path:
+            continue
+
+        if not _is_supported_image(storage_path):
+            print(f"[{i}/{total}] skipping non-image object: {storage_path}")
+            continue
+
+        image_row = images_by_path.get(storage_path)
+        inferred = _infer_from_storage_path(storage_path)
+
+        user_id = str((image_row or {}).get("user_id")
+                      or inferred["user_id"] or "")
+        session_id = str((image_row or {}).get("session_id")
+                         or inferred["session_id"] or "")
+        angle_type = str((image_row or {}).get("image_type")
+                         or inferred["angle_type"] or "unknown")
+        created_at = (image_row or {}).get(
+            "created_at") or obj.get("created_at")
+
+        if not user_id or not session_id:
+            print(f"[{i}/{total}] skipping unparsable path: {storage_path}")
+            continue
 
         print(f"[{i}/{total}] {user_id[:8]}… / {session_id[:8]}… / {angle_type}")
 
@@ -181,7 +300,7 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
         # Write image to disk
         session_dir = out_path / user_id / session_id
         session_dir.mkdir(parents=True, exist_ok=True)
-        local_filename = f"{angle_type}.jpg"
+        local_filename = str(inferred["filename"] or f"{angle_type}.jpg")
         local_path_rel = str(Path(user_id) / session_id / local_filename)
 
         if image_bytes:
@@ -197,8 +316,7 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
             "quality_score": quality_score,
             "has_embedding": embedding is not None,
         }
-        session_metadata.setdefault(
-            f"{user_id}/{session_id}", []).append(angle_meta)
+        session_metadata[f"{user_id}/{session_id}"].append(angle_meta)
 
         # Manifest row (embedding stored as JSON string to keep CSV flat)
         manifest_rows.append({
@@ -210,6 +328,7 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
             "timestamp": created_at,
             "quality_score": quality_score,
             "embedding": json.dumps(embedding) if embedding else "",
+            "has_db_record": bool(image_row),
         })
 
     # Write per-session metadata.json
@@ -236,6 +355,7 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
     with_embedding = sum(1 for r in manifest_rows if r["embedding"])
     with_quality = sum(
         1 for r in manifest_rows if r["quality_score"] is not None)
+    with_db_record = sum(1 for r in manifest_rows if r["has_db_record"])
     users = len({r["user_id"] for r in manifest_rows})
     sessions = len({r["session_id"] for r in manifest_rows})
 
@@ -243,6 +363,7 @@ def export(out_dir: str, user_filter: str | None = None) -> None:
     print(f"  {success}/{total} images downloaded")
     print(f"  {with_embedding}/{total} rows have embeddings")
     print(f"  {with_quality}/{total} rows have quality scores")
+    print(f"  {with_db_record}/{total} rows linked to DB image records")
     print(f"  {users} unique users, {sessions} unique sessions")
     print(f"  manifest → {manifest_path}")
 

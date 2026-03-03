@@ -16,6 +16,7 @@ tools/
 .pytest_cache/
 .coverage
 htmlcov/
+*cache/
 
 # Environment — never bake secrets into the image
 .env
@@ -35,3 +36,4 @@ htmlcov/
 
 # Misc
 Procfile
+dataset/

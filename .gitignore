@@ -78,6 +78,9 @@ MANIFEST
 *cache*
 .pytest_cache/
 
+# Datasets
+dataset/
+
 # Misc
 *.bak
 .DS_Store

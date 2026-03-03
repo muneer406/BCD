@@ -8,6 +8,7 @@ import {
   Loader,
 } from "lucide-react";
 import { Card } from "../components/Card";
+import { ImageModal } from "../components/ImageModal";
 import { PageShell } from "../components/PageShell";
 import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
@@ -20,8 +21,14 @@ type SessionRow = {
   images?: { storage_path: string; image_type: string }[];
 };
 
+type SessionImagePreview = {
+  storage_path: string;
+  image_type: string;
+  preview_url: string | null;
+};
+
 type SessionWithThumbnail = SessionRow & {
-  thumbnailUrl?: string;
+  imagePreviews: SessionImagePreview[];
   imageCount: number;
   sessionNumber: number;
 };
@@ -46,19 +53,55 @@ export function History() {
       rows: SessionRow[],
       totalCount: number,
     ): Promise<SessionWithThumbnail[]> => {
-      return rows.map((session, index) => {
+      const output: SessionWithThumbnail[] = [];
+
+      for (const [index, session] of rows.entries()) {
+        const sessionImages = session.images ?? [];
         const imageCount = session.images?.length ?? 0;
+        const paths = sessionImages
+          .map((img) => img.storage_path)
+          .filter((path): path is string => Boolean(path));
+
+        let signedByPath: Record<string, string> = {};
+        if (paths.length > 0) {
+          const { data: signedData } = await supabase.storage
+            .from("bcd-images")
+            .createSignedUrls(paths, 3600);
+
+          if (signedData && Array.isArray(signedData)) {
+            signedByPath = signedData.reduce<Record<string, string>>(
+              (acc, item) => {
+                if (item.path && item.signedUrl) {
+                  acc[item.path] = item.signedUrl;
+                }
+                return acc;
+              },
+              {},
+            );
+          }
+        }
+
+        const imagePreviews: SessionImagePreview[] = sessionImages.map(
+          (img) => ({
+            storage_path: img.storage_path,
+            image_type: img.image_type,
+            preview_url: signedByPath[img.storage_path] ?? null,
+          }),
+        );
+
         // Sessions are ordered by most recent first, so calculate chronological number
         // sessionNumber = totalSessions - ((page - 1) * pageSize + index)
         const sessionNumber = totalCount - ((page - 1) * pageSize + index);
 
-        return {
+        output.push({
           ...session,
-          thumbnailUrl: undefined, // Never show thumbnails for privacy
+          imagePreviews,
           imageCount,
           sessionNumber,
-        };
-      });
+        });
+      }
+
+      return output;
     },
     [page, pageSize],
   );
@@ -253,43 +296,70 @@ export function History() {
             );
 
             return (
-              <Link key={session.id} to={`/result/${session.id}`}>
-                <Card className="flex flex-col sm:flex-row gap-4 sm:gap-6 transition hover:shadow-lg">
-                  {/* Thumbnail */}
-                  <div className="h-24 w-24 sm:h-28 sm:w-40 flex-shrink-0 overflow-hidden rounded-xl sm:rounded-2xl bg-sand-100 flex items-center justify-center">
-                    {session.thumbnailUrl ? (
-                      <img
-                        src={session.thumbnailUrl}
-                        alt="Session thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Camera className="h-10 w-10 sm:h-12 sm:w-12 text-sand-400" />
-                    )}
-                  </div>
-
-                  {/* Session info */}
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <p className="text-xs uppercase tracking-[0.15em] sm:tracking-[0.2em] text-ink-700">
-                      Session {session.sessionNumber}
+              <Card
+                key={session.id}
+                className="flex flex-col gap-4 sm:gap-6 transition hover:shadow-lg"
+              >
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-[0.15em] sm:tracking-[0.2em] text-ink-700">
+                    Session {session.sessionNumber}
+                  </p>
+                  <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900 break-words flex items-center gap-2">
+                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                    {dateLabel}
+                  </h3>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 pt-1">
+                    <p className="text-xs sm:text-sm text-ink-700">
+                      {session.imageCount} image
+                      {session.imageCount !== 1 ? "s" : ""} captured
                     </p>
-                    <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900 break-words flex items-center gap-2">
-                      <Calendar className="h-4 w-4 flex-shrink-0" />
-                      {dateLabel}
-                    </h3>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 pt-1">
-                      <p className="text-xs sm:text-sm text-ink-700">
-                        {session.imageCount} image
-                        {session.imageCount !== 1 ? "s" : ""} captured
-                      </p>
-                      <div className="flex items-center gap-1 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold bg-blue-100 text-blue-700">
-                        <TrendingUp className="h-3 w-3" />
-                        View results
-                      </div>
-                    </div>
+                    <Link
+                      to={`/result/${session.id}`}
+                      className="flex items-center gap-1 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold bg-blue-100 text-blue-700"
+                    >
+                      <TrendingUp className="h-3 w-3" />
+                      View results
+                    </Link>
                   </div>
-                </Card>
-              </Link>
+                </div>
+
+                {session.imagePreviews.length === 0 ? (
+                  <div className="h-24 rounded-xl sm:rounded-2xl bg-sand-100 flex items-center justify-center">
+                    <Camera className="h-8 w-8 text-sand-400" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {session.imagePreviews.map((image, idx) => {
+                      const alt = `${image.image_type} ${idx + 1}`;
+                      return image.preview_url ? (
+                        <ImageModal
+                          key={`${image.storage_path}-${idx}`}
+                          src={image.preview_url}
+                          alt={alt}
+                        >
+                          <div className="relative rounded-lg sm:rounded-2xl overflow-hidden bg-sand-100">
+                            <img
+                              src={image.preview_url}
+                              alt={alt}
+                              className="h-28 sm:h-32 w-full object-cover"
+                            />
+                            <div className="absolute top-1 right-1 bg-ink-900 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-semibold">
+                              {idx + 1}
+                            </div>
+                          </div>
+                        </ImageModal>
+                      ) : (
+                        <div
+                          key={`${image.storage_path}-${idx}`}
+                          className="h-28 sm:h-32 rounded-lg sm:rounded-2xl bg-sand-100 flex items-center justify-center"
+                        >
+                          <Camera className="h-6 w-6 text-sand-400" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
             );
           })}
 
