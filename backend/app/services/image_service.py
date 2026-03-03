@@ -10,6 +10,7 @@ def get_session_images(session_id: str, user_id: str) -> List[dict]:
         .select("id, image_type, storage_path, created_at")
         .eq("session_id", session_id)
         .eq("user_id", user_id)
+        .order("created_at", desc=False)
         .execute()
     )
 

@@ -22,10 +22,9 @@ export function Review() {
   const [message, setMessage] = useState<string | null>(null);
 
   const orderedImages = useMemo(() => {
-    const map = new Map(images.map((image) => [image.type, image]));
-    return captureSteps
-      .map((step) => map.get(step.type))
-      .filter((image): image is NonNullable<typeof image> => Boolean(image));
+    return captureSteps.flatMap((step) =>
+      images.filter((image) => image.type === step.type),
+    );
   }, [images]);
 
   const handleSave = async () => {
@@ -49,10 +48,12 @@ export function Review() {
 
     for (const image of orderedImages) {
       const ext = getFileExtension(image.file);
-      const path = `${user.id}/${sessionId}/${image.type}.${ext}`;
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).slice(2, 9);
+      const path = `${user.id}/${sessionId}/${image.type}_${timestamp}_${randomSuffix}.${ext}`;
       const { error: saveError } = await supabase.storage
         .from("bcd-images")
-        .upload(path, image.file, { upsert: true });
+        .upload(path, image.file, { upsert: false });
 
       if (saveError) {
         setMessage("Unable to save all images. Try again soon.");
@@ -94,8 +95,8 @@ export function Review() {
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
-          {orderedImages.map((image) => (
-            <Card key={image.type} className="space-y-3">
+          {orderedImages.map((image, index) => (
+            <Card key={`${image.type}-${index}`} className="space-y-3">
               <h3 className="text-lg font-heading font-semibold text-ink-900">
                 {image.label}
               </h3>

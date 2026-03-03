@@ -53,9 +53,15 @@ def get_image_preview(
 
     # Get image record
     try:
-        images_response = supabase.table("images").select(
-            "storage_path"
-        ).eq("session_id", session_id).eq("image_type", image_type).execute()
+        images_response = (
+            supabase.table("images")
+            .select("storage_path, created_at")
+            .eq("session_id", session_id)
+            .eq("user_id", user_id)
+            .eq("image_type", image_type)
+            .order("created_at", desc=True)
+            .execute()
+        )
 
         images = images_response.data or []
         if not images:
@@ -64,7 +70,7 @@ def get_image_preview(
                 detail=f"Image not found for angle: {image_type}",
             )
 
-        image = images[0]
+        image = images[0]  # most recent for this angle
         storage_path = image.get("storage_path") if isinstance(
             image, dict) else None
 
@@ -101,6 +107,7 @@ def get_image_preview(
             "preview_url": signed_url,
             "expires_in": 3600,
             "image_type": image_type,
+            "image_count": len(images),
         }
 
     except HTTPException:
@@ -253,12 +260,18 @@ def get_session_thumbnails(
             )
 
         # Get all images for session
-        images_response = supabase.table("images").select(
-            "image_type, storage_path"
-        ).eq("session_id", session_id).execute()
+        images_response = (
+            supabase.table("images")
+            .select("image_type, storage_path, created_at")
+            .eq("session_id", session_id)
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
 
         images = images_response.data or []
         thumbnails = {}
+        counts_by_angle = {}
 
         # Generate signed URL for each image
         for image in images:
@@ -266,6 +279,13 @@ def get_session_thumbnails(
             storage_path = image.get("storage_path")
 
             if not image_type or not storage_path:
+                continue
+
+            counts_by_angle[image_type] = counts_by_angle.get(
+                image_type, 0) + 1
+
+            # Keep the most recent image per angle (query is desc by created_at)
+            if image_type in thumbnails:
                 continue
 
             try:
@@ -294,6 +314,7 @@ def get_session_thumbnails(
             "session_id": session_id,
             "thumbnails": thumbnails,
             "count": len(thumbnails),
+            "counts_by_angle": counts_by_angle,
         }
 
     except HTTPException:
