@@ -51,7 +51,7 @@ export const apiClient = {
   },
 
   /**
-   * Get signed URL for an image preview
+   * Get signed URLs for all images of a specific angle
    * @param sessionId - Session UUID
    * @param imageType - angle type (front, left, right, up, down, raised)
    * @param token - JWT token for authentication
@@ -60,7 +60,14 @@ export const apiClient = {
     sessionId: string,
     imageType: string,
     token: string,
-  ): Promise<{ preview_url: string; expires_in: number; image_type: string }> {
+  ): Promise<{
+    images: Array<{
+      preview_url: string;
+      expires_in: number;
+      image_type: string;
+    }>;
+    count: number;
+  }> {
     return this.request(`/image-preview/${sessionId}/${imageType}`, token);
   },
 

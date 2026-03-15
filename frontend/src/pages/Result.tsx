@@ -17,7 +17,10 @@ import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 import { apiClient } from "../lib/apiClient";
 
-type ImagePreviewMap = Record<string, string | null>;
+type ImagePreviewMap = Record<
+  string,
+  Array<{ preview_url: string; expires_in: number; image_type: string }>
+>;
 
 type BaselineLayer = {
   delta: number | null;
@@ -166,7 +169,7 @@ export function Result() {
         const imagesPromise = Promise.all(
           imageTypes.map(async (imageType) => {
             try {
-              const imagePreview = await apiClient.getImagePreview(
+              const imageResponse = await apiClient.getImagePreview(
                 sessionId,
                 imageType,
                 token,
@@ -174,7 +177,7 @@ export function Result() {
               if (active) {
                 setPreviewMap((prev) => ({
                   ...prev,
-                  [imageType]: imagePreview.preview_url,
+                  [imageType]: imageResponse.images,
                 }));
               }
             } catch {
@@ -321,29 +324,29 @@ export function Result() {
 
   const renderPreview = (title: string) => {
     const imageType = imageTypeByTitle[title];
-    const preview = imageType ? (previewMap[imageType] ?? null) : null;
+    const images = imageType ? (previewMap[imageType] ?? []) : [];
 
-    if (imagesLoading && !preview) {
+    if (imagesLoading && images.length === 0) {
       return <Skeleton className="h-40 sm:h-48 w-full" />;
     }
 
-    if (!preview) {
+    if (images.length === 0) {
       return (
         <div className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl bg-sand-100 flex items-center justify-center text-xs text-ink-700">
-          No image available
+          No images available
         </div>
       );
     }
 
-    const handleDownload = async () => {
+    const handleDownload = async (previewUrl: string, index: number) => {
       try {
-        const response = await fetch(preview);
+        const response = await fetch(previewUrl);
         if (!response.ok) throw new Error("Failed to download image");
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `${title.replaceAll(" ", "-").toLowerCase()}.jpg`;
+        link.download = `${title.replaceAll(" ", "-").toLowerCase()}-${index + 1}.jpg`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -353,23 +356,49 @@ export function Result() {
       }
     };
 
+    if (images.length === 1) {
+      const image = images[0];
+      return (
+        <ImageModal src={image.preview_url} alt={title}>
+          <div className="space-y-2">
+            <img
+              src={image.preview_url}
+              alt={title}
+              className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl object-cover"
+            />
+            <button
+              onClick={() => handleDownload(image.preview_url, 0)}
+              className="w-full flex items-center justify-center gap-1 text-xs font-semibold text-ink-700 hover:text-ink-900 transition-colors"
+            >
+              <Download className="h-3 w-3" />
+              Download
+            </button>
+          </div>
+        </ImageModal>
+      );
+    }
+
     return (
-      <ImageModal src={preview} alt={title}>
-        <div className="space-y-2">
-          <img
-            src={preview}
-            alt={title}
-            className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl object-cover"
-          />
-          <button
-            onClick={handleDownload}
-            className="w-full flex items-center justify-center gap-1 text-xs font-semibold text-ink-700 hover:text-ink-900 transition-colors"
+      <div className="grid grid-cols-2 gap-2">
+        {images.map((image, index) => (
+          <ImageModal
+            key={`${image.preview_url}-${index}`}
+            src={image.preview_url}
+            alt={`${title} ${index + 1}`}
           >
-            <Download className="h-3 w-3" />
-            Download
-          </button>
-        </div>
-      </ImageModal>
+            <div className="relative rounded-lg sm:rounded-2xl overflow-hidden bg-sand-100">
+              <img
+                src={image.preview_url}
+                alt={`${title} ${index + 1}`}
+                className="h-28 sm:h-32 w-full object-cover hover:opacity-90 transition-opacity"
+              />
+              <div className="absolute top-1 right-1 bg-ink-900 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs font-semibold">
+                {index + 1}
+              </div>
+            </div>
+          </ImageModal>
+        ))}
+      </div>
     );
   };
 

@@ -19,12 +19,9 @@ def get_image_preview(
     user=Depends(get_current_user),
 ):
     """
-    Get a signed URL for an image preview.
+    Get signed URLs for all images of a specific angle type.
 
-    This moves the signed URL generation from frontend to backend for:
-    - Security: URLs generated server-side
-    - Simplicity: Frontend doesn't need storage client
-    - Consistency: Single point for URL generation
+    Returns all images for the given angle, not just the most recent one.
 
     Args:
         session_id: Session UUID
@@ -32,7 +29,7 @@ def get_image_preview(
         user: Current authenticated user
 
     Returns:
-        { "preview_url": "https://signed-url...", "expires_in": 3600 }
+        { "images": [{"preview_url": "https://signed-url...", "expires_in": 3600, "image_type": "front"}], "count": 1 }
     """
     supabase = get_supabase_client()
 
@@ -51,7 +48,7 @@ def get_image_preview(
             detail="Session not found",
         )
 
-    # Get image record
+    # Get all images for this angle
     try:
         images_response = (
             supabase.table("images")
@@ -67,47 +64,51 @@ def get_image_preview(
         if not images:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Image not found for angle: {image_type}",
+                detail=f"No images found for angle: {image_type}",
             )
 
-        image = images[0]  # most recent for this angle
-        storage_path = image.get("storage_path") if isinstance(
-            image, dict) else None
+        # Generate signed URLs for all images
+        image_previews = []
+        for image in images:
+            storage_path = image.get("storage_path") if isinstance(
+                image, dict) else None
 
-        if not storage_path:
+            if not storage_path:
+                continue
+
+            # Generate signed URL
+            signed_url_response = supabase.storage.from_("bcd-images").create_signed_url(
+                storage_path, 3600
+            )
+
+            # Handle different response formats from Supabase storage client
+            signed_url = None
+            if isinstance(signed_url_response, dict):
+                # Direct dict response
+                signed_url = signed_url_response.get(
+                    "signedUrl") or signed_url_response.get("signedURL")
+            elif hasattr(signed_url_response, "data"):
+                # Wrapped in response object
+                data = signed_url_response.data
+                if isinstance(data, dict):
+                    signed_url = data.get("signedUrl") or data.get("signedURL")
+
+            if signed_url:
+                image_previews.append({
+                    "preview_url": signed_url,
+                    "expires_in": 3600,
+                    "image_type": image_type
+                })
+
+        if not image_previews:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Image storage path not found for angle: {image_type}",
-            )
-
-        # Generate signed URL
-        signed_url_response = supabase.storage.from_("bcd-images").create_signed_url(
-            storage_path, 3600
-        )
-
-        # Handle different response formats from Supabase storage client
-        signed_url = None
-        if isinstance(signed_url_response, dict):
-            # Direct dict response
-            signed_url = signed_url_response.get(
-                "signedUrl") or signed_url_response.get("signedURL")
-        elif hasattr(signed_url_response, "data"):
-            # Wrapped in response object
-            data = signed_url_response.data
-            if isinstance(data, dict):
-                signed_url = data.get("signedUrl") or data.get("signedURL")
-
-        if not signed_url:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to generate preview URL",
+                detail=f"Failed to generate preview URLs for angle: {image_type}",
             )
 
         return {
-            "preview_url": signed_url,
-            "expires_in": 3600,
-            "image_type": image_type,
-            "image_count": len(images),
+            "images": image_previews,
+            "count": len(image_previews)
         }
 
     except HTTPException:
@@ -115,7 +116,7 @@ def get_image_preview(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get image preview: {str(e)}",
+            detail=f"Failed to get image previews: {str(e)}",
         )
 
 
