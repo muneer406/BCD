@@ -15,6 +15,11 @@ export function AppHeader() {
     <header className="sticky top-0 z-20 border-b border-sand-100 bg-white/70 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-3 sm:px-6 py-2 sm:py-4">
         <Link to="/" className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <img
+            src="/image.png"
+            alt="BCD Logo"
+            className="h-6 w-6 sm:h-8 sm:w-8"
+          />
           <span className="text-xl sm:text-2xl font-heading font-semibold text-ink-900">
             BCD
           </span>
