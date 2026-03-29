@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from ..dependencies import get_current_user
@@ -7,7 +9,8 @@ from ..services.analysis_fetch_service import get_session_analysis as fetch_cach
 from ..services.analysis_service import analyze_session as run_analysis
 from ..services.db import get_supabase_client
 from ..services.image_service import get_session_images
-from ..services.session_service import get_session
+from ..services.interpretation import generate_interpretation, interpretation_to_api_dict
+from ..services.session_service import count_user_sessions, get_session
 
 router = APIRouter(tags=["analysis"])
 
@@ -16,6 +19,19 @@ router = APIRouter(tags=["analysis"])
 # Map session_id → {"status": "processing"|"completed"|"failed", "error": str|None}
 # ---------------------------------------------------------------------------
 _analysis_jobs: dict = {}
+
+
+def _interpretation_payload(
+    user_id: str,
+    structural: float,
+    angle_aware: Optional[float],
+    confidence: Optional[float],
+) -> dict:
+    session_count = count_user_sessions(user_id)
+    angle = float(angle_aware if angle_aware is not None else 0.0)
+    conf = float(confidence if confidence is not None else 0.0)
+    raw = generate_interpretation(structural, angle, conf, session_count)
+    return interpretation_to_api_dict(raw, conf)
 
 
 def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
@@ -178,6 +194,18 @@ def analyze_session(
             ]
             angle_aware = cached.get("angle_aware_score")
             analysis_ver = cached.get("analysis_version")
+            ac_conf = cached.get("analysis_confidence_score")
+            sq = cached.get("session_quality_score")
+            confidence_for_interp = (
+                float(ac_conf) if ac_conf is not None
+                else (float(sq) if sq is not None else None)
+            )
+            interpretation = _interpretation_payload(
+                user_id,
+                overall_score,
+                float(angle_aware) if angle_aware is not None else None,
+                confidence_for_interp,
+            )
             return {
                 "success": True,
                 "data": {
@@ -199,8 +227,11 @@ def analyze_session(
                         "angle_aware_score": float(angle_aware) if angle_aware is not None else None,
                         "angle_aware_variation_level": variation_level(float(angle_aware)) if angle_aware is not None else None,
                         "trend_score": float(trend) if trend is not None else None,
+                        "analysis_confidence_score": float(ac_conf) if ac_conf is not None else None,
+                        "session_quality_score": float(sq) if sq is not None else None,
                         "analysis_version": analysis_ver,
                     },
+                    "interpretation": interpretation,
                 },
             }
 
@@ -209,6 +240,12 @@ def analyze_session(
 
     scores = analysis.get("scores", {})
     quality_summary = analysis.get("image_quality_summary", {})
+    interpretation = _interpretation_payload(
+        user_id,
+        float(scores.get("overall_change_score", 0.0)),
+        scores.get("angle_aware_score"),
+        scores.get("analysis_confidence_score"),
+    )
     return {
         "success": True,
         "data": {
@@ -230,6 +267,7 @@ def analyze_session(
                 "session_quality_score": scores.get("session_quality_score"),
                 "analysis_version": scores.get("analysis_version"),
             },
+            "interpretation": interpretation,
             # Part 7: trust and transparency fields
             "image_quality_summary": quality_summary,
             "baseline_used": analysis.get("baseline_used"),

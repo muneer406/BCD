@@ -6,7 +6,10 @@ import {
   Heart,
   AlertCircle,
   Loader,
+  Minus,
   RefreshCw,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -16,6 +19,14 @@ import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 import { apiClient } from "../lib/apiClient";
+import {
+  angleInterpretationPrimary,
+  angleInterpretationSecondary,
+  comparisonTrendPhrase,
+  sessionDeltaVariation,
+  sessionToSessionOverallSummary,
+  type SessionDeltaKind,
+} from "../lib/angleInterpretation";
 
 type ImagePreviewMap = Record<
   string,
@@ -26,6 +37,17 @@ type BaselineLayer = {
   delta: number | null;
   trend: string | null;
   available: boolean;
+};
+
+type InterpretationPayload = {
+  summary_text: string;
+  explanation_text: string;
+  confidence_label: string;
+  confidence_score?: number;
+  flags?: {
+    angle_mismatch?: boolean;
+    early_baseline?: boolean;
+  };
 };
 
 type AnalysisResponse = {
@@ -42,12 +64,14 @@ type AnalysisResponse = {
       }>;
       overall_summary: string;
     };
+    interpretation?: InterpretationPayload;
     scores?: {
       change_score: number;
       trend_score: number | null;
       angle_aware_score?: number;
       angle_aware_variation_level?: string;
       analysis_version?: string;
+      analysis_confidence_score?: number;
     };
     processing_time_ms?: number;
     image_quality_summary?: {
@@ -108,6 +132,39 @@ function angleQualityLabel(score: number | null | undefined): {
   return { text: "Low quality", color: "text-red-600" };
 }
 
+function SessionVariationIndicator({ kind }: { kind: SessionDeltaKind }) {
+  const base =
+    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold";
+  if (kind === "increase") {
+    return (
+      <span
+        className={`${base} bg-amber-50 text-amber-800 border border-amber-200`}
+      >
+        <TrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        Increase
+      </span>
+    );
+  }
+  if (kind === "decrease") {
+    return (
+      <span
+        className={`${base} bg-sky-50 text-sky-800 border border-sky-200`}
+      >
+        <TrendingDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        Decrease
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`${base} bg-sand-100 text-ink-700 border border-sand-200`}
+    >
+      <Minus className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      Stable
+    </span>
+  );
+}
+
 export function Result() {
   const { user } = useAuth();
   const { sessionId } = useParams();
@@ -115,7 +172,7 @@ export function Result() {
   const [imagesLoading, setImagesLoading] = useState(true);
   const [isFirstSession, setIsFirstSession] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisResponse | null>(
-    null,
+    null
   );
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [comparisonData, setComparisonData] =
@@ -125,7 +182,7 @@ export function Result() {
   const [error, setError] = useState<string | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [previousSessionId, setPreviousSessionId] = useState<string | null>(
-    null,
+    null
   );
   // Tracks whether initial load already completed — prevents re-runs from
   // token refresh events (Supabase recreates the user object on TOKEN_REFRESHED,
@@ -172,7 +229,7 @@ export function Result() {
               const imageResponse = await apiClient.getImagePreview(
                 sessionId,
                 imageType,
-                token,
+                token
               );
               if (active) {
                 setPreviewMap((prev) => ({
@@ -183,7 +240,7 @@ export function Result() {
             } catch {
               // angle may not exist, skip
             }
-          }),
+          })
         ).finally(() => {
           if (active) setImagesLoading(false);
         });
@@ -196,7 +253,7 @@ export function Result() {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-          },
+          }
         )
           .then(async (res) => {
             if (!active) return;
@@ -226,7 +283,7 @@ export function Result() {
                   Authorization: `Bearer ${token}`,
                   "Content-Type": "application/json",
                 },
-              },
+              }
             );
             if (!active) return;
             if (comparisonResponse.ok) {
@@ -282,7 +339,7 @@ export function Result() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        },
+        }
       );
       if (res.ok) {
         const analysis = (await res.json()) as AnalysisResponse;
@@ -301,7 +358,7 @@ export function Result() {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
               },
-            },
+            }
           );
           if (compRes.ok) {
             const comparison = (await compRes.json()) as ComparisonResponse;
@@ -324,7 +381,7 @@ export function Result() {
 
   const renderPreview = (title: string) => {
     const imageType = imageTypeByTitle[title];
-    const images = imageType ? (previewMap[imageType] ?? []) : [];
+    const images = imageType ? previewMap[imageType] ?? [] : [];
 
     if (imagesLoading && images.length === 0) {
       return <Skeleton className="h-40 sm:h-48 w-full" />;
@@ -346,7 +403,9 @@ export function Result() {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `${title.replaceAll(" ", "-").toLowerCase()}-${index + 1}.jpg`;
+        link.download = `${title.replaceAll(" ", "-").toLowerCase()}-${
+          index + 1
+        }.jpg`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -448,34 +507,23 @@ export function Result() {
   const changeScore = analysisData?.data?.scores?.change_score ?? 0;
   const trendScore = analysisData?.data?.scores?.trend_score ?? null;
   const angleAwareScore = analysisData?.data?.scores?.angle_aware_score ?? null;
-  const angleVariationLevel =
-    analysisData?.data?.scores?.angle_aware_variation_level ?? null;
   const analysisVersion = analysisData?.data?.scores?.analysis_version ?? null;
   const processingTimeMs = analysisData?.data?.processing_time_ms ?? null;
+  const interpretation = analysisData?.data?.interpretation;
 
-  // Confidence derived from session image quality score
-  const rawConfidence =
-    analysisData?.data?.image_quality_summary?.session_quality_score ?? null;
-  const confidenceLabel =
-    rawConfidence == null
-      ? null
-      : rawConfidence >= 0.75
-        ? `High (${(rawConfidence * 100).toFixed(0)}%)`
-        : rawConfidence >= 0.5
-          ? `Medium (${(rawConfidence * 100).toFixed(0)}%)`
-          : `Low (${(rawConfidence * 100).toFixed(0)}%)`;
+  const analysisConfidence =
+    interpretation?.confidence_score ??
+    analysisData?.data?.scores?.analysis_confidence_score ??
+    null;
+
   const confidenceColor =
-    rawConfidence == null
+    analysisConfidence == null
       ? "text-ink-600"
-      : rawConfidence >= 0.75
-        ? "text-green-700"
-        : rawConfidence >= 0.5
-          ? "text-amber-600"
-          : "text-red-600";
-
-  // Mismatch: structural (overall) low but angle-aware high → possible positional drift
-  const hasMismatch =
-    !isFirstSession && changeScore < 0.1 && (angleAwareScore ?? 0) > 0.3;
+      : analysisConfidence >= 0.75
+      ? "text-green-700"
+      : analysisConfidence >= 0.5
+      ? "text-amber-600"
+      : "text-red-600";
 
   return (
     <PageShell className="space-y-10">
@@ -503,85 +551,99 @@ export function Result() {
               {isFirstSession
                 ? "Your first session establishes the baseline for all future comparisons."
                 : analysisLoading
-                  ? "Running analysis..."
-                  : `Structural: ${changeScore.toFixed(2)}${
-                      angleAwareScore !== null
-                        ? ` · Angle: ${angleAwareScore.toFixed(2)}`
-                        : ""
-                    }${
-                      trendScore !== null
-                        ? ` · Trend: ${trendScore.toFixed(2)}`
-                        : ""
-                    } — see details below.`}
+                ? "Running analysis..."
+                : "Your session was processed. See the summary below."}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Analysis scores card — shown after first session */}
+      {!isFirstSession && analysisLoading && (
+        <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-3">
+          <Skeleton className="h-8 w-full max-w-lg" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+      )}
+
+      {/* Interpretation — shown after first session (backend-generated copy) */}
       {!isFirstSession && !analysisLoading && analysisData?.data?.scores && (
         <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-4">
-          <p className="text-sm font-semibold text-ink-900">Analysis scores</p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div>
-              <p className="text-xs text-ink-600">Structural change</p>
-              <p className="text-base font-semibold text-ink-900">
-                {changeScore.toFixed(3)}
+          {interpretation ? (
+            <>
+              <h2 className="text-xl sm:text-2xl font-heading font-semibold text-ink-900 leading-snug">
+                {interpretation.summary_text}
+              </h2>
+              <p className="text-sm text-ink-700 leading-relaxed">
+                {interpretation.explanation_text}
               </p>
-              <p className="text-xs text-ink-500">session vs baseline</p>
-            </div>
-            {angleAwareScore !== null && (
-              <div>
-                <p className="text-xs text-ink-600">Angle change</p>
-                <p className="text-base font-semibold text-tide-700">
-                  {angleAwareScore.toFixed(3)}
-                </p>
-                <p className="text-xs text-ink-500 capitalize">
-                  {angleVariationLevel?.replace(/_/g, " ") ?? "—"}
-                </p>
-              </div>
-            )}
-            {confidenceLabel && (
-              <div>
-                <p className="text-xs text-ink-600">Confidence</p>
-                <p className={`text-base font-semibold ${confidenceColor}`}>
-                  {confidenceLabel}
-                </p>
-                <p className="text-xs text-ink-500">image quality</p>
-              </div>
-            )}
-            {trendScore !== null && (
-              <div>
-                <p className="text-xs text-ink-600">Trend avg</p>
-                <p className="text-base font-semibold text-ink-900">
-                  {trendScore.toFixed(3)}
-                </p>
-                <p className="text-xs text-ink-500">rolling baseline</p>
-              </div>
-            )}
-          </div>
-
-          {hasMismatch && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800">
-                Positional differences detected — angle positions may differ
-                between sessions, which can lower the structural score.
-              </p>
-            </div>
-          )}
-
-          {(analysisVersion || processingTimeMs !== null) && (
-            <div className="flex flex-wrap items-center gap-3 text-xs text-ink-400">
-              {analysisVersion && (
-                <span>{analysisVersion} · EfficientNetV2-S</span>
-              )}
-              {processingTimeMs !== null && (
-                <span>
-                  Analysis completed in {(processingTimeMs / 1000).toFixed(1)}s
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-semibold text-ink-800">
+                  Confidence:
                 </span>
-              )}
-            </div>
+                <span className={`text-sm font-semibold ${confidenceColor}`}>
+                  {interpretation.confidence_label}
+                  {analysisConfidence != null && (
+                    <span className="text-ink-700 font-normal">
+                      {" "}
+                      ({(analysisConfidence * 100).toFixed(0)}%)
+                    </span>
+                  )}
+                </span>
+              </div>
+              <p className="text-xs text-ink-600 leading-relaxed border-t border-sand-200 pt-3">
+                These differences may be influenced by lighting, positioning, or
+                image quality.
+              </p>
+              <details className="rounded-xl border border-sand-200 bg-white/80 p-3 sm:p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-ink-900 list-none [&::-webkit-details-marker]:hidden">
+                  View detailed analysis
+                </summary>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4 border-b border-sand-100 pb-2">
+                    <span className="text-ink-600">Structural score</span>
+                    <span className="font-mono text-ink-900 tabular-nums">
+                      {changeScore.toFixed(3)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-sand-100 pb-2">
+                    <span className="text-ink-600">Angle score</span>
+                    <span className="font-mono text-tide-600 tabular-nums">
+                      {angleAwareScore != null
+                        ? angleAwareScore.toFixed(3)
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-sand-100 pb-2">
+                    <span className="text-ink-600">Trend</span>
+                    <span className="font-mono text-ink-900 tabular-nums text-right">
+                      {trendScore != null ? trendScore.toFixed(3) : "—"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-500">
+                    Trend is a rolling average from recent sessions using the
+                    angle-aware score.
+                  </p>
+                  <div className="flex justify-between gap-4 pt-1">
+                    <span className="text-ink-600">Model version</span>
+                    <span className="text-ink-900 text-right">
+                      {analysisVersion ?? "—"} · EfficientNetV2-S
+                    </span>
+                  </div>
+                  {processingTimeMs !== null && (
+                    <p className="text-xs text-ink-400">
+                      Analysis completed in{" "}
+                      {(processingTimeMs / 1000).toFixed(1)}s
+                    </p>
+                  )}
+                </div>
+              </details>
+            </>
+          ) : (
+            <p className="text-sm text-ink-700">
+              Analysis summary is unavailable. You can try re-analyze below or
+              contact support if this persists.
+            </p>
           )}
         </div>
       )}
@@ -619,12 +681,12 @@ export function Result() {
                 .sort(
                   (a, b) =>
                     captureOrder.indexOf(a.angle_type) -
-                    captureOrder.indexOf(b.angle_type),
+                    captureOrder.indexOf(b.angle_type)
                 )
                 .map((result) => {
                   const title =
                     Object.entries(imageTypeByTitle).find(
-                      ([, v]) => v === result.angle_type,
+                      ([, v]) => v === result.angle_type
                     )?.[0] || result.angle_type;
                   const ql = angleQualityLabel(result.angle_quality_score);
                   return (
@@ -638,7 +700,9 @@ export function Result() {
                       <p className={`mt-1 text-xs font-semibold ${ql.color}`}>
                         Image quality: {ql.text}
                         {result.angle_quality_score != null &&
-                          ` (${(result.angle_quality_score * 100).toFixed(0)}%)`}
+                          ` (${(result.angle_quality_score * 100).toFixed(
+                            0
+                          )}%)`}
                       </p>
                       <details className="mt-3">
                         <summary className="cursor-pointer text-xs font-semibold text-ink-900">
@@ -694,7 +758,7 @@ export function Result() {
                 <p className="text-xs text-amber-700">
                   ⚠ Low quality angles:{" "}
                   {analysisData.data.image_quality_summary.low_quality_angles.join(
-                    ", ",
+                    ", "
                   )}
                 </p>
               )}
@@ -789,61 +853,74 @@ export function Result() {
                         Object.entries(imageTypeByTitle).find(
                           ([, v]) => v === result.angle_type,
                         )?.[0] || result.angle_type;
+                      const analysisAngle = analysisResults?.per_angle.find(
+                        (a) => a.angle_type === result.angle_type,
+                      );
+                      const changeVsBaseline = analysisAngle?.change_score ?? 0;
+                      const primaryLabel = analysisAngle
+                        ? angleInterpretationPrimary(changeVsBaseline)
+                        : "Unavailable";
+                      const secondaryLine = analysisAngle
+                        ? angleInterpretationSecondary(changeVsBaseline)
+                        : "Baseline analysis for this view is not available.";
+                      const deltaKind = sessionDeltaVariation(result.delta);
                       return (
                         <div
                           key={result.angle_type}
-                          className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
+                          className="rounded-2xl border border-sand-100 bg-sand-50 p-4 space-y-2"
                         >
-                          <p className="text-sm font-semibold text-ink-900">
-                            {title}
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-ink-900">
+                              {title}
+                            </p>
+                            <SessionVariationIndicator kind={deltaKind} />
+                          </div>
+                          <p className="text-base font-semibold text-ink-900 leading-snug">
+                            {primaryLabel}
                           </p>
-                          {(() => {
-                            const analysisAngle =
-                              analysisResults?.per_angle.find(
-                                (a) => a.angle_type === result.angle_type,
-                              );
-                            return analysisAngle ? (
-                              <p className="mt-1 text-xs text-ink-600">
-                                vs baseline:{" "}
-                                <span className="font-semibold text-tide-600">
-                                  {analysisAngle.change_score.toFixed(2)}
-                                </span>
-                              </p>
-                            ) : null;
-                          })()}
-                          <p className="mt-0.5 text-xs font-semibold text-tide-600">
-                            vs last session: {result.delta > 0 ? "+" : ""}
-                            {result.delta.toFixed(2)}
+                          <p className="text-sm text-ink-700 leading-relaxed">
+                            {secondaryLine}
                           </p>
-                          <p className="mt-2 text-xs text-ink-700">
-                            {Math.abs(result.delta) < 0.1
-                              ? "No significant change"
-                              : Math.abs(result.delta) < 0.25
-                                ? "Mild variation detected"
-                                : "Notable change detected"}
+                          <p className="text-[11px] text-ink-500 font-mono tabular-nums pt-1 border-t border-sand-200/80">
+                            {analysisAngle ? (
+                              <>
+                                Baseline distance {changeVsBaseline.toFixed(3)}
+                                {" · "}
+                                vs last session{" "}
+                                {result.delta > 0 ? "+" : ""}
+                                {result.delta.toFixed(3)}
+                              </>
+                            ) : (
+                              <>
+                                vs last session{" "}
+                                {result.delta > 0 ? "+" : ""}
+                                {result.delta.toFixed(3)}
+                              </>
+                            )}
                           </p>
-                          <details className="mt-3">
-                            <summary className="cursor-pointer text-xs font-semibold text-ink-900">
-                              View image
-                            </summary>
-                            <div className="mt-3">{renderPreview(title)}</div>
-                          </details>
                         </div>
                       );
                     })}
                 </div>
-                {/* Overall trend */}
-                <div className="rounded-2xl bg-white/70 p-4 space-y-2">
+                {/* Overall trend — interpreted (no raw delta); aligned with main summary */}
+                <div className="rounded-2xl bg-white/70 p-4 space-y-3">
                   <p className="font-semibold text-sm text-ink-900">
                     Overall trend
                   </p>
-                  <p className="mt-2 text-sm text-ink-700 capitalize">
-                    {comparisonData.data.overall_trend.replace(/_/g, " ")}
+                  <p className="text-sm text-ink-900 leading-relaxed">
+                    {sessionToSessionOverallSummary(
+                      comparisonData.data.overall_delta,
+                    )}
                   </p>
+                  {interpretation && (
+                    <p className="text-xs text-ink-600 leading-relaxed border-t border-sand-100 pt-3">
+                      {interpretation.summary_text}
+                    </p>
+                  )}
                   <p className="text-xs text-ink-500">
                     {comparisonData.data.rolling_baseline?.available
-                      ? "✓ Stable baseline"
-                      : "○ Baseline still forming"}
+                      ? "Rolling baseline is available for additional context."
+                      : "Your baseline will stabilize as you add more sessions."}
                   </p>
                 </div>
 
@@ -871,6 +948,7 @@ export function Result() {
                       ).map(({ key, label }) => {
                         const layer = comparisonData.data![key];
                         if (!layer?.available) return null;
+                        const phrase = comparisonTrendPhrase(layer.trend);
                         return (
                           <div
                             key={key}
@@ -879,11 +957,11 @@ export function Result() {
                             <p className="text-xs font-semibold text-ink-900">
                               {label}
                             </p>
-                            <p className="mt-1 text-xs font-semibold text-tide-600">
-                              Δ {layer.delta!.toFixed(3)}
+                            <p className="mt-2 text-xs text-ink-700 leading-snug">
+                              {phrase}
                             </p>
-                            <p className="mt-1 text-xs text-ink-700 capitalize">
-                              {layer.trend!.replace(/_/g, " ")}
+                            <p className="mt-2 text-[10px] text-ink-400 font-mono tabular-nums">
+                              Δ {layer.delta!.toFixed(3)}
                             </p>
                           </div>
                         );
