@@ -117,13 +117,13 @@ def _load_per_angle_baselines(user_id: str, exclude_session_id: str) -> Dict[str
 
 def _load_trend_score(user_id: str, exclude_session_id: str, n: int = 5) -> Optional[float]:
     """
-    Compute moving-average trend score from last N sessions' overall_change_scores.
-    Returns None if there is no prior history.
+    Moving-average trend from last N sessions using angle-aware scores when available,
+    else overall_change_score (legacy rows).
     """
     supabase = get_supabase_client()
     result = (
         supabase.table("session_analysis")
-        .select("overall_change_score")
+        .select("angle_aware_score, overall_change_score")
         .eq("user_id", user_id)
         .neq("session_id", exclude_session_id)
         .order("created_at", desc=True)
@@ -131,11 +131,12 @@ def _load_trend_score(user_id: str, exclude_session_id: str, n: int = 5) -> Opti
         .execute()
     )
     score_rows: list = result.data or []
-    scores = [
-        float(row["overall_change_score"])
-        for row in score_rows
-        if row.get("overall_change_score") is not None
-    ]
+    scores: List[float] = []
+    for row in score_rows:
+        if row.get("angle_aware_score") is not None:
+            scores.append(float(row["angle_aware_score"]))
+        elif row.get("overall_change_score") is not None:
+            scores.append(float(row["overall_change_score"]))
     if not scores:
         return None
     return float(np.mean(scores))
