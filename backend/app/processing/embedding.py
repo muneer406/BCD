@@ -17,6 +17,7 @@ Weights: ImageNet pre-trained only.  No domain-specific fine-tuned weights
 """
 
 import logging
+from typing import List
 
 import numpy as np
 import torch
@@ -80,6 +81,16 @@ class ImageEncoder:
 
         return embedding.squeeze().cpu().numpy().astype(np.float32)
 
+    def extract_batch(self, images: List[np.ndarray]) -> np.ndarray:
+        """Run a single forward pass for N images (each 224×224 float32 RGB [0,1])."""
+        if not images:
+            return np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
+        tensors = [self.transform(img) for img in images]
+        batch = torch.stack(tensors, dim=0).to(DEVICE)
+        with torch.no_grad():
+            out = self.model(batch)
+        return out.cpu().numpy().astype(np.float32)
+
 
 def get_encoder() -> ImageEncoder:
     """Return the singleton ImageEncoder, creating it on first call."""
@@ -102,3 +113,12 @@ def extract_embedding(image: np.ndarray, user_mean: np.ndarray | None = None) ->
     """
     encoder = get_encoder()
     return encoder.extract(image)
+
+
+def extract_embeddings_batch(images: List[np.ndarray]) -> np.ndarray:
+    """
+    Extract embeddings for N images in one batched forward pass.
+    Returns shape (N, EMBEDDING_DIM).
+    """
+    encoder = get_encoder()
+    return encoder.extract_batch(images)

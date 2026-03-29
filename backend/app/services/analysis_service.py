@@ -14,8 +14,13 @@ from typing import Dict, List, Optional, Tuple
 import json
 import numpy as np
 
-from ..processing.embedding import extract_embedding
+from ..processing.embedding import (
+    EMBEDDING_DIM,
+    extract_embedding,
+    extract_embeddings_batch,
+)
 from ..processing.preprocessing import preprocess_pipeline
+from ..processing.region_grid import split_regions_224
 from ..processing.quality import (
     compute_analysis_confidence,
     compute_consistency_score,
@@ -23,10 +28,12 @@ from ..processing.quality import (
     variation_level,
 )
 from .db import get_supabase_client
+from .localized_insights import build_localized_insights
+from .session_service import get_previous_session_id
 
 logger = logging.getLogger(__name__)
 
-ANALYSIS_VERSION = "v0.7"   # Bump when model or pipeline changes
+ANALYSIS_VERSION = "v0.8"   # Bump when model or pipeline changes
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +190,80 @@ def _store_session_embedding(session_id: str, user_id: str, embedding: np.ndarra
     }).execute()
 
 
+def _store_region_embeddings(
+    session_id: str, user_id: str, region_by_angle: Dict[str, np.ndarray],
+) -> None:
+    """Persist 3×3 region embeddings per angle (requires PHASE8 region_embeddings table)."""
+    try:
+        supabase = get_supabase_client()
+        supabase.table("region_embeddings").delete().eq(
+            "session_id", session_id).execute()
+        rows: List[dict] = []
+        for angle_type, mat in region_by_angle.items():
+            if mat.shape[0] != 9:
+                continue
+            for ri in range(9):
+                rows.append({
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "angle_type": angle_type,
+                    "region_index": ri,
+                    "embedding": mat[ri].tolist(),
+                })
+        if rows:
+            supabase.table("region_embeddings").insert(rows).execute()
+    except Exception:
+        pass
+
+
+def _load_per_region_baselines(
+    user_id: str, exclude_session_id: str,
+) -> Dict[Tuple[str, int], np.ndarray]:
+    """Mean embedding per (angle_type, region_index) across all prior sessions."""
+    try:
+        supabase = get_supabase_client()
+        result = (
+            supabase.table("region_embeddings")
+            .select("angle_type, region_index, embedding")
+            .eq("user_id", user_id)
+            .neq("session_id", exclude_session_id)
+            .execute()
+        )
+        groups: Dict[Tuple[str, int], List[np.ndarray]] = {}
+        for row in (result.data or []):
+            emb = _parse_embedding(row.get("embedding"))
+            if emb is None:
+                continue
+            key = (str(row["angle_type"]), int(row["region_index"]))
+            groups.setdefault(key, []).append(emb)
+        return {k: np.mean(v, axis=0) for k, v in groups.items()}
+    except Exception:
+        return {}
+
+
+def _load_session_region_embeddings(
+    session_id: str,
+) -> Dict[Tuple[str, int], np.ndarray]:
+    """All region embeddings for one session."""
+    try:
+        supabase = get_supabase_client()
+        result = (
+            supabase.table("region_embeddings")
+            .select("angle_type, region_index, embedding")
+            .eq("session_id", session_id)
+            .execute()
+        )
+        out: Dict[Tuple[str, int], np.ndarray] = {}
+        for row in (result.data or []):
+            emb = _parse_embedding(row.get("embedding"))
+            if emb is None:
+                continue
+            out[(str(row["angle_type"]), int(row["region_index"]))] = emb
+        return out
+    except Exception:
+        return {}
+
+
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
@@ -221,27 +302,32 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
     # ── 3. Extract embeddings per angle with quality scoring (parallel) ───────
     angle_embeddings: Dict[str, np.ndarray] = {}
+    region_by_angle: Dict[str, np.ndarray] = {}
     per_angle_results: List[Dict[str, object]] = []
     angle_quality_scores: Dict[str, float] = {}
 
     def _process_angle(
         args: Tuple[str, List[dict]]
-    ) -> Tuple[str, np.ndarray, float, List[dict], float]:
+    ) -> Tuple[str, np.ndarray, float, List[dict], float, np.ndarray]:
         """Process all images for one angle in a worker thread.
-        Returns (angle_type, embedding, quality_score, quality_details, change_score).
-        Each thread gets its own Supabase client to avoid sharing HTTP connections.
+        Returns (angle_type, embedding, quality_score, quality_details, change_score,
+        region_matrix) where region_matrix is (9, dim) mean of 3×3 grid embeddings.
         """
         _angle_type, _angle_images = args
         _supabase = get_supabase_client()
         _embeddings: List[np.ndarray] = []
         _quality_scores: List[float] = []
         _quality_details: List[dict] = []
+        _region_batches: List[np.ndarray] = []
 
         for _rec in _angle_images:
             _path = _rec.get("storage_path", "")
             _result = preprocess_pipeline(_path, _supabase)
             _emb = extract_embedding(_result.image)
             _embeddings.append(_emb)
+            crops = split_regions_224(_result.image)
+            batch_emb = extract_embeddings_batch(crops)
+            _region_batches.append(batch_emb)
             _q = _result.quality
             _quality_scores.append(_q.quality_score)
             _quality_details.append({
@@ -255,6 +341,11 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
 
         _embedding = np.mean(_embeddings, axis=0)
         _aq = float(np.mean(_quality_scores))
+        _region_mean = (
+            np.mean(_region_batches, axis=0)
+            if _region_batches
+            else np.zeros((9, EMBEDDING_DIM), dtype=np.float32)
+        )
 
         # Use angle-specific baseline if available; fall back to session mean.
         # This ensures front-view scores reflect distance from prior front-view
@@ -265,7 +356,7 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
             if not is_first_session and _angle_baseline is not None
             else 0.0
         )
-        return _angle_type, _embedding, _aq, _quality_details, _change
+        return _angle_type, _embedding, _aq, _quality_details, _change, _region_mean
 
     # Run all angles concurrently — one thread per angle (max 6)
     n_workers = min(len(angle_groups), 6)
@@ -273,8 +364,9 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         futures = {pool.submit(_process_angle, item): item[0]
                    for item in angle_groups.items()}
         for future in as_completed(futures):
-            a_type, a_emb, a_q, a_qd, a_change = future.result()
+            a_type, a_emb, a_q, a_qd, a_change, a_regions = future.result()
             angle_embeddings[a_type] = a_emb
+            region_by_angle[a_type] = a_regions
             angle_quality_scores[a_type] = round(a_q, 4)
             per_angle_results.append({
                 "angle_type": a_type,
@@ -288,9 +380,27 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
     # ── 4. Session embedding = mean of angle embeddings ──────────────────────
     session_embedding = np.mean(list(angle_embeddings.values()), axis=0)
 
+    # ── 4b. Localized region insights (baseline + last session), non-diagnostic ─
+    localized_insights_list: List[str] = []
+    if not is_first_session:
+        baseline_regions = _load_per_region_baselines(user_id, session_id)
+        prev_sid = get_previous_session_id(user_id, session_id)
+        last_regions = (
+            _load_session_region_embeddings(prev_sid) if prev_sid else {}
+        )
+        localized_insights_list = build_localized_insights(
+            region_by_angle,
+            baseline_regions,
+            last_regions,
+            angle_embeddings,
+            per_angle_baselines,
+            is_first_session=False,
+        )
+
     # ── 5. Store embeddings ───────────────────────────────────────────────────
     _store_angle_embeddings(session_id, user_id, angle_embeddings)
     _store_session_embedding(session_id, user_id, session_embedding)
+    _store_region_embeddings(session_id, user_id, region_by_angle)
 
     # ── 6. Overall change score ───────────────────────────────────────────────
     if not is_first_session:
@@ -392,4 +502,5 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         "baseline_used": "lifetime_mean" if not is_first_session else "none",
         "comparison_layers_used": [] if is_first_session else ["lifetime_baseline"],
         "processing_time_ms": elapsed_ms,
+        "localized_insights": localized_insights_list,
     }
