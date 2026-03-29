@@ -65,6 +65,8 @@ type AnalysisResponse = {
       overall_summary: string;
     };
     interpretation?: InterpretationPayload;
+    /** Region-based lines (3×3 grid vs baseline / last session) */
+    localized_insights?: string[];
     scores?: {
       change_score: number;
       trend_score: number | null;
@@ -510,6 +512,10 @@ export function Result() {
   const analysisVersion = analysisData?.data?.scores?.analysis_version ?? null;
   const processingTimeMs = analysisData?.data?.processing_time_ms ?? null;
   const interpretation = analysisData?.data?.interpretation;
+  const rawLocalized = analysisData?.data?.localized_insights;
+  const localizedInsights: string[] = Array.isArray(rawLocalized)
+    ? rawLocalized.filter((x): x is string => typeof x === "string")
+    : [];
 
   const analysisConfidence =
     interpretation?.confidence_score ??
@@ -646,6 +652,36 @@ export function Result() {
             </p>
           )}
         </div>
+      )}
+
+      {/* Region-based localized copy (backend 3×3 grid) */}
+      {!analysisLoading && (
+        <Card className="space-y-3">
+          <h2 className="text-xl font-heading font-semibold text-ink-900">
+            What changed
+          </h2>
+          {isFirstSession ? (
+            <p className="text-sm text-ink-700">
+              After your next session, location-specific comparisons can appear
+              here as your baseline builds.
+            </p>
+          ) : localizedInsights.length > 0 ? (
+            <ul className="list-disc pl-5 space-y-2 text-sm text-ink-700 leading-relaxed">
+              {localizedInsights.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-700">
+              No areas crossed the reporting threshold for this session, or
+              comparison data is still accumulating.
+            </p>
+          )}
+          <p className="text-xs text-ink-500 leading-relaxed">
+            Descriptions refer to regions in your photos only and can be affected
+            by pose, distance, and lighting—not clinical findings.
+          </p>
+        </Card>
       )}
 
       {/* ===== THIS SESSION SECTION ===== */}

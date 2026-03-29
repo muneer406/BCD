@@ -83,6 +83,8 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         # Phase 7 columns
         "angle_aware_score": scores.get("angle_aware_score"),
         "analysis_version": scores.get("analysis_version"),
+        # Phase 8: region-based copy (JSON array of strings)
+        "localized_insights": analysis.get("localized_insights") or [],
     }
     try:
         supabase.table("session_analysis").insert(session_row).execute()
@@ -90,7 +92,7 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         # Phase 7 columns may not exist yet — retry without them
         try:
             p5_row = {k: v for k, v in session_row.items()
-                      if k not in ("angle_aware_score", "analysis_version")}
+                      if k not in ("angle_aware_score", "analysis_version", "localized_insights")}
             supabase.table("session_analysis").insert(p5_row).execute()
         except Exception:
             # Phase 5 columns also missing — retry with Phase 4 subset
@@ -206,6 +208,7 @@ def analyze_session(
                 float(angle_aware) if angle_aware is not None else None,
                 confidence_for_interp,
             )
+            localized = cached.get("localized_insights")
             return {
                 "success": True,
                 "data": {
@@ -221,6 +224,7 @@ def analyze_session(
                             else "ML analysis complete. Scores reflect distance from your personal baseline."
                         ),
                     },
+                    "localized_insights": localized if isinstance(localized, list) else [],
                     "scores": {
                         "change_score": overall_score,
                         "variation_level": variation_level(overall_score),
@@ -268,6 +272,7 @@ def analyze_session(
                 "analysis_version": scores.get("analysis_version"),
             },
             "interpretation": interpretation,
+            "localized_insights": analysis.get("localized_insights") or [],
             # Part 7: trust and transparency fields
             "image_quality_summary": quality_summary,
             "baseline_used": analysis.get("baseline_used"),
