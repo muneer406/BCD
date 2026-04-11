@@ -80,6 +80,7 @@ MANIFEST
 
 # Datasets
 dataset/
+dataset_export.py
 
 # Misc
 *.bak
