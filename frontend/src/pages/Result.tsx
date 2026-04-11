@@ -149,18 +149,14 @@ function SessionVariationIndicator({ kind }: { kind: SessionDeltaKind }) {
   }
   if (kind === "decrease") {
     return (
-      <span
-        className={`${base} bg-sky-50 text-sky-800 border border-sky-200`}
-      >
+      <span className={`${base} bg-sky-50 text-sky-800 border border-sky-200`}>
         <TrendingDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
         Decrease
       </span>
     );
   }
   return (
-    <span
-      className={`${base} bg-sand-100 text-ink-700 border border-sand-200`}
-    >
+    <span className={`${base} bg-sand-100 text-ink-700 border border-sand-200`}>
       <Minus className="h-3.5 w-3.5 shrink-0" aria-hidden />
       Stable
     </span>
@@ -173,8 +169,9 @@ export function Result() {
   const [previewMap, setPreviewMap] = useState<ImagePreviewMap>({});
   const [imagesLoading, setImagesLoading] = useState(true);
   const [isFirstSession, setIsFirstSession] = useState(false);
+  const [sessionCreatedAt, setSessionCreatedAt] = useState<string | null>(null);
   const [analysisData, setAnalysisData] = useState<AnalysisResponse | null>(
-    null
+    null,
   );
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [comparisonData, setComparisonData] =
@@ -184,7 +181,7 @@ export function Result() {
   const [error, setError] = useState<string | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [previousSessionId, setPreviousSessionId] = useState<string | null>(
-    null
+    null,
   );
   // Tracks whether initial load already completed — prevents re-runs from
   // token refresh events (Supabase recreates the user object on TOKEN_REFRESHED,
@@ -218,6 +215,7 @@ export function Result() {
 
         setIsFirstSession(sessionInfo.is_first_session);
         setPreviousSessionId(sessionInfo.previous_session_id ?? null);
+        setSessionCreatedAt(sessionInfo.created_at || null);
         if (sessionInfo.is_first_session) setComparisonLoading(false);
         setLoading(false); // Render the page skeleton immediately
         dataLoadedRef.current = true; // mark loaded — prevents re-run on token refresh
@@ -231,7 +229,7 @@ export function Result() {
               const imageResponse = await apiClient.getImagePreview(
                 sessionId,
                 imageType,
-                token
+                token,
               );
               if (active) {
                 setPreviewMap((prev) => ({
@@ -242,7 +240,7 @@ export function Result() {
             } catch {
               // angle may not exist, skip
             }
-          })
+          }),
         ).finally(() => {
           if (active) setImagesLoading(false);
         });
@@ -255,7 +253,7 @@ export function Result() {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-          }
+          },
         )
           .then(async (res) => {
             if (!active) return;
@@ -285,7 +283,7 @@ export function Result() {
                   Authorization: `Bearer ${token}`,
                   "Content-Type": "application/json",
                 },
-              }
+              },
             );
             if (!active) return;
             if (comparisonResponse.ok) {
@@ -341,7 +339,7 @@ export function Result() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
       if (res.ok) {
         const analysis = (await res.json()) as AnalysisResponse;
@@ -360,7 +358,7 @@ export function Result() {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
               },
-            }
+            },
           );
           if (compRes.ok) {
             const comparison = (await compRes.json()) as ComparisonResponse;
@@ -383,7 +381,7 @@ export function Result() {
 
   const renderPreview = (title: string) => {
     const imageType = imageTypeByTitle[title];
-    const images = imageType ? previewMap[imageType] ?? [] : [];
+    const images = imageType ? (previewMap[imageType] ?? []) : [];
 
     if (imagesLoading && images.length === 0) {
       return <Skeleton className="h-40 sm:h-48 w-full" />;
@@ -526,22 +524,46 @@ export function Result() {
     analysisConfidence == null
       ? "text-ink-600"
       : analysisConfidence >= 0.75
-      ? "text-green-700"
-      : analysisConfidence >= 0.5
-      ? "text-amber-600"
-      : "text-red-600";
+        ? "text-green-700"
+        : analysisConfidence >= 0.5
+          ? "text-amber-600"
+          : "text-red-600";
 
   return (
     <PageShell className="space-y-10">
-      <SectionHeading
-        eyebrow={isFirstSession ? "Baseline established" : "Session captured"}
-        title={isFirstSession ? "Your baseline is set" : "Session analyzed"}
-        description={
-          isFirstSession
+      <div className="mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-sand-700">
+              {isFirstSession ? "Baseline established" : "Session captured"}
+            </span>
+            {sessionCreatedAt && (
+              <span className="hidden sm:inline-block ml-2 rounded-full bg-sand-100 border border-sand-200 px-3 py-0.5 text-xs font-semibold text-ink-700 shadow-sm whitespace-nowrap">
+                {new Date(sessionCreatedAt).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </span>
+            )}
+          </div>
+          {sessionCreatedAt && (
+            <span className="sm:hidden inline-block mt-1 rounded-full bg-sand-100 border border-sand-200 px-3 py-0.5 text-xs font-semibold text-ink-700 shadow-sm whitespace-nowrap">
+              {new Date(sessionCreatedAt).toLocaleString(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </span>
+          )}
+        </div>
+        <h1 className="mt-2 text-2xl sm:text-3xl font-heading font-bold text-ink-900">
+          {isFirstSession ? "Your baseline is set" : "Session analyzed"}
+        </h1>
+        <p className="mt-1 text-sm text-ink-700">
+          {isFirstSession
             ? "We've established your baseline. Future sessions will be compared against this."
-            : "Your session has been analyzed and compared with your baseline."
-        }
-      />
+            : "Your session has been analyzed and compared with your baseline."}
+        </p>
+      </div>
 
       {/* Success banner */}
       <div className="rounded-2xl sm:rounded-3xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-transparent p-4 sm:p-6">
@@ -557,8 +579,8 @@ export function Result() {
               {isFirstSession
                 ? "Your first session establishes the baseline for all future comparisons."
                 : analysisLoading
-                ? "Running analysis..."
-                : "Your session was processed. See the summary below."}
+                  ? "Running analysis..."
+                  : "Your session was processed. See the summary below."}
             </p>
           </div>
         </div>
@@ -678,8 +700,8 @@ export function Result() {
             </p>
           )}
           <p className="text-xs text-ink-500 leading-relaxed">
-            Descriptions refer to regions in your photos only and can be affected
-            by pose, distance, and lighting—not clinical findings.
+            Descriptions refer to regions in your photos only and can be
+            affected by pose, distance, and lighting—not clinical findings.
           </p>
         </Card>
       )}
@@ -717,12 +739,12 @@ export function Result() {
                 .sort(
                   (a, b) =>
                     captureOrder.indexOf(a.angle_type) -
-                    captureOrder.indexOf(b.angle_type)
+                    captureOrder.indexOf(b.angle_type),
                 )
                 .map((result) => {
                   const title =
                     Object.entries(imageTypeByTitle).find(
-                      ([, v]) => v === result.angle_type
+                      ([, v]) => v === result.angle_type,
                     )?.[0] || result.angle_type;
                   const ql = angleQualityLabel(result.angle_quality_score);
                   return (
@@ -737,7 +759,7 @@ export function Result() {
                         Image quality: {ql.text}
                         {result.angle_quality_score != null &&
                           ` (${(result.angle_quality_score * 100).toFixed(
-                            0
+                            0,
                           )}%)`}
                       </p>
                       <details className="mt-3">
@@ -794,7 +816,7 @@ export function Result() {
                 <p className="text-xs text-amber-700">
                   ⚠ Low quality angles:{" "}
                   {analysisData.data.image_quality_summary.low_quality_angles.join(
-                    ", "
+                    ", ",
                   )}
                 </p>
               )}
@@ -922,14 +944,12 @@ export function Result() {
                               <>
                                 Baseline distance {changeVsBaseline.toFixed(3)}
                                 {" · "}
-                                vs last session{" "}
-                                {result.delta > 0 ? "+" : ""}
+                                vs last session {result.delta > 0 ? "+" : ""}
                                 {result.delta.toFixed(3)}
                               </>
                             ) : (
                               <>
-                                vs last session{" "}
-                                {result.delta > 0 ? "+" : ""}
+                                vs last session {result.delta > 0 ? "+" : ""}
                                 {result.delta.toFixed(3)}
                               </>
                             )}

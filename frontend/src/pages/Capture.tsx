@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Camera,
@@ -11,6 +11,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ImageModal } from "../components/ImageModal";
 import { PageShell } from "../components/PageShell";
+import { SimpleModal } from "../components/SimpleModal";
 import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
 import { useDraft } from "../context/DraftContext";
@@ -60,6 +61,8 @@ export function Capture() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTooltip, setExpandedTooltip] = useState<string | null>(null);
+  const [showSixImageWarning, setShowSixImageWarning] = useState(false);
+  const sixImageWarningShownRef = useRef(false);
 
   // Angle explanations for tooltips
   const angleExplanations: Record<string, string> = {
@@ -94,6 +97,12 @@ export function Capture() {
 
   const handleSaveSession = async () => {
     if (!user || !allStepsPresent) return;
+    // Only show warning if exactly 6 images (1 per angle), and not already shown for this submission
+    const totalImages = images.length;
+    if (totalImages === 6 && !sixImageWarningShownRef.current) {
+      setShowSixImageWarning(true);
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -229,6 +238,7 @@ export function Capture() {
       }
 
       clearDraft();
+      sixImageWarningShownRef.current = false; // reset for next submission
       navigate(`/result/${sessionId}`, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "An error occurred";
@@ -238,6 +248,18 @@ export function Capture() {
     }
   };
 
+  // Handler for confirming the warning and proceeding
+  const handleSixImageWarningProceed = () => {
+    setShowSixImageWarning(false);
+    sixImageWarningShownRef.current = true;
+    handleSaveSession();
+  };
+
+  // Handler for canceling and letting user add more images
+  const handleSixImageWarningCancel = () => {
+    setShowSixImageWarning(false);
+  };
+
   return (
     <PageShell className="space-y-10">
       <SectionHeading
@@ -245,6 +267,44 @@ export function Capture() {
         title="Capture from 6 angles"
         description="Follow each angle for consistent results."
       />
+
+      {/* Eye-catching capture tips */}
+      <div className="rounded-2xl sm:rounded-3xl border-2 border-indigo-400 bg-gradient-to-r from-indigo-50 to-transparent p-4 sm:p-6 mb-2 animate-fade-in">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl sm:text-3xl">📸</span>
+          <h3 className="font-bold text-indigo-900 text-base sm:text-lg">
+            Tips for best accuracy
+          </h3>
+        </div>
+        <ul className="mt-2 space-y-1 text-indigo-800 text-sm sm:text-base font-medium list-disc pl-6">
+          <li>
+            Take{" "}
+            <span className="font-bold text-indigo-900">
+              multiple images per angle
+            </span>{" "}
+            if possible.
+          </li>
+          <li>
+            Move the camera{" "}
+            <span className="font-bold text-indigo-900">
+              slightly between each shot
+            </span>{" "}
+            for each angle.
+          </li>
+          <li>
+            Change your position a bit between shots so the{" "}
+            <span className="font-bold text-indigo-900">background varies</span>{" "}
+            and doesn't repeat.
+          </li>
+          <li>
+            More images ={" "}
+            <span className="font-bold text-indigo-900">
+              better detection accuracy
+            </span>{" "}
+            and more robust results.
+          </li>
+        </ul>
+      </div>
 
       {/* Prominent guidelines */}
       <div className="rounded-2xl sm:rounded-3xl border-2 border-tide-300 bg-gradient-to-r from-tide-50 to-transparent p-4 sm:p-6">
@@ -508,6 +568,40 @@ export function Capture() {
           {saving ? "Saving session..." : "Save session"}
         </Button>
       </div>
+
+      {/* 6-image warning modal */}
+      <SimpleModal
+        open={showSixImageWarning}
+        onClose={handleSixImageWarningCancel}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-6 w-6 text-amber-600" />
+            <h2 className="text-lg font-bold text-ink-900">
+              More images recommended
+            </h2>
+          </div>
+          <p className="text-ink-800 text-sm">
+            You are submitting only{" "}
+            <span className="font-semibold">1 image per angle</span> (6 total).
+            <br />
+            <span className="text-amber-700 font-semibold">
+              For best accuracy, add more images for each angle if possible.
+            </span>
+            <br />
+            More images help the system detect changes more reliably and reduce
+            errors from lighting or pose.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={handleSixImageWarningCancel}>
+              Go back & add more
+            </Button>
+            <Button onClick={handleSixImageWarningProceed}>
+              Submit anyway
+            </Button>
+          </div>
+        </div>
+      </SimpleModal>
     </PageShell>
   );
 }
