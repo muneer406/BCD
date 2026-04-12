@@ -1,11 +1,17 @@
 import { useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Aperture,
   Camera,
+  CheckCircle2,
+  Images,
   Lightbulb,
+  Plus,
   Ruler,
   HelpCircle,
   AlertCircle,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -268,83 +274,104 @@ export function Capture() {
         description="Follow each angle for consistent results."
       />
 
-      {/* Eye-catching capture tips */}
-      <div className="rounded-2xl sm:rounded-3xl border-2 border-indigo-400 bg-gradient-to-r from-indigo-50 to-transparent p-4 sm:p-6 mb-2 animate-fade-in">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl sm:text-3xl">📸</span>
-          <h3 className="font-bold text-indigo-900 text-base sm:text-lg">
-            Tips for best accuracy
-          </h3>
-        </div>
-        <ul className="mt-2 space-y-1 text-indigo-800 text-sm sm:text-base font-medium list-disc pl-6">
-          <li>
-            Take{" "}
-            <span className="font-bold text-indigo-900">
-              multiple images per angle
-            </span>{" "}
-            if possible.
-          </li>
-          <li>
-            Move the camera{" "}
-            <span className="font-bold text-indigo-900">
-              slightly between each shot
-            </span>{" "}
-            for each angle.
-          </li>
-          <li>
-            Change your position a bit between shots so the{" "}
-            <span className="font-bold text-indigo-900">background varies</span>{" "}
-            and doesn't repeat.
-          </li>
-          <li>
-            More images ={" "}
-            <span className="font-bold text-indigo-900">
-              better detection accuracy
-            </span>{" "}
-            and more robust results.
-          </li>
-        </ul>
-      </div>
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-tide-200 bg-[linear-gradient(135deg,rgba(232,242,247,0.96),rgba(248,244,238,0.94))] p-5 sm:p-6 shadow-lift">
+        <div className="pointer-events-none absolute -right-12 top-0 h-28 w-28 rounded-full bg-tide-200/40 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-24 rounded-full bg-indigo-100/60 blur-2xl" />
 
-      {/* Prominent guidelines */}
-      <div className="rounded-2xl sm:rounded-3xl border-2 border-tide-300 bg-gradient-to-r from-tide-50 to-transparent p-4 sm:p-6">
-        <div className="space-y-2 sm:space-y-3">
-          <h3 className="font-semibold text-tide-900 text-base sm:text-lg">
-            ✨ For best results, keep these consistent:
-          </h3>
-          <div className="grid gap-2 md:grid-cols-3">
-            <div className="flex items-start gap-2 sm:gap-3">
-              <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5 text-tide-900 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm text-tide-900">
-                  Bright, even lighting
-                </p>
-                <p className="text-xs text-tide-800">
-                  Avoid shadows and harsh light
+        <div className="relative space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-tide-800">
+                <Sparkles className="h-3.5 w-3.5" />
+                Capture guide
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-heading font-semibold text-ink-900">
+                  Make each session more consistent and more useful
+                </h3>
+                <p className="mt-1 max-w-2xl text-sm text-ink-700">
+                  Keep the setup steady, then add a little variation within each
+                  angle so the analysis has stronger material to compare.
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-2 sm:gap-3">
-              <Ruler className="h-4 w-4 sm:h-5 sm:w-5 text-tide-900 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm text-tide-900">
-                  Same distance & angle
-                </p>
-                <p className="text-xs text-tide-800">
-                  Keep your position steady per session
-                </p>
+
+            <div className="inline-flex items-center gap-2 self-start rounded-2xl border border-indigo-200 bg-white/80 px-4 py-3 text-sm font-semibold text-indigo-900 shadow-sm">
+              <Images className="h-4 w-4" />
+              More images per angle can improve reliability
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-white/80 bg-white/70 p-4">
+              <div className="flex items-start gap-3">
+                <Lightbulb className="mt-0.5 h-5 w-5 text-tide-900" />
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">
+                    Use bright, even lighting
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink-700">
+                    Reduce shadows and harsh highlights so details stay easy to
+                    compare.
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="flex items-start gap-2 sm:gap-3">
-              <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-tide-900 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm text-tide-900">
-                  Multiple images per angle
-                </p>
-                <p className="text-xs text-tide-800">
-                  More = better detection accuracy
-                </p>
+
+            <div className="rounded-2xl border border-white/80 bg-white/70 p-4">
+              <div className="flex items-start gap-3">
+                <Ruler className="mt-0.5 h-5 w-5 text-tide-900" />
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">
+                    Keep distance and framing stable
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink-700">
+                    Try to repeat the same camera distance and body position in
+                    each session.
+                  </p>
+                </div>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/80 bg-white/70 p-4">
+              <div className="flex items-start gap-3">
+                <Aperture className="mt-0.5 h-5 w-5 text-indigo-900" />
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">
+                    Slightly shift between repeated shots
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink-700">
+                    Small camera or posture changes help avoid nearly identical
+                    duplicates.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/80 bg-white/70 p-4">
+              <div className="flex items-start gap-3">
+                <Camera className="mt-0.5 h-5 w-5 text-indigo-900" />
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">
+                    Let the background vary a bit
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-ink-700">
+                    A little scene variation can help the capture set stay more
+                    robust.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-indigo-200/80 bg-ink-900 px-4 py-4 text-sand-50 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-300" />
+              <p className="text-sm leading-relaxed text-sand-100">
+                Capture at least one clear image for each angle. If you can add
+                a few extra shots per angle, the comparison can become more
+                reliable and more resilient to minor capture differences.
+              </p>
             </div>
           </div>
         </div>
@@ -449,12 +476,12 @@ export function Capture() {
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label
-                      className={`flex items-center justify-center rounded-lg bg-sand-50 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
+                      className={`flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs sm:text-sm font-semibold transition-colors ${
                         saving
-                          ? "pointer-events-none cursor-not-allowed opacity-50 text-ink-400"
-                          : "cursor-pointer text-ink-700 hover:bg-sand-100"
+                          ? "pointer-events-none cursor-not-allowed border-sand-200 bg-sand-100 text-ink-400 opacity-50"
+                          : "cursor-pointer border-ink-900 bg-ink-900 text-sand-50 hover:bg-ink-800"
                       }`}
                     >
                       <input
@@ -484,7 +511,8 @@ export function Capture() {
                           setError(null);
                         }}
                       />
-                      + Add more
+                      <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      Add more
                     </label>
                     <Button
                       variant="outline"
@@ -495,8 +523,9 @@ export function Capture() {
                           removeImage(step.type);
                         }
                       }}
-                      className="text-xs self-center"
+                      className="min-h-[44px] w-full gap-2 rounded-full border-red-200 text-xs text-red-700 hover:bg-red-50 active:bg-red-100"
                     >
+                      <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       Remove last
                     </Button>
                   </div>
