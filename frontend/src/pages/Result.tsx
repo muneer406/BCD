@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  CalendarDays,
   CheckCircle,
+  Clock3,
   Download,
   Heart,
   AlertCircle,
@@ -532,27 +534,57 @@ export function Result() {
   return (
     <PageShell className="space-y-10">
       <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+        <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2 min-w-0">
             <span className="block text-xs font-semibold uppercase tracking-wide text-sand-700">
               {isFirstSession ? "Baseline established" : "Session captured"}
             </span>
-            {sessionCreatedAt && (
-              <span className="hidden sm:inline-block ml-2 rounded-full bg-sand-100 border border-sand-200 px-3 py-0.5 text-xs font-semibold text-ink-700 shadow-sm whitespace-nowrap">
-                {new Date(sessionCreatedAt).toLocaleString(undefined, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </span>
-            )}
           </div>
+
           {sessionCreatedAt && (
-            <span className="sm:hidden inline-block mt-1 rounded-full bg-sand-100 border border-sand-200 px-3 py-0.5 text-xs font-semibold text-ink-700 shadow-sm whitespace-nowrap">
-              {new Date(sessionCreatedAt).toLocaleString(undefined, {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </span>
+            <div className="grid gap-3 sm:grid-cols-2 xl:max-w-2xl">
+              <div className="rounded-2xl border border-sand-200 bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tide-100 text-tide-900">
+                    <CalendarDays className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sand-700">
+                      Date
+                    </p>
+                    <p className="text-sm font-semibold text-ink-900">
+                      {new Date(sessionCreatedAt).toLocaleDateString(
+                        undefined,
+                        {
+                          dateStyle: "medium",
+                        },
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-sand-200 bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-900">
+                    <Clock3 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sand-700">
+                      Time
+                    </p>
+                    <p className="text-sm font-semibold text-ink-900">
+                      {new Date(sessionCreatedAt).toLocaleTimeString(
+                        undefined,
+                        {
+                          timeStyle: "short",
+                        },
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
         <h1 className="mt-2 text-2xl sm:text-3xl font-heading font-bold text-ink-900">

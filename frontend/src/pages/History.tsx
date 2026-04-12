@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
+  ArrowRight,
   TrendingUp,
   Calendar,
   Camera,
   AlertCircle,
   Loader,
+  Sparkles,
+  TimerReset,
 } from "lucide-react";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
@@ -42,16 +45,14 @@ export function History() {
 
   // Process session data - add metadata (no thumbnails for privacy)
   const processSessionsData = useCallback(
-    async (
-      rows: SessionRow[],
-      totalCount: number,
-    ): Promise<SessionWithThumbnail[]> => {
+    (rows: SessionRow[], totalCount: number): SessionWithThumbnail[] => {
       return rows.map((session, index) => {
         const imageCount = session.images?.length ?? 0;
 
         // Sessions are ordered by most recent first, so calculate chronological number
         // sessionNumber = totalSessions - ((page - 1) * pageSize + index)
-        const sessionNumber = totalCount - ((page - 1) * pageSize + index);
+        const sessionNumber =
+          totalCount > 0 ? totalCount - ((page - 1) * pageSize + index) : 0;
 
         return {
           ...session,
@@ -100,25 +101,13 @@ export function History() {
       }
 
       try {
-        // Always fetch total count on first page (needed for session numbering)
-        let currentTotal = totalSessions;
-        if (page === 1 && !totalSessions) {
-          const { count } = await supabase
-            .from("sessions")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", user.id);
-          if (!active) return;
-          currentTotal = count ?? 0;
-          setTotalSessions(currentTotal);
-        }
-
         // Try to get from cache first
         const cachedData = getCachedSessions(user.id, page);
         if (cachedData) {
           if (!active) return;
-          const processedData = await processSessionsData(
+          const processedData = processSessionsData(
             cachedData as SessionRow[],
-            currentTotal,
+            totalSessions,
           );
           setSessions((prev) =>
             page === 1 ? processedData : [...prev, ...processedData],
@@ -126,18 +115,29 @@ export function History() {
           setHasMore(cachedData.length === pageSize);
           setLoading(false);
           setLoadingMore(false);
-          return;
+          if (page > 1 || totalSessions > 0) {
+            return;
+          }
         }
 
         const from = (page - 1) * pageSize;
         const to = page * pageSize - 1;
-
-        const { data, error: queryError } = await supabase
+        const dataPromise = supabase
           .from("sessions")
           .select("id, created_at, images (storage_path, image_type)")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .range(from, to);
+        const countPromise =
+          page === 1 && totalSessions === 0
+            ? supabase
+                .from("sessions")
+                .select("id", { count: "exact", head: true })
+                .eq("user_id", user.id)
+            : Promise.resolve({ count: totalSessions, error: null });
+
+        const [{ data, error: queryError }, { count, error: countError }] =
+          await Promise.all([dataPromise, countPromise]);
 
         if (!active) return;
 
@@ -149,6 +149,10 @@ export function History() {
           return;
         }
 
+        if (!countError && typeof count === "number") {
+          setTotalSessions(count);
+        }
+
         const rows = (data as SessionRow[]) ?? [];
 
         // Cache the results
@@ -157,7 +161,7 @@ export function History() {
         }
 
         // Process sessions - add thumbnail and other metadata
-        const processedData = await processSessionsData(rows, currentTotal);
+        const processedData = processSessionsData(rows, count ?? totalSessions);
         setSessions((prev) =>
           page === 1 ? processedData : [...prev, ...processedData],
         );
@@ -201,12 +205,53 @@ export function History() {
           title="Your visual timeline"
           description="Browse previous sessions to stay aware of changes over time."
         />
-        <Card>
-          <div className="flex items-center justify-center gap-2 text-sm text-ink-700">
-            <Loader className="h-4 w-4 animate-spin" />
-            Loading your sessions...
+        <div className="space-y-4">
+          <Card className="relative overflow-hidden border-tide-200 bg-[linear-gradient(135deg,rgba(232,242,247,0.96),rgba(248,244,238,0.94))]">
+            <div className="pointer-events-none absolute -right-10 top-0 h-24 w-24 rounded-full bg-tide-200/50 blur-3xl" />
+            <div className="pointer-events-none absolute bottom-0 left-8 h-16 w-16 rounded-full bg-indigo-100/60 blur-2xl" />
+            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-tide-800">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Building timeline
+                </div>
+                <div>
+                  <h3 className="text-lg font-heading font-semibold text-ink-900">
+                    Arranging your recent sessions
+                  </h3>
+                  <p className="mt-1 max-w-2xl text-sm text-ink-700">
+                    We&apos;re pulling your latest captures and organizing them
+                    into a clean visual timeline.
+                  </p>
+                </div>
+              </div>
+              <div className="inline-flex items-center gap-2 self-start rounded-full border border-indigo-200 bg-white/80 px-4 py-2 text-sm font-semibold text-indigo-900 shadow-sm">
+                <TimerReset className="h-4 w-4" />
+                <Loader className="h-4 w-4 animate-spin" />
+                Loading sessions
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid gap-4">
+            {[0, 1, 2].map((item) => (
+              <Card
+                key={item}
+                className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6"
+              >
+                <div className="h-24 w-24 animate-pulse rounded-2xl bg-sand-200 sm:h-28 sm:w-40" />
+                <div className="flex-1 space-y-3">
+                  <div className="h-3 w-24 animate-pulse rounded-full bg-sand-200" />
+                  <div className="h-6 w-full max-w-sm animate-pulse rounded-full bg-sand-200" />
+                  <div className="flex flex-wrap gap-2">
+                    <div className="h-8 w-28 animate-pulse rounded-full bg-sand-200" />
+                    <div className="h-8 w-32 animate-pulse rounded-full bg-sand-200" />
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
-        </Card>
+        </div>
       </PageShell>
     );
   }
@@ -272,7 +317,9 @@ export function History() {
                   {/* Session info */}
                   <div className="space-y-2 flex-1 min-w-0">
                     <p className="text-xs uppercase tracking-[0.15em] sm:tracking-[0.2em] text-ink-700">
-                      Session {session.sessionNumber}
+                      {session.sessionNumber > 0
+                        ? `Session ${session.sessionNumber}`
+                        : "Recent session"}
                     </p>
                     <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900 break-words flex items-center gap-2">
                       <Calendar className="h-4 w-4 flex-shrink-0" />
@@ -286,6 +333,7 @@ export function History() {
                       <div className="flex items-center gap-1 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold bg-blue-100 text-blue-700">
                         <TrendingUp className="h-3 w-3" />
                         View results
+                        <ArrowRight className="h-3 w-3" />
                       </div>
                     </div>
                   </div>
