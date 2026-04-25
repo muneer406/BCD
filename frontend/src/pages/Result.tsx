@@ -10,6 +10,7 @@ import {
   Loader,
   Minus,
   RefreshCw,
+  Sparkles,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import {
   sessionToSessionOverallSummary,
   type SessionDeltaKind,
 } from "../lib/angleInterpretation";
+import { ROYAL_RESULT_IDS } from "../lib/constants";
 
 type ImagePreviewMap = Record<
   string,
@@ -189,6 +191,8 @@ export function Result() {
   // token refresh events (Supabase recreates the user object on TOKEN_REFRESHED,
   // which would otherwise re-trigger the effect).
   const dataLoadedRef = useRef(false);
+
+  const isRoyal = ROYAL_RESULT_IDS.includes(sessionId || "");
 
   useEffect(() => {
     let active = true;
@@ -532,14 +536,52 @@ export function Result() {
           : "text-red-600";
 
   return (
-    <PageShell className="space-y-10">
-      <div className="mb-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="block text-xs font-semibold uppercase tracking-wide text-sand-700">
-              {isFirstSession ? "Baseline established" : "Session captured"}
-            </span>
+    <div className={`min-h-screen ${isRoyal ? 'bg-[#fdfaf6] royal-pattern relative' : ''}`}>
+      {isRoyal && (
+        <>
+          {/* Glamorous background accents */}
+          <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-pink-200/50 to-transparent pointer-events-none" />
+          <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-amber-300/20 blur-[120px] rounded-full pointer-events-none" />
+          <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-pink-400/10 blur-[100px] rounded-full pointer-events-none" />
+          
+          <div className="absolute top-10 w-full flex justify-center pointer-events-none opacity-[0.15] mix-blend-multiply">
+            <Sparkles className="w-96 h-96 text-amber-500" strokeWidth={0.3} />
           </div>
+        </>
+      )}
+      
+      <PageShell className={`space-y-10 relative z-10 ${isRoyal ? 'pt-8' : ''}`}>
+        
+        {isRoyal && (
+          <div className="flex justify-center mb-10">
+            <div className="relative inline-flex items-center justify-center p-8 bg-white/40 backdrop-blur-xl border-y-[3px] border-amber-300 shadow-[0_10px_40px_rgba(212,175,55,0.2)] w-full max-w-5xl royal-clip">
+              {/* Ornaments */}
+              <div className="absolute -left-6 -top-6 w-12 h-12 border-t-4 border-l-4 border-amber-400 opacity-80" />
+              <div className="absolute -right-6 -top-6 w-12 h-12 border-t-4 border-r-4 border-amber-400 opacity-80" />
+              <div className="absolute -left-6 -bottom-6 w-12 h-12 border-b-4 border-l-4 border-amber-400 opacity-80" />
+              <div className="absolute -right-6 -bottom-6 w-12 h-12 border-b-4 border-r-4 border-amber-400 opacity-80" />
+              
+              <div className="text-center space-y-5">
+                 <h1 className="text-4xl sm:text-6xl font-heading font-extrabold royal-gradient-text tracking-tight drop-shadow-md pb-2 px-6">
+                   {isFirstSession ? "Majestic Baseline" : "Majestic Analysis"}
+                 </h1>
+                 <div className="flex items-center justify-center gap-6">
+                   <div className="h-0.5 w-24 bg-gradient-to-r from-transparent via-amber-400 to-amber-500" />
+                   <Sparkles className="w-8 h-8 text-amber-500" />
+                   <div className="h-0.5 w-24 bg-gradient-to-l from-transparent via-amber-400 to-amber-500" />
+                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className={`mb-6 ${isRoyal ? 'hidden' : ''}`}>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="block text-xs font-semibold uppercase tracking-wide text-sand-700">
+                {isFirstSession ? "Baseline established" : "Session captured"}
+              </span>
+            </div>
 
           {sessionCreatedAt && (
             <div className="grid gap-3 sm:grid-cols-2 xl:max-w-2xl">
@@ -587,27 +629,55 @@ export function Result() {
             </div>
           )}
         </div>
-        <h1 className="mt-2 text-2xl sm:text-3xl font-heading font-bold text-ink-900">
-          {isFirstSession ? "Your baseline is set" : "Session analyzed"}
-        </h1>
-        <p className="mt-1 text-sm text-ink-700">
-          {isFirstSession
-            ? "We've established your baseline. Future sessions will be compared against this."
-            : "Your session has been analyzed and compared with your baseline."}
-        </p>
+        
+        {!isRoyal && (
+          <>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-heading font-bold text-ink-900">
+              {isFirstSession ? "Your baseline is set" : "Session analyzed"}
+            </h1>
+            <p className="mt-1 text-sm text-ink-700">
+              {isFirstSession
+                ? "We've established your baseline. Future sessions will be compared against this."
+                : "Your session has been analyzed and compared with your baseline."}
+            </p>
+          </>
+        )}
       </div>
 
+      {isRoyal && sessionCreatedAt && (
+        <div className="flex flex-col sm:flex-row justify-center gap-6 xl:max-w-4xl mx-auto w-full mb-10 z-20 relative">
+           <div className="flex items-center gap-5 bg-white/60 backdrop-blur-md px-10 py-5 royal-clip border-y-[3px] border-amber-300/80 shadow-[0_4px_20px_rgba(212,175,55,0.15)]">
+              <CalendarDays className="h-8 w-8 text-amber-600 drop-shadow-sm" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-800/80">Date Captured</p>
+                <p className="text-xl font-bold text-amber-950 mt-1">
+                  {new Date(sessionCreatedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                </p>
+              </div>
+           </div>
+           <div className="flex items-center gap-5 bg-white/60 backdrop-blur-md px-10 py-5 royal-clip border-y-[3px] border-amber-300/80 shadow-[0_4px_20px_rgba(212,175,55,0.15)]">
+              <Clock3 className="h-8 w-8 text-amber-600 drop-shadow-sm" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-800/80">Time</p>
+                <p className="text-xl font-bold text-amber-950 mt-1">
+                  {new Date(sessionCreatedAt).toLocaleTimeString(undefined, { timeStyle: "short" })}
+                </p>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Success banner */}
-      <div className="rounded-2xl sm:rounded-3xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-transparent p-4 sm:p-6">
+      <div className={`rounded-2xl sm:rounded-3xl border-2 ${isRoyal ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-transparent' : 'border-green-300 bg-gradient-to-r from-green-50 to-transparent'} p-4 sm:p-6 shadow-sm`}>
         <div className="flex items-center gap-2 sm:gap-3">
-          <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-700 flex-shrink-0" />
+          {isRoyal ? <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600 flex-shrink-0" /> : <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-700 flex-shrink-0" />}
           <div>
-            <p className="font-semibold text-green-900 text-sm sm:text-base">
+            <p className={`font-semibold text-sm sm:text-base ${isRoyal ? 'text-amber-900' : 'text-green-900'}`}>
               {isFirstSession
                 ? "Baseline captured successfully"
                 : "Session analyzed successfully"}
             </p>
-            <p className="text-xs sm:text-sm text-green-800 mt-1">
+            <p className={`text-xs sm:text-sm mt-1 ${isRoyal ? 'text-amber-800' : 'text-green-800'}`}>
               {isFirstSession
                 ? "Your first session establishes the baseline for all future comparisons."
                 : analysisLoading
@@ -1091,5 +1161,6 @@ export function Result() {
         </Link>
       </div>
     </PageShell>
+    </div>
   );
 }

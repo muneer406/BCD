@@ -46,3 +46,45 @@ img {
   max-width: 100%;
   display: block;
 }
+
+.royal-pattern {
+  background-color: #fdf2f8; /* pink-50 */
+  background-image: 
+    radial-gradient(ellipse at center, transparent 0%, rgba(212, 175, 55, 0.15) 100%),
+    repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(212, 175, 55, 0.05) 10px, rgba(212, 175, 55, 0.05) 20px),
+    linear-gradient(135deg, #fce7f3 0%, #fefce8 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.royal-pattern::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30L30 0z' fill='%23d4af37' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.royal-border {
+  position: relative;
+  box-shadow: 
+    0 0 0 2px #d4af37,
+    0 0 0 6px #fdf2f8,
+    0 0 0 8px #d4af37,
+    0 15px 35px rgba(212, 175, 55, 0.2);
+}
+
+.royal-clip {
+  clip-path: polygon(5% 0, 95% 0, 100% 10%, 100% 90%, 95% 100%, 5% 100%, 0 90%, 0 10%);
+}
+
+.royal-image-clip {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+.royal-gradient-text {
+  background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
