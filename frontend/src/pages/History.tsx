@@ -16,6 +16,7 @@ import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
 import { useSessionCache } from "../context/SessionCacheContext";
 import { supabase } from "../lib/supabaseClient";
+import { ROYAL_RESULT_IDS } from "../lib/constants";
 
 type SessionRow = {
   id: string;
@@ -297,6 +298,75 @@ export function History() {
                 minute: "2-digit",
               },
             );
+
+            const isRoyal = ROYAL_RESULT_IDS.includes(session.id);
+            if (isRoyal) {
+              return (
+                <Link key={session.id} to={`/result/${session.id}`} className="block relative group my-8">
+                  {/* Glowing aura */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-amber-300 via-pink-300 to-amber-300 rounded-lg transform skew-x-[-2deg] scale-[1.02] group-hover:scale-[1.05] transition duration-500 opacity-60 blur-md"></div>
+                  
+                  {/* Main Royal Container */}
+                  <div className="relative flex flex-col sm:flex-row gap-6 sm:gap-10 transition duration-500 royal-pattern royal-border royal-clip p-6 sm:p-8">
+                    
+                    {/* Decorative Corner Ornaments */}
+                    <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-amber-500 opacity-80"></div>
+                    <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-amber-500 opacity-80"></div>
+                    <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-amber-500 opacity-80"></div>
+                    <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-amber-500 opacity-80"></div>
+
+                    {/* Thumbnail */}
+                    <div className="relative h-32 w-32 sm:h-40 sm:w-40 flex-shrink-0 mx-auto sm:mx-0 group-hover:scale-105 transition duration-500">
+                      {/* Hexagon/Diamond clip */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-amber-300 to-amber-600 royal-image-clip transform scale-105 opacity-50 blur-sm"></div>
+                      <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-50 to-pink-50 royal-image-clip border-[3px] border-amber-400 z-10 shadow-inner">
+                        {session.thumbnailUrl ? (
+                          <img
+                            src={session.thumbnailUrl}
+                            alt="Session thumbnail"
+                            className="w-[96%] h-[96%] object-cover royal-image-clip"
+                          />
+                        ) : (
+                          <Camera className="h-12 w-12 sm:h-16 sm:w-16 text-amber-500/80 drop-shadow-md" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Session info */}
+                    <div className="space-y-4 flex-1 min-w-0 z-10 flex flex-col justify-center text-center sm:text-left relative">
+                      {/* Faint background crest */}
+                      <div className="absolute -right-8 -top-8 opacity-[0.08] pointer-events-none transform rotate-12 scale-150">
+                        <Sparkles className="w-full h-full text-amber-700" strokeWidth={0.5} />
+                      </div>
+                      
+                      <div>
+                        <p className="text-xs sm:text-sm font-bold uppercase tracking-[0.3em] royal-gradient-text drop-shadow-sm mb-1">
+                          {session.sessionNumber > 0
+                            ? `Session ${session.sessionNumber}`
+                            : "Recent session"}
+                        </p>
+                        <h3 className="text-xl sm:text-3xl font-heading font-extrabold text-amber-900 break-words flex items-center justify-center sm:justify-start gap-3 drop-shadow-sm">
+                          <Calendar className="h-5 w-5 sm:h-7 sm:w-7 flex-shrink-0 text-amber-600" />
+                          {dateLabel}
+                        </h3>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 pt-2">
+                        <p className="text-sm sm:text-base text-amber-950/80 font-medium tracking-wide">
+                          {session.imageCount} image
+                          {session.imageCount !== 1 ? "s" : ""} captured
+                        </p>
+                        <div className="flex items-center gap-2 rounded-none border border-amber-400 bg-amber-50/70 px-5 py-2 text-xs font-bold uppercase tracking-wider text-amber-900 shadow-[inset_0_0_15px_rgba(251,191,36,0.2)] hover:bg-amber-100/80 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] transition duration-300">
+                          <Sparkles className="h-4 w-4" />
+                          View details
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            }
 
             return (
               <Link key={session.id} to={`/result/${session.id}`}>
