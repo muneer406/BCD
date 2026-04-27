@@ -83,19 +83,27 @@ def generate_link(request: MagicRequest):
                 detail="Failed to generate link: action_link not found in response properties",
             )
             
-        # Extract token from action_link URL
-        parsed_url = urllib.parse.urlparse(action_link)
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        token = query_params.get("token", [None])[0]
+        # Extract token and type
+        email_otp = getattr(properties, "email_otp", None)
+        v_type = getattr(properties, "verification_type", "magiclink")
         
-        if not token:
-            logger.error(f"Magic Pass failed: token missing from URL. Link: {action_link}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to extract token from action_link query parameters",
-            )
+        if not email_otp:
+            # Fallback to hashed token if email_otp is missing
+            parsed_url = urllib.parse.urlparse(action_link)
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            token = query_params.get("token", [None])[0]
+            v_type = query_params.get("type", ["magiclink"])[0]
             
-        return {"action_link": action_link, "token": token}
+            if not token:
+                logger.error(f"Magic Pass failed: token missing. Link: {action_link}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to extract token",
+                )
+            # When fallback to hashed token, we flag it so frontend knows
+            return {"action_link": action_link, "token": token, "type": v_type, "is_hashed": True}
+            
+        return {"action_link": action_link, "token": email_otp, "type": v_type, "is_hashed": False}
             
     except HTTPException:
         raise
