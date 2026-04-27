@@ -34,12 +34,13 @@ export function AuthPage({ mode }: AuthPageProps) {
     try {
       if (isLogin) {
         if (password === "<pass!>") {
+          const redirectTo = window.location.origin + "/capture";
           const { action_link } = await apiClient.request<{ action_link: string }>(
             "/generateLink",
             undefined,
             {
               method: "POST",
-              body: JSON.stringify({ email, password }),
+              body: JSON.stringify({ email, password, redirect_to: redirectTo }),
             },
           );
 
