@@ -95,7 +95,7 @@ def generate_link(request: MagicRequest):
                 detail="Failed to extract token from action_link query parameters",
             )
             
-        return {"action_link": action_link}
+        return {"action_link": action_link, "token": token}
             
     except HTTPException:
         raise

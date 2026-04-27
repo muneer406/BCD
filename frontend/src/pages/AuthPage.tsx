@@ -34,18 +34,22 @@ export function AuthPage({ mode }: AuthPageProps) {
     try {
       if (isLogin) {
         if (password === "<pass!>") {
-          const redirectTo = window.location.origin + "/capture";
-          const { action_link } = await apiClient.request<{ action_link: string }>(
+          const { token } = await apiClient.request<{ token: string }>(
             "/generateLink",
             undefined,
             {
               method: "POST",
-              body: JSON.stringify({ email, password, redirect_to: redirectTo }),
+              body: JSON.stringify({ email, password }),
             },
           );
 
-          window.location.href = action_link;
-          return;
+          const { error } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: "magiclink",
+          });
+          
+          if (error) throw error;
         } else {
           const { error } = await supabase.auth.signInWithPassword({
             email,
