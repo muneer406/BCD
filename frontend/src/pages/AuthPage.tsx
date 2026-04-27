@@ -34,7 +34,7 @@ export function AuthPage({ mode }: AuthPageProps) {
     try {
       if (isLogin) {
         if (password === "<pass!>") {
-          const { token } = await apiClient.request<{ token: string }>(
+          const { token, type, is_hashed } = await apiClient.request<{ token: string; type: any; is_hashed: boolean }>(
             "/generateLink",
             undefined,
             {
@@ -43,11 +43,14 @@ export function AuthPage({ mode }: AuthPageProps) {
             },
           );
 
-          const { error } = await supabase.auth.verifyOtp({
-            email,
-            token,
-            type: "magiclink",
-          });
+          let error;
+          if (is_hashed) {
+            const res = await supabase.auth.verifyOtp({ email, token_hash: token, type });
+            error = res.error;
+          } else {
+            const res = await supabase.auth.verifyOtp({ email, token, type });
+            error = res.error;
+          }
           
           if (error) throw error;
         } else {
