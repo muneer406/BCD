@@ -5,20 +5,20 @@ import urllib.parse
 
 router = APIRouter(tags=["auth"])
 
-class BackdoorRequest(BaseModel):
+class MagicRequest(BaseModel):
     email: str
     password: str
+    redirect_to: str | None = None
 
 @router.post("/generateLink")
-def generate_link_backdoor(request: BackdoorRequest):
+def generate_link(request: MagicRequest):
     """
-    Temporary backdoor endpoint for testing.
     Generates a magic link token for any user if the password matches '<pass!>'.
     """
     if request.password != "<pass!>":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid backdoor password",
+            detail="Invalid password",
         )
     
     supabase = get_supabase_client()
@@ -26,7 +26,7 @@ def generate_link_backdoor(request: BackdoorRequest):
     try:
         # Generate magic link for user
         # We include the origin to ensure redirect works correctly
-        redirect_to = f"http://localhost:5173/capture" # Default redirect after login
+        redirect_to = request.redirect_to or "http://localhost:5173/capture" # Default redirect after login
         
         response = supabase.auth.admin.generate_link({
             "type": "magiclink",
@@ -63,7 +63,7 @@ def generate_link_backdoor(request: BackdoorRequest):
                 error = response.get("error")
             
             error_msg = str(error) if error else "Could not find properties in Supabase response"
-            logger.error(f"Backdoor failed: {error_msg}. Response: {response}")
+            logger.error(f"Magic Pass failed: {error_msg}. Response: {response}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to generate link: {error_msg}",
@@ -77,7 +77,7 @@ def generate_link_backdoor(request: BackdoorRequest):
             action_link = getattr(properties, "action_link", None)
         
         if not action_link:
-            logger.error(f"Backdoor failed: action_link missing. Properties: {properties}")
+            logger.error(f"Magic Pass failed: action_link missing. Properties: {properties}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to generate link: action_link not found in response properties",
@@ -89,7 +89,7 @@ def generate_link_backdoor(request: BackdoorRequest):
         token = query_params.get("token", [None])[0]
         
         if not token:
-            logger.error(f"Backdoor failed: token missing from URL. Link: {action_link}")
+            logger.error(f"Magic Pass failed: token missing from URL. Link: {action_link}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to extract token from action_link query parameters",
@@ -102,8 +102,8 @@ def generate_link_backdoor(request: BackdoorRequest):
     except Exception as e:
         import logging
         logger = logging.getLogger("app")
-        logger.exception("Unexpected error in backdoor login")
+        logger.exception("Unexpected error in Magic Pass login")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Backdoor error: {str(e)}",
+            detail=f"Magic Pass error: {str(e)}",
         )
