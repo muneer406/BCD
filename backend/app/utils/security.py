@@ -1,7 +1,8 @@
 from typing import Dict
 
+import jwt
 import requests
-from jose import JWTError, jwt, jwk
+from jwt import PyJWK
 
 # In-memory JWKS cache: { url: (keys_list, fetched_at_epoch) }
 _jwks_cache: Dict[str, tuple] = {}
@@ -52,8 +53,8 @@ def decode_supabase_jwt(token: str, jwks_url: str, algorithm: str) -> Dict[str, 
             if not key_data:
                 raise ValueError(f"JWT key {kid} not found in JWKS")
 
-        # Use python-jose's jwk module to construct the key properly
-        key = jwk.construct(key_data)
+        # Use PyJWT's JWK support to construct the signing key
+        key = PyJWK(key_data).key
 
         # Decode and verify token
         payload = jwt.decode(
@@ -73,7 +74,7 @@ def decode_supabase_jwt(token: str, jwks_url: str, algorithm: str) -> Dict[str, 
             "email": payload.get("email", ""),
         }
 
-    except JWTError as exc:
+    except jwt.InvalidTokenError as exc:
         raise ValueError(f"Invalid JWT token: {exc}") from exc
     except Exception as exc:
         raise ValueError(f"JWT verification failed: {exc}") from exc
