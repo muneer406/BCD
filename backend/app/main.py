@@ -40,7 +40,7 @@ LOGGING_CONFIG = {
     "root": {"level": "INFO", "handlers": ["console"]},
     "loggers": {
         "app": {"level": "INFO", "propagate": True},
-        "uvicorn.access": {"level": "WARNING"},   # suppress per-request noise
+        "uvicorn.access": {"level": "WARNING"},
     },
 }
 
@@ -59,8 +59,7 @@ try:
     limiter = _shared_limiter
     _slowapi_available = True
 except ImportError:
-    # slowapi not installed yet — continue without rate limiting
-    limiter = None  # type: ignore[assignment]
+    limiter = None
     _slowapi_available = False
     logger.warning(
         "slowapi not installed; rate limiting disabled. "
@@ -72,15 +71,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 settings = get_settings()
-
-# Startup validation: require critical env vars
-if not settings.supabase_url or not settings.supabase_service_role_key:
-    logger.critical(
-        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment"
-    )
-    import sys
-
-    sys.exit(1)
 
 # Warn if CORS origins are not properly configured
 if not settings.allowed_origins.strip() or settings.allowed_origins.strip() == "*":
@@ -102,15 +92,13 @@ if _slowapi_available and limiter is not None:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ---------------------------------------------------------------------------
-# CORS (Phase 5 Part 8 — restrict to configured origins in production)
+# CORS
 # ---------------------------------------------------------------------------
 
-# ALLOWED_ORIGINS env var: comma-separated list or "*" for dev.
-# Example: ALLOWED_ORIGINS="https://app.example.com"
 _raw_origins = settings.allowed_origins.strip()
 if _raw_origins == "*":
     allow_origins = ["*"]
-    allow_credentials = False   # credentials + wildcard not allowed by spec
+    allow_credentials = False
 else:
     allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
     allow_credentials = True
@@ -124,7 +112,7 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# Content-Security-Policy middleware (Issue 29 — XSS protection)
+# Content-Security-Policy middleware
 # ---------------------------------------------------------------------------
 
 class CSPMiddleware(BaseHTTPMiddleware):
@@ -158,17 +146,11 @@ app.include_router(delete_session_router, prefix=settings.api_prefix)
 
 
 # ---------------------------------------------------------------------------
-# Global exception handler (keeps CORS headers present on 500 responses)
+# Global exception handler
 # ---------------------------------------------------------------------------
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """
-    Catch-all for unhandled exceptions so that FastAPI (not Starlette's
-    ServerErrorMiddleware) generates the 500 response.  This keeps the response
-    inside the CORS middleware stack and ensures Access-Control-Allow-Origin
-    is always present on error responses.
-    """
     logger.exception(
         "Unhandled exception on %s %s", request.method, request.url.path
     )
@@ -176,7 +158,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         status_code=500,
         content={
             "detail": "An unexpected error occurred. Please try again later.",
-    },
+        },
     )
 
 
@@ -191,5 +173,4 @@ def health_check():
 
 @app.get("/health")
 def health_check_named():
-    """Explicit /health endpoint for load-balancers, uptime monitors, and HF Spaces."""
     return {"status": "ok"}

@@ -26,7 +26,7 @@ function getCached<T>(key: string): T | null {
   return null;
 }
 
-function setCache<T>(key: string, data: T): void {
+function setCache(key: string, data: unknown): void {
   signedUrlCache.set(key, { data, expires: Date.now() + CACHE_TTL });
 }
 
@@ -70,28 +70,24 @@ export const apiClient = {
       throw new Error(errorData.detail || `API error: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   },
 
   async getImagePreview(
     sessionId: string,
     imageType: string,
     token: string,
-  ): Promise<{
-    images: Array<{
-      preview_url: string;
-      expires_in: number;
-      image_type: string;
-    }>;
-    count: number;
-  }> {
+  ) {
     const cacheKey = `preview:${sessionId}:${imageType}`;
     const cached = getCached<{
       images: Array<{ preview_url: string; expires_in: number; image_type: string }>;
       count: number;
     }>(cacheKey);
     if (cached) return cached;
-    const data = await this.request(`/image-preview/${sessionId}/${imageType}`, token);
+    const data = await this.request(`/image-preview/${sessionId}/${imageType}`, token) as {
+      images: Array<{ preview_url: string; expires_in: number; image_type: string }>;
+      count: number;
+    };
     setCache(cacheKey, data);
     return data;
   },
@@ -99,21 +95,17 @@ export const apiClient = {
   async getSessionInfo(
     sessionId: string,
     token: string,
-  ): Promise<{
-    session_id: string;
-    is_first_session: boolean;
-    is_current: boolean;
-    total_sessions: number;
-    created_at: string;
-    previous_session_id: string | null;
-  }> {
+  ) {
     const cacheKey = `info:${sessionId}`;
     const cached = getCached<{
       session_id: string; is_first_session: boolean; is_current: boolean;
       total_sessions: number; created_at: string; previous_session_id: string | null;
     }>(cacheKey);
     if (cached) return cached;
-    const data = await this.request(`/session-info/${sessionId}`, token);
+    const data = await this.request(`/session-info/${sessionId}`, token) as {
+      session_id: string; is_first_session: boolean; is_current: boolean;
+      total_sessions: number; created_at: string; previous_session_id: string | null;
+    };
     setCache(cacheKey, data);
     return data;
   },
