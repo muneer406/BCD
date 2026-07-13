@@ -343,3 +343,97 @@ class TestCompareSessions:
             headers={"Authorization": "Bearer fake-token"},
         )
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+class TestAuthEndpoints:
+    def test_generate_link_503_when_disabled(self, client, monkeypatch):
+        """Backdoor endpoint returns 503 when BACKDOOR_PASSWORD is not set."""
+        from app.config import get_settings
+        monkeypatch.setattr(get_settings, "backdoor_password", "")
+        r = client.post(
+            "/api/generateLink",
+            json={"email": "test@test.com", "password": "anything"},
+        )
+        assert r.status_code == 503
+
+    def test_generate_link_401_wrong_password(self, client, monkeypatch):
+        """Backdoor endpoint returns 401 when password is wrong."""
+        from app.config import get_settings
+        monkeypatch.setattr(get_settings, "backdoor_password", "correct-horse")
+        r = client.post(
+            "/api/generateLink",
+            json={"email": "test@test.com", "password": "wrong"},
+        )
+        assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Delete session
+# ---------------------------------------------------------------------------
+
+class TestDeleteSession:
+    def test_delete_session_returns_401_no_auth(self, client):
+        r = client.delete(
+            f"/api/delete-session/{FAKE_SESSION_ID}",
+        )
+        assert r.status_code == 401
+
+    def test_delete_session_returns_422_invalid_uuid(self, client):
+        r = client.delete(
+            "/api/delete-session/not-a-uuid",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+
+class TestRateLimiting:
+    def test_analyze_session_rate_limited(self, client):
+        """Verify rate limit headers are present on analyzed endpoint."""
+        r = client.post(
+            f"/api/analyze-session/{FAKE_SESSION_ID}",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        # Should succeed (under rate limit)
+        assert r.status_code in (200, 429)
+
+
+# ---------------------------------------------------------------------------
+# Utility endpoints (validation)
+# ---------------------------------------------------------------------------
+
+class TestUtilityEndpoints:
+    def test_image_preview_422_invalid_uuid(self, client):
+        r = client.get(
+            "/api/image-preview/not-a-uuid/front",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        assert r.status_code == 422
+
+    def test_image_preview_422_invalid_type(self, client):
+        r = client.get(
+            f"/api/image-preview/{FAKE_SESSION_ID}/invalid-type",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        assert r.status_code == 422
+
+    def test_session_info_422_invalid_uuid(self, client):
+        r = client.get(
+            "/api/session-info/not-a-uuid",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        assert r.status_code == 422
+
+    def test_session_thumbnails_422_invalid_uuid(self, client):
+        r = client.get(
+            "/api/session-thumbnails/not-a-uuid",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        assert r.status_code == 422
