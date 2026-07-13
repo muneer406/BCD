@@ -1,3 +1,4 @@
+from threading import Lock
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
@@ -20,6 +21,7 @@ router = APIRouter(tags=["analysis"])
 # Map session_id → {"status": "processing"|"completed"|"failed", "error": str|None}
 # ---------------------------------------------------------------------------
 _analysis_jobs: dict = {}
+_analysis_lock = Lock()
 
 
 def _interpretation_payload(
@@ -117,12 +119,15 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
 def _process_and_store(session_id: str, user_id: str, images: list) -> None:
     """Background task: run analysis, persist results, update job registry."""
     try:
-        _analysis_jobs[session_id] = {"status": "processing", "error": None}
+        with _analysis_lock:
+            _analysis_jobs[session_id] = {"status": "processing", "error": None}
         analysis = run_analysis(images, user_id, session_id)
         _persist_analysis(session_id, user_id, analysis)
-        _analysis_jobs[session_id] = {"status": "completed", "error": None}
+        with _analysis_lock:
+            _analysis_jobs[session_id] = {"status": "completed", "error": None}
     except Exception as exc:
-        _analysis_jobs[session_id] = {"status": "failed", "error": str(exc)}
+        with _analysis_lock:
+            _analysis_jobs[session_id] = {"status": "failed", "error": str(exc)}
 
 
 @router.post("/analyze-session/{session_id}")
@@ -171,7 +176,11 @@ def analyze_session(
         )
 
     if async_process:
-        _analysis_jobs[session_id] = {"status": "processing", "error": None}
+        with _analysis_lock:
+            existing = _analysis_jobs.get(session_id)
+            if existing and existing.get("status") == "processing":
+                return {"success": True, "data": {"session_id": session_id, "status": "processing", "note": "Already queued"}}
+            _analysis_jobs[session_id] = {"status": "processing", "error": None}
         # Persist job state to DB so it survives restarts
         try:
             supabase = get_supabase_client()
