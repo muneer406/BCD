@@ -63,8 +63,30 @@ def get_analyze_status(
             },
         }
 
-    # 2. Check DB for a completed analysis row
+    # 2. Check DB for persisted job state (survives restarts)
     supabase = get_supabase_client()
+    logs_result = (
+        supabase.table("analysis_logs")
+        .select("status, error_message")
+        .eq("session_id", session_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if logs_result.data:
+        log_row = logs_result.data[0]
+        db_status = log_row.get("status")
+        if db_status in ("processing", "failed"):
+            return {
+                "success": True,
+                "data": {
+                    "session_id": session_id,
+                    "status": db_status,
+                    "error": log_row.get("error_message"),
+                },
+            }
+
+    # 3. Check DB for a completed analysis row
     result = (
         supabase.table("session_analysis")
         .select("id")
@@ -83,7 +105,7 @@ def get_analyze_status(
             },
         }
 
-    # 3. No record anywhere
+    # 4. No record anywhere
     return {
         "success": True,
         "data": {
