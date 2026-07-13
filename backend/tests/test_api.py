@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 
 FAKE_USER = {"user_id": "test-user-123",
              "role": "authenticated", "email": "t@t.com"}
-FAKE_SESSION_ID = "aaaa-bbbb-cccc-dddd"
-FAKE_PREV_SESSION_ID = "1111-2222-3333-4444"
+FAKE_SESSION_ID = "00000000-0000-0000-0000-000000000001"
+FAKE_PREV_SESSION_ID = "00000000-0000-0000-0000-000000000002"
 
 
 def _make_analysis_result(is_first=False):
