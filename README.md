@@ -214,10 +214,13 @@ cd BCD/backend
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
-.venv\Scripts\activate     # Windows
+.venv\\Scripts\\activate     # Windows
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (recommended: using uv)
+uv pip install -r requirements.txt
+
+# Alternative: using pip
+# pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env

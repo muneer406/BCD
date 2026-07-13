@@ -90,6 +90,8 @@ backend/
 
 > `.env` is gitignored. **Never commit it.** A new developer must create it manually.
 
+> **Tooling recommendation:** This project uses [uv](https://docs.astral.sh/uv/) for fast dependency installs. The commands below show both `uv` and legacy `pip` options.
+
 | Variable                      | Example value                              | Purpose                                                          |
 | ----------------------------- | ------------------------------------------ | ---------------------------------------------------------------- |
 | `SUPABASE_URL`                | `https://vtpgeaqhkbbpvaigxwgq.supabase.co` | Supabase project URL                                             |
@@ -857,6 +859,8 @@ dataset/
 pip install python-dotenv
 ```
 
+> For faster installs you can also use `uv pip install python-dotenv` if you already have [uv](https://docs.astral.sh/uv/) installed.
+
 ---
 
 ## Suggested Future Improvements
@@ -896,8 +900,13 @@ pip install python-dotenv
 ```powershell
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+.venv\\Scripts\\activate
+
+# Recommended: using uv
+uv pip install -r requirements.txt
+
+# Alternative: using pip
+# pip install -r requirements.txt
 ```
 
 > `torch` and `torchvision` are ~1–2 GB. In Docker, CPU-only wheels from `https://download.pytorch.org/whl/cpu` are used to avoid the full GPU package.
