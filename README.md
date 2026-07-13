@@ -1,4 +1,8 @@
-# BCD — Breast Changes Detection
+# BCD - Breast Changes Detection
+
+<p align="center">
+  <img src="frontend/public/image.png" alt="BCD Logo" width="120">
+</p>
 
 [![CI](https://github.com/muneer406/BCD/actions/workflows/ci.yml/badge.svg)](https://github.com/muneer406/BCD/actions/workflows/ci.yml)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
@@ -10,7 +14,7 @@
 [![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel)](https://vercel.com)
 [![HF Spaces](https://img.shields.io/badge/HF%20Spaces-FFD21E?logo=huggingface)](https://huggingface.co/spaces)
 
-> **A privacy-first visual change awareness tool** that helps individuals track breast health changes over time through standardized self-monitoring. Compares you against your own history — not population averages.
+> **A privacy-first visual change awareness tool** that helps individuals track breast health changes over time through standardized self-monitoring. Compares you against your own history - not population averages.
 
 ⚠️ **Disclaimer:** This is an **awareness tool**, NOT a medical diagnostic device. It does not detect disease or replace professional medical care. Always consult healthcare professionals for medical concerns.
 
@@ -58,21 +62,21 @@ BCD provides a **structured, consistent framework** for visual self-monitoring, 
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["Frontend — Vercel"]
+    subgraph Frontend["Frontend - Vercel"]
         A[React 19 + TypeScript]
         B[Tailwind CSS]
         C[React Router v7]
         D[Supabase JS Client]
     end
 
-    subgraph Backend["Backend — Hugging Face Spaces"]
+    subgraph Backend["Backend - Hugging Face Spaces"]
         E[FastAPI + Uvicorn]
         F[EfficientNetV2-S<br/>1280-dim Embeddings]
         G[OpenCV Pipeline<br/>CLAHE → Denoise → Crop]
         H[JWT Auth<br/>PyJWT + JWKS]
     end
 
-    subgraph Storage["Storage — Supabase"]
+    subgraph Storage["Storage - Supabase"]
         I[(PostgreSQL<br/>Sessions + Analysis)]
         J[(Storage Bucket<br/>bcd-images)]
         K[Row-Level Security<br/>Per-user isolation]
@@ -131,7 +135,7 @@ Each session requires captures from **all 6 standardized angles**:
 | **Downward angle** | Camera above, tilted down | Top-down view |
 | **Full body** | Step back for full torso | Overall proportions |
 
-**Pro Tip:** Capture **multiple images per angle** — the system uses all images for comparison, improving reliability.
+**Pro Tip:** Capture **multiple images per angle** - the system uses all images for comparison, improving reliability.
 
 ---
 
@@ -294,17 +298,17 @@ BCD/
 
 | Endpoint | Method | Auth | Rate Limit | Purpose |
 |---|---|---|---|---|
-| `/health` | GET | No | — | Health check |
+| `/health` | GET | No | - | Health check |
 | `/api/analyze-session/{id}` | POST | Yes | 20/day | Run ML analysis on session |
-| `/api/analyze-status/{id}` | GET | Yes | — | Poll async analysis status |
-| `/api/compare-sessions/{c}/{p}` | POST | Yes | — | Compare two sessions |
+| `/api/analyze-status/{id}` | GET | Yes | - | Poll async analysis status |
+| `/api/compare-sessions/{c}/{p}` | POST | Yes | - | Compare two sessions |
 | `/api/session-info/{id}` | GET | Yes | 30/min | Session metadata |
 | `/api/image-preview/{id}/{type}` | GET | Yes | 30/min | Signed image URLs |
 | `/api/session-thumbnails/{id}` | GET | Yes | 30/min | Batch image previews |
-| `/api/delete-session/{id}` | DELETE | Yes | — | Delete session + all data |
-| `/api/sessions/{id}/analysis` | GET | Yes | — | Read stored analysis |
-| `/api/generate-report/{id}` | POST | Yes | — | Report (stub) |
-| `/api/docs` | GET | No | — | Interactive API docs (Swagger) |
+| `/api/delete-session/{id}` | DELETE | Yes | - | Delete session + all data |
+| `/api/sessions/{id}/analysis` | GET | Yes | - | Read stored analysis |
+| `/api/generate-report/{id}` | POST | Yes | - | Report (stub) |
+| `/api/docs` | GET | No | - | Interactive API docs (Swagger) |
 
 Full documentation: **[BACKEND_DOCS.md](backend/BACKEND_DOCS.md)**
 
@@ -314,7 +318,7 @@ Full documentation: **[BACKEND_DOCS.md](backend/BACKEND_DOCS.md)**
 
 | Guide | Description |
 |---|---|
-| **[BACKEND_DOCS.md](backend/BACKEND_DOCS.md)** | Complete backend reference — setup, API, ML pipeline, deployment |
+| **[BACKEND_DOCS.md](backend/BACKEND_DOCS.md)** | Complete backend reference - setup, API, ML pipeline, deployment |
 | **[frontend/README.md](frontend/README.md)** | Frontend setup and development |
 | **[backend/README.md](backend/README.md)** | Backend quick-start |
 | **[SUPABASE_MIGRATIONS.sql](SUPABASE_MIGRATIONS.sql)** | Database schema with RLS policies |
@@ -352,7 +356,7 @@ Contributions welcome! Please:
 
 ## 📜 License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
@@ -360,13 +364,13 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 Built with:
 
-- [Supabase](https://supabase.com) — Open-source Firebase alternative
-- [PyTorch](https://pytorch.org) — ML framework
-- [FastAPI](https://fastapi.tiangolo.com) — Python web framework
-- [React](https://react.dev) — UI library
-- [Tailwind CSS](https://tailwindcss.com) — CSS framework
-- [Hugging Face Spaces](https://huggingface.co/spaces) — ML deployment
+- [Supabase](https://supabase.com) - Open-source Firebase alternative
+- [PyTorch](https://pytorch.org) - ML framework
+- [FastAPI](https://fastapi.tiangolo.com) - Python web framework
+- [React](https://react.dev) - UI library
+- [Tailwind CSS](https://tailwindcss.com) - CSS framework
+- [Hugging Face Spaces](https://huggingface.co/spaces) - ML deployment
 
 ---
 
-**Making breast health awareness accessible, one session at a time.** 💙
+**Making breast health awareness accessible, one session at a time.** 🎗️

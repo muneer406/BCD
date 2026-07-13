@@ -1,14 +1,14 @@
-# Security & Privacy — BCD
+# Security & Privacy - BCD
 
 ## Current Protections
 
 | Layer | Implementation |
 |---|---|
-| **Transport** | HTTPS (TLS 1.3) — all traffic encrypted in transit |
+| **Transport** | HTTPS (TLS 1.3) - all traffic encrypted in transit |
 | **Authentication** | Supabase Auth (email/password) with JWT bearer tokens |
 | **Authorization** | JWKS-based JWT verification via PyJWT (ES256 algorithm) |
 | **Data Isolation** | Row-Level Security (RLS) on all database tables |
-| **Image Storage** | Private Supabase Storage bucket — no public access |
+| **Image Storage** | Private Supabase Storage bucket - no public access |
 | **Image Access** | Signed URLs with 5-minute expiry |
 | **CORS** | Explicit origin allow-list required in production |
 | **CSP** | Content-Security-Policy headers on all responses |
@@ -22,7 +22,7 @@ Medical images are currently encrypted at rest by Supabase's infrastructure but 
 **Planned implementation:**
 - Encrypt images in the browser before upload using a user-derived key
 - Decrypt server-side during analysis (or keep encrypted and run inference on encrypted data)
-- This ensures zero-trust privacy — even Supabase cannot view raw images
+- This ensures zero-trust privacy - even Supabase cannot view raw images
 
 ## User Best Practices
 
@@ -36,7 +36,7 @@ Medical images are currently encrypted at rest by Supabase's infrastructure but 
 ## Data Retention
 
 - `analysis_logs` retains processing metadata (status, timing, confidence scores)
-- Error messages in logs may contain operational details — retained indefinitely (see [Issue #59](https://github.com/muneer406/BCD/issues/59))
+- Error messages in logs may contain operational details - retained indefinitely (see [Issue #59](https://github.com/muneer406/BCD/issues/59))
 - Users can delete their sessions and associated images at any time via the History page
 - Storage CDN cache may persist deleted images briefly after deletion (TTL-dependent)
 
