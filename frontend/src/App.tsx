@@ -12,8 +12,10 @@ import { History } from "./pages/History";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
+import Privacy from "./pages/Privacy";
 import { Result } from "./pages/Result";
 import { Signup } from "./pages/Signup";
+import Terms from "./pages/Terms";
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
         <main>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             <Route element={<RedirectIfAuthed />}>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
