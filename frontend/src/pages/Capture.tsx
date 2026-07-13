@@ -620,6 +620,11 @@ export function Capture() {
         })}
       </div>
 
+      {/* Screen reader status */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {saving ? "Saving session" : error ? "Error saving session" : ""}
+      </div>
+
       {/* Error message */}
       {error && (
         <div className="rounded-lg sm:rounded-2xl bg-red-50 p-3 sm:p-4 border border-red-200">

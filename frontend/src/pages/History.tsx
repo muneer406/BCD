@@ -288,6 +288,10 @@ export function History() {
         description="Browse previous sessions to stay aware of changes over time."
       />
 
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {loading ? "Loading sessions" : loadingMore ? "Loading more sessions" : deleting ? "Deleting session" : error ? "Error loading sessions" : ""}
+      </div>
+
       {error && (
         <div className="rounded-lg sm:rounded-2xl bg-red-50 p-4 border border-red-200">
           <div className="flex items-start gap-3">
