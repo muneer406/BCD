@@ -72,6 +72,22 @@ except ImportError:
 
 settings = get_settings()
 
+# Startup validation: require critical env vars
+if not settings.supabase_url or not settings.supabase_service_role_key:
+    logger.critical(
+        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment"
+    )
+    import sys
+
+    sys.exit(1)
+
+# Warn if CORS origins are not properly configured
+if not settings.allowed_origins.strip() or settings.allowed_origins.strip() == "*":
+    logger.warning(
+        "ALLOWED_ORIGINS is empty or set to '*' — CORS is permissive. "
+        "Set ALLOWED_ORIGINS to specific origins in production."
+    )
+
 app = FastAPI(
     title="BCD Backend",
     version="0.2.0",
