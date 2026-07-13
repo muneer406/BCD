@@ -90,6 +90,10 @@ create table if not exists public.session_embeddings (
 
 create index if not exists sessions_user_id_idx on public.sessions(user_id);
 create index if not exists sessions_created_at_idx on public.sessions(created_at);
+
+-- Composite index for common multi-tenant query pattern
+create index if not exists sessions_user_created_at_idx on public.sessions(user_id, created_at desc);
+
 create index if not exists images_session_id_idx on public.images(session_id);
 create index if not exists images_user_id_idx on public.images(user_id);
 create index if not exists images_image_type_idx on public.images(image_type);
