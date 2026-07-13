@@ -139,6 +139,11 @@ export function Capture() {
     try {
       // Files are already validated in the file input onChange handlers, so
       // they can be uploaded directly.
+      //
+      // TODO(Issue #58): Encrypt images client-side before upload. Currently
+      // images are protected by HTTPS in transit and encrypted-at-rest by
+      // Supabase, but end-to-end client-side encryption is the planned
+      // privacy-first standard for medical images. See SECURITY.md for details.
 
       // Create session
       const { data: sessionData, error: sessionError } = await supabase
