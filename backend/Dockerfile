@@ -48,3 +48,4 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}
+# HF Space build cache refresh marker — safe to remove after next successful deploy

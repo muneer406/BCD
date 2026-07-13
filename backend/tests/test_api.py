@@ -137,28 +137,46 @@ def client(monkeypatch):
 
     class _FakeResult:
         data = []
+        count = 1
 
     class _FakeTable:
-        def select(self, *a): return self
-        def eq(self, *a): return self
-        def limit(self, *a): return self
+        def select(self, *a, **kw): return self
+        def insert(self, *a, **kw): return self
+        def update(self, *a, **kw): return self
+        def delete(self, *a, **kw): return self
+        def eq(self, *a, **kw): return self
+        def limit(self, *a, **kw): return self
         def order(self, *a, **kw): return self
+        def execute(self, *a, **kw): return _FakeResult()
+
+    class _FakeRpc:
         def execute(self): return _FakeResult()
+
+    class _FakeSchemaBuilder:
+        def table(self, *a): return _FakeTable()
 
     class _FakeSupabase:
         def table(self, *a): return _FakeTable()
+        def schema(self, *a): return _FakeSchemaBuilder()
+        def rpc(self, *a, **kw): return _FakeRpc()
 
-    # Reset the client cache and patch get_supabase_client at all import sites
+    # Reset the client cache and patch get_supabase_client at all import sites.
+    # Patching the imported function on each module is not enough on its own
+    # because services such as session_service import the name from db.py and
+    # hold their own reference. The robust fix is to patch the underlying
+    # create_client in db.py so every call to get_supabase_client() returns the
+    # fake client no matter where it is imported.
     from app.services import db as db_module
     from app.api import analyze_session as session_module
     from app.api import analyze_status as status_module
     from app.api import utility as utility_module
+
     db_module.reset_client()
-    mock_client = lambda: _FakeSupabase()
-    for mod in (db_module, session_module, status_module, utility_module):
-        monkeypatch.setattr(mod, "get_supabase_client", mock_client)
-    # Also patch create_client so even if db_module creates a new one, it's mocked
-    monkeypatch.setattr("supabase.create_client", lambda url, key, **kw: _FakeSupabase())
+    fake_supabase = _FakeSupabase()
+    monkeypatch.setattr(db_module, "create_client", lambda url, key, **kw: fake_supabase)
+    monkeypatch.setattr(db_module, "get_supabase_client", lambda: fake_supabase)
+    for mod in (session_module, status_module, utility_module):
+        monkeypatch.setattr(mod, "get_supabase_client", lambda: fake_supabase)
 
     yield TestClient(app, raise_server_exceptions=False)
 
