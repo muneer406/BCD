@@ -152,11 +152,10 @@ def client(monkeypatch):
     from app.services import db as db_module
     from app.api import analyze_session as session_module
     from app.api import analyze_status as status_module
-    from app.api import compare_sessions as compare_module
     from app.api import utility as utility_module
     db_module.reset_client()
     mock_client = lambda: _FakeSupabase()
-    for mod in (db_module, session_module, status_module, compare_module, utility_module):
+    for mod in (db_module, session_module, status_module, utility_module):
         monkeypatch.setattr(mod, "get_supabase_client", mock_client)
 
     yield TestClient(app, raise_server_exceptions=False)

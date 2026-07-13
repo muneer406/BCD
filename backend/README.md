@@ -1,3 +1,15 @@
+---
+title: BCD Backend
+emoji: 🩺
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+sdk_version: "1.0"
+python_version: "3.11"
+app_file: app/main.py
+pinned: false
+---
+
 # BCD Backend
 
 FastAPI + PyTorch + OpenCV backend for the BCD (Breast Changes Detection) app.
