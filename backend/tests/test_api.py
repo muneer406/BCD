@@ -157,6 +157,8 @@ def client(monkeypatch):
     mock_client = lambda: _FakeSupabase()
     for mod in (db_module, session_module, status_module, utility_module):
         monkeypatch.setattr(mod, "get_supabase_client", mock_client)
+    # Also patch create_client so even if db_module creates a new one, it's mocked
+    monkeypatch.setattr("supabase.create_client", lambda url, key, **kw: _FakeSupabase())
 
     yield TestClient(app, raise_server_exceptions=False)
 
