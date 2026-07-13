@@ -46,9 +46,11 @@ create table if not exists public.disclaimer_acceptance (
 );
 
 -- User profiles (optional, for future expansion)
+-- Note: email has been removed from this table because it is redundant with
+-- auth.users.email. Always read the user's email from auth.users to avoid
+-- stale data when the email is changed in Supabase Auth.
 create table if not exists public.user_profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  email text not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -321,8 +323,8 @@ create policy session_embeddings_delete_none on public.session_embeddings
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.user_profiles (id, email)
-  values (new.id, new.email)
+  insert into public.user_profiles (id)
+  values (new.id)
   on conflict (id) do nothing;
   return new;
 end;
