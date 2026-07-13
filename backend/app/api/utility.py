@@ -5,9 +5,10 @@ These endpoints move image signing and session queries from frontend to backend.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ..dependencies import get_current_user
+from ..limiter import limiter
 from ..services.db import get_supabase_client
 from ..services.session_service import get_session
 from ..utils.validation import validate_session_id, validate_image_type
@@ -17,9 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/image-preview/{session_id}/{image_type}")
+@limiter.limit("30/minute")
 def get_image_preview(
     session_id: str,
     image_type: str,
+    request: Request,
     user=Depends(get_current_user),
 ):
     """
@@ -132,8 +135,10 @@ def get_image_preview(
 
 
 @router.get("/session-info/{session_id}")
+@limiter.limit("30/minute")
 def get_session_info(
     session_id: str,
+    request: Request,
     user=Depends(get_current_user),
 ):
     """
@@ -228,8 +233,10 @@ def get_session_info(
 
 # NOTE: This endpoint is implemented but NOT currently called by the frontend.
 @router.get("/session-thumbnails/{session_id}")
+@limiter.limit("30/minute")
 def get_session_thumbnails(
     session_id: str,
+    request: Request,
     user=Depends(get_current_user),
 ):
     """
