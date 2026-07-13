@@ -69,6 +69,14 @@ export function Capture() {
   const [expandedTooltip, setExpandedTooltip] = useState<string | null>(null);
   const [showSixImageWarning, setShowSixImageWarning] = useState(false);
   const sixImageWarningShownRef = useRef(false);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+    };
+  }, []);
+
   // Track object URLs created by this page so we can revoke them on unmount
   const objectUrlsRef = useRef<Set<string>>(new Set());
 
@@ -522,7 +530,8 @@ export function Capture() {
                           const validation = validateImageFile(file);
                           if (!validation.valid) {
                             setError(validation.error || "Invalid file");
-                            setTimeout(() => setError(null), 5000);
+                            if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+                            errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
                             return;
                           }
 
@@ -583,7 +592,8 @@ export function Capture() {
                       const validation = validateImageFile(file);
                       if (!validation.valid) {
                         setError(validation.error || "Invalid file");
-                        setTimeout(() => setError(null), 5000);
+                        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+                        errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
                         return;
                       }
 
