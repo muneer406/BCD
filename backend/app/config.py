@@ -19,7 +19,7 @@ class Settings:
     # Phase 5: CORS and rate limiting
     # Comma-separated list of allowed origins, or "*" for development.
     # Example: "https://app.example.com,https://staging.example.com"
-    allowed_origins: str = os.getenv("ALLOWED_ORIGINS", "*")
+    allowed_origins: str = os.getenv("ALLOWED_ORIGINS", "")
     # Max analysis requests per day per user (0 = unlimited)
     rate_limit_analysis_per_day: int = int(
         os.getenv("RATE_LIMIT_ANALYSIS_PER_DAY", "20"))
