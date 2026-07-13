@@ -105,7 +105,8 @@ def _load_angle_embeddings(session_id: str) -> Dict[str, np.ndarray]:
             if emb is not None:
                 out[row["angle_type"]] = emb
         return out
-    except Exception:
+    except Exception as e:
+        logger.warning("Angle embeddings load failed: %s", e, exc_info=e)
         return {}
 
 
