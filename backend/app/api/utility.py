@@ -179,41 +179,34 @@ def get_session_info(
                 detail="Session not found",
             )
 
-        # Count total user sessions
-        count_response = supabase.table("sessions").select(
-            "id", count="exact", head=True
-        ).eq("user_id", user_id).execute()
+        # Optimized: single query for count + most recent 2 sessions
+        # Uses Supabase's count=exact to get total_sessions alongside data
+        listing_response = supabase.table("sessions").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(2).execute()
 
-        total_sessions = count_response.count or 0
+        total_sessions = listing_response.count or 0
+        session_rows = listing_response.data or []
 
-        # Get the oldest (first chronologically) session for this user
-        oldest_response = supabase.table("sessions").select(
-            "id"
-        ).eq("user_id", user_id).order("created_at", desc=False).limit(1).execute()
+        # Determine first session: fetch oldest if there are multiple sessions
+        is_first_session = False
+        if session_rows and session_rows[0].get("id") == session_id:
+            is_current = True
+        else:
+            is_current = False
 
-        oldest_rows = oldest_response.data or []
-        oldest_session = oldest_rows[0] if oldest_rows else None
-        is_first_session = oldest_session and oldest_session.get(
-            "id") == session_id
-
-        # Get most recent session to check if current is latest
-        latest_response = supabase.table("sessions").select(
-            "id"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(1).execute()
-
-        latest_rows = latest_response.data or []
-        latest_session = latest_rows[0] if latest_rows else None
-        is_current = latest_session and latest_session.get("id") == session_id
-
-        # Get previous session (second most recent) for comparisons
-        previous_session_id = None
-        if not is_first_session:
-            all_sessions_response = supabase.table("sessions").select(
+        # Check if this is the oldest session
+        if total_sessions > 0:
+            oldest_response = supabase.table("sessions").select(
                 "id"
-            ).eq("user_id", user_id).order("created_at", desc=True).limit(2).execute()
-            session_rows = all_sessions_response.data or []
-            if len(session_rows) >= 2:
-                previous_session_id = session_rows[1].get("id")
+            ).eq("user_id", user_id).order("created_at", desc=False).limit(1).execute()
+            oldest_rows = oldest_response.data or []
+            is_first_session = bool(oldest_rows and oldest_rows[0].get("id") == session_id)
+
+        # Previous session is the second most recent (if not first session)
+        previous_session_id = None
+        if not is_first_session and len(session_rows) >= 2:
+            previous_session_id = session_rows[1].get("id")
 
         return {
             "session_id": session_id,
