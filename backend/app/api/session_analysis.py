@@ -1,3 +1,4 @@
+# NOTE: This endpoint is implemented but NOT currently called by the frontend.
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..dependencies import get_current_user
