@@ -688,6 +688,10 @@ export function Result() {
         </div>
       </div>
 
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {analysisLoading ? "Analysis in progress" : analysisData ? "Analysis complete" : ""}
+      </div>
+
       {!isFirstSession && analysisLoading && (
         <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-3">
           <Skeleton className="h-8 w-full max-w-lg" />
