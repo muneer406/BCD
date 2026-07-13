@@ -142,6 +142,7 @@ def client(monkeypatch):
         def select(self, *a): return self
         def eq(self, *a): return self
         def limit(self, *a): return self
+        def order(self, *a, **kw): return self
         def execute(self): return _FakeResult()
 
     class _FakeSupabase:
