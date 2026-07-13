@@ -4,7 +4,6 @@ import logging.config
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.analyze_session import router as analyze_router
 from .api.analyze_status import router as analyze_status_router
@@ -112,24 +111,22 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# Content-Security-Policy middleware
+# Content-Security-Policy header
 # ---------------------------------------------------------------------------
 
-class CSPMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'none'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; "
-            "connect-src 'self'; "
-            "frame-src 'none'; "
-            "object-src 'none'"
-        )
-        return response
-
-app.add_middleware(CSPMiddleware)
+@app.middleware("http")
+async def add_csp_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'none'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-src 'none'; "
+        "object-src 'none'"
+    )
+    return response
 
 # ---------------------------------------------------------------------------
 # Routers
