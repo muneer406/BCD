@@ -120,4 +120,18 @@ export const apiClient = {
   }> {
     return this.request(`/session-thumbnails/${sessionId}`, token);
   },
+
+  /**
+   * Delete a session and all its data.
+   * @param sessionId - Session UUID to delete
+   * @param token - JWT token for authentication
+   */
+  async deleteSession(
+    sessionId: string,
+    token: string,
+  ): Promise<{ success: boolean }> {
+    return this.request(`/delete-session/${sessionId}`, token, {
+      method: "DELETE",
+    });
+  },
 };
