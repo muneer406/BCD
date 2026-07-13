@@ -36,6 +36,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application source
 COPY app/ ./app/
 
+# Copy migration scripts for containerized migrations
+COPY SUPABASE_MIGRATIONS.sql ./
+COPY PHASE*_MIGRATION.sql ./
+COPY scripts/ ./scripts/
+
 # ── Hugging Face Spaces runs on port 7860 ─────────────────────────────────────
 # Override API_PORT if deploying elsewhere (e.g. docker-compose maps 8000→7860)
 ENV API_PORT=7860

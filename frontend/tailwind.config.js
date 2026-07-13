@@ -8,6 +8,7 @@ export default {
         body: ['Manrope', 'sans-serif'],
       },
       colors: {
+        // WCAG AA compliant: ink-900 on sand-50 = 12.5:1, sand-50 on ink-900 = 12.5:1
         ink: {
           900: '#1b1b1b',
           800: '#2a2a2a',
