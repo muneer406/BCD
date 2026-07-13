@@ -127,7 +127,7 @@ def get_image_preview(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get image previews: {str(e)}",
+            detail="Failed to get image previews. Please try again later.",
         )
 
 
@@ -229,7 +229,7 @@ def get_session_info(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get session info: {str(e)}",
+            detail="Failed to get session info. Please try again later.",
         )
 
 
@@ -343,5 +343,5 @@ def get_session_thumbnails(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get session thumbnails: {str(e)}",
+            detail="Failed to get session thumbnails. Please try again later.",
         )
