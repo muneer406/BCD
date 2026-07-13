@@ -478,17 +478,25 @@ export function Capture() {
 
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label
+                      tabIndex={saving ? -1 : 0}
+                      role="button"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.currentTarget.click();
+                        }
+                      }}
                       className={`flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs sm:text-sm font-semibold transition-colors ${
                         saving
                           ? "pointer-events-none cursor-not-allowed border-sand-200 bg-sand-100 text-ink-400 opacity-50"
-                          : "cursor-pointer border-ink-900 bg-ink-900 text-sand-50 hover:bg-ink-800"
+                          : "cursor-pointer border-ink-900 bg-ink-900 text-sand-50 hover:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
                       }`}
                     >
                       <input
                         type="file"
                         accept="image/*"
                         capture="environment"
-                        className="hidden"
+                        className="sr-only"
                         disabled={saving}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
@@ -532,13 +540,21 @@ export function Capture() {
                 </div>
               ) : (
                 <label
-                  className={`flex h-40 sm:h-48 flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors ${saving ? "pointer-events-none cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-sand-100"}`}
+                  tabIndex={saving ? -1 : 0}
+                  role="button"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.currentTarget.click();
+                    }
+                  }}
+                  className={`flex h-40 sm:h-48 flex-col items-center justify-center rounded-lg sm:rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 transition-colors ${saving ? "pointer-events-none cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-sand-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"}`}
                 >
                   <input
                     type="file"
                     accept="image/*"
                     capture="environment"
-                    className="hidden"
+                    className="sr-only"
                     disabled={saving}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
