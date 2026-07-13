@@ -27,6 +27,7 @@ Changes from Phase 5:
 """
 
 import io
+import signal
 from dataclasses import dataclass
 
 import cv2
@@ -35,6 +36,16 @@ from PIL import Image, ImageOps
 from supabase import Client
 
 from .quality import ImageQuality, compute_image_quality
+
+
+class StorageDownloadTimeoutError(Exception):
+    """Raised when a Supabase Storage download exceeds the allowed time."""
+
+    pass
+
+
+def _timeout_handler(signum, frame):  # noqa: ARG001
+    raise StorageDownloadTimeoutError("Supabase storage download timed out")
 
 # Pipeline constants
 INTERMEDIATE_SIZE = 384   # resize target before final crop
@@ -64,7 +75,15 @@ def load_image_from_storage(storage_path: str, supabase: Client) -> np.ndarray:
     The app's guided capture flow ensures the user holds the phone correctly;
     EXIF handles the remaining tag-based cases automatically.
     """
-    response = supabase.storage.from_("bcd-images").download(storage_path)
+    # Guard storage downloads with a 30-second SIGALRM-based timeout on Unix.
+    # The Supabase Python SDK does not expose request timeouts directly for
+    # storage operations, so this prevents unbounded hangs on network issues.
+    signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(30)
+    try:
+        response = supabase.storage.from_("bcd-images").download(storage_path)
+    finally:
+        signal.alarm(0)  # disable the alarm
 
     # Check magic bytes
     if response[:4] == b'\xff\xd8\xff\xe0' or response[:4] == b'\xff\xd8\xff\xe1':
