@@ -98,7 +98,7 @@ backend/
 | `API_HOST`                    | `0.0.0.0`                                  | Bind address for uvicorn                                         |
 | `API_PORT`                    | `8000`                                     | Port (HF Spaces Docker overrides this to 7860 in Dockerfile CMD) |
 | `API_PREFIX`                  | `/api`                                     | All routes prefixed here                                         |
-| `ALLOWED_ORIGINS`             | `*` (dev) / `https://yourapp.com` (prod)   | CORS origins — comma-separated list or `*`                       |
+| `ALLOWED_ORIGINS`             | *(no default)* — `https://yourapp.com` (prod) / `*` (dev only) | CORS origins — comma-separated list or `*`. **No default; must be set explicitly.** A startup warning is logged if empty or `*`. |
 | `RATE_LIMIT_ANALYSIS_PER_DAY` | `20`                                       | Max `analyze-session` calls per day per IP                       |
 
 **Auto-derived (no need to set):** `SUPABASE_JWKS_URL` — `config.py` builds it as `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` if absent.
