@@ -218,6 +218,7 @@ def get_session_info(
         )
 
 
+# NOTE: This endpoint is implemented but NOT currently called by the frontend.
 @router.get("/session-thumbnails/{session_id}")
 def get_session_thumbnails(
     session_id: str,
