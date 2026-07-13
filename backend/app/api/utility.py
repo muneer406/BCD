@@ -3,6 +3,8 @@ Utility API endpoints for image previews and session metadata.
 These endpoints move image signing and session queries from frontend to backend.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..dependencies import get_current_user
@@ -10,6 +12,7 @@ from ..services.db import get_supabase_client
 from ..services.session_service import get_session
 
 router = APIRouter(tags=["utility"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/image-preview/{session_id}/{image_type}")
@@ -307,9 +310,9 @@ def get_session_thumbnails(
 
                 if signed_url:
                     thumbnails[image_type] = signed_url
-            except Exception:
+            except Exception as e:
                 # Skip images that fail to generate URLs
-                pass
+                logger.warning("Signed URL generation failed for %s: %s", storage_path, e, exc_info=e)
 
         return {
             "session_id": session_id,
