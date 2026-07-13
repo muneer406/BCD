@@ -899,13 +899,15 @@ pip install python-dotenv
 
 ```powershell
 cd backend
-python -m venv .venv
-.venv\\Scripts\\activate
+uv venv
+.venv\Scripts\activate
 
 # Recommended: using uv
 uv pip install -r requirements.txt
 
 # Alternative: using pip
+# python -m venv .venv
+# .venv\Scripts\activate
 # pip install -r requirements.txt
 ```
 

@@ -212,9 +212,9 @@ npm run dev
 cd BCD/backend
 
 # Create virtual environment
-python -m venv .venv
+uv venv
 source .venv/bin/activate  # Linux/Mac
-.venv\\Scripts\\activate     # Windows
+# .venv\Scripts\activate   # Windows
 
 # Install dependencies (recommended: using uv)
 uv pip install -r requirements.txt
