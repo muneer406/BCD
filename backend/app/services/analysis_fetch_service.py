@@ -11,7 +11,8 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
         .select(
             "overall_change_score, trend_score, created_at, "
             "angle_aware_score, analysis_version, "
-            "analysis_confidence_score, session_quality_score, localized_insights"
+            "analysis_confidence_score, session_quality_score, localized_insights, "
+            "is_first_session"
         )
         .eq("session_id", session_id)
         .eq("user_id", user_id)
@@ -42,5 +43,6 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
         "session_quality_score": row.get("session_quality_score"),
         "localized_insights": row.get("localized_insights"),
         "created_at": row.get("created_at"),
+        "is_first_session": row.get("is_first_session"),
         "per_angle": angle_rows,
     }
