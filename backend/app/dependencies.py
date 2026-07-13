@@ -36,7 +36,7 @@ def get_current_user(authorization: str | None = Header(default=None)) -> Dict[s
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
+            detail="Authentication failed. Please log in again.",
         ) from exc
 
 
