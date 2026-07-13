@@ -32,5 +32,6 @@ def generate_report(session_id: str, user_id: str) -> Dict[str, object]:
         "overall_change_score": session_rows[0].get("overall_change_score", 0.0),
         "created_at": session_rows[0].get("created_at"),
         "per_angle": angle_rows,
-        "summary": "Placeholder report generated from stored analysis.",
+        "summary": "Report generation is not yet implemented. This endpoint returns stored analysis data as a preview. "
+                    "For a detailed review, use the session analysis API or view results in the web app.",
     }
