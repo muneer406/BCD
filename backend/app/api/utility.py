@@ -33,7 +33,7 @@ def get_image_preview(
         user: Current authenticated user
 
     Returns:
-        { "images": [{"preview_url": "https://signed-url...", "expires_in": 3600, "image_type": "front"}], "count": 1 }
+        { "images": [{"preview_url": "https://signed-url...", "expires_in": 300, "image_type": "front"}], "count": 1 }
     """
     supabase = get_supabase_client()
 
@@ -89,7 +89,7 @@ def get_image_preview(
 
             # Generate signed URL
             signed_url_response = supabase.storage.from_("bcd-images").create_signed_url(
-                storage_path, 3600
+                storage_path, 300
             )
 
             # Handle different response formats from Supabase storage client
@@ -107,7 +107,7 @@ def get_image_preview(
             if signed_url:
                 image_previews.append({
                     "preview_url": signed_url,
-                    "expires_in": 3600,
+                    "expires_in": 300,
                     "image_type": image_type
                 })
 
@@ -304,7 +304,7 @@ def get_session_thumbnails(
 
             try:
                 signed_url_response = supabase.storage.from_("bcd-images").create_signed_url(
-                    storage_path, 3600
+                    storage_path, 300
                 )
 
                 # Handle different response formats
