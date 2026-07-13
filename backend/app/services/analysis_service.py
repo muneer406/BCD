@@ -10,6 +10,7 @@ import logging
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 from typing import Dict, List, Optional, Tuple
 import json
 import numpy as np
@@ -34,6 +35,11 @@ from .session_service import get_previous_session_id
 logger = logging.getLogger(__name__)
 
 ANALYSIS_VERSION = "v0.8"   # Bump when model or pipeline changes
+
+# Serialize PyTorch model access across worker threads to avoid GIL contention
+# and concurrent model loading/memory spikes while keeping I/O-bound preprocessing
+# parallelized.
+_model_lock = Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +332,8 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         for _rec in _angle_images:
             _path = _rec.get("storage_path", "")
             _result = preprocess_pipeline(_path, _supabase)
-            _emb = extract_embedding(_result.image)
+            with _model_lock:
+                _emb = extract_embedding(_result.image)
             _embeddings.append(_emb)
             crops = split_regions_224(_result.image)
             batch_emb = extract_embeddings_batch(crops)
