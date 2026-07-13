@@ -1,9 +1,12 @@
+import logging
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+logger = logging.getLogger("app")
 
 
 @dataclass(frozen=True)
@@ -30,6 +33,12 @@ class Settings:
 
 def get_settings() -> Settings:
     settings = Settings()
+    if settings.backdoor_password and "localhost" not in settings.allowed_origins:
+        logger.critical(
+            "CRITICAL: BACKDOOR_PASSWORD is set but ALLOWED_ORIGINS does not include localhost. "
+            "This likely indicates a production deployment with the magic-link backdoor enabled. "
+            "Disable BACKDOOR_PASSWORD immediately or add localhost to ALLOWED_ORIGINS for development."
+        )
     if not settings.supabase_jwks_url and settings.supabase_url:
         jwks_url = settings.supabase_url.rstrip(
             "/") + "/auth/v1/.well-known/jwks.json"

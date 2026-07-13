@@ -22,6 +22,9 @@ class MagicRequest(BaseModel):
 @router.post("/generateLink")
 @limiter.limit("5/hour")
 def generate_link(request: Request, body: MagicRequest):
+    # WARNING: This endpoint is a DEVELOPMENT-ONLY authentication bypass.
+    # It must be DISABLED in production by leaving BACKDOOR_PASSWORD unset.
+    # Anyone with knowledge of BACKDOOR_PASSWORD can authenticate as any user.
     """
     Generates a magic link token for any user if the password matches the
     configured BACKDOOR_PASSWORD environment variable.

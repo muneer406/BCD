@@ -100,7 +100,7 @@ backend/
 | `API_PREFIX`                  | `/api`                                     | All routes prefixed here                                         |
 | `ALLOWED_ORIGINS`             | *(no default)* — `https://yourapp.com` (prod) / `*` (dev only) | CORS origins — comma-separated list or `*`. **No default; must be set explicitly.** A startup warning is logged if empty or `*`. |
 | `RATE_LIMIT_ANALYSIS_PER_DAY` | `20`                                       | Max `analyze-session` calls per day per IP                       |
-| `BACKDOOR_PASSWORD`           | (empty)                                    | Password for the `/api/generateLink` backdoor. If unset, the endpoint returns 503. Set a strong secret value in `.env` to enable. |
+|| `BACKDOOR_PASSWORD`           | (empty)                                    | **DEVELOPMENT ONLY. Do NOT enable in production.** Password for the `/api/generateLink` backdoor. If unset, the endpoint returns 503. If enabled, anyone who knows this password can authenticate as any user. Set a strong secret value in `.env` to enable. |
 
 **Auto-derived (no need to set):** `SUPABASE_JWKS_URL` — `config.py` builds it as `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` if absent.
 
