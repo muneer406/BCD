@@ -83,6 +83,21 @@ create table if not exists public.session_embeddings (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- analysis_logs: per-analysis processing metadata for monitoring and debugging.
+--
+-- PII WARNING: The error_message column may contain sensitive information such
+-- as stack traces, local file paths, image paths, or other operational details.
+-- Treat this column as potentially containing PII and restrict access.
+--
+-- RETENTION POLICY: It is recommended to auto-delete rows older than 90 days
+-- to limit storage growth and PII exposure.
+--
+-- CLEANUP: Configure a scheduled cleanup job (e.g., Supabase cron, pg_cron, or
+-- an external worker) that runs at least daily to purge expired rows.
+-- Example pg_cron job:
+--   SELECT cron.schedule('cleanup-analysis-logs', '0 2 * * *',
+--          $$ DELETE FROM analysis_logs WHERE created_at < now() - interval '90 days' $$);
+
 
 -- ============================================================================
 -- 3. Create Indexes
