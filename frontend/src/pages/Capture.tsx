@@ -77,6 +77,23 @@ export function Capture() {
     };
   }, []);
 
+  // Track object URLs created by this page so we can revoke them on unmount
+  const objectUrlsRef = useRef<Set<string>>(new Set());
+
+  // Revoke all object URLs created by this page on unmount
+  useEffect(() => {
+    return () => {
+      objectUrlsRef.current.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Cleanup failure is non-critical
+        }
+      });
+      objectUrlsRef.current.clear();
+    };
+  }, []);
+
   // Angle explanations for tooltips
   const angleExplanations: Record<string, string> = {
     front:
@@ -518,11 +535,14 @@ export function Capture() {
                             return;
                           }
 
+                          const previewUrl = URL.createObjectURL(file);
+                          objectUrlsRef.current.add(previewUrl);
+
                           setImage({
                             type: step.type,
                             label: step.label,
                             file,
-                            previewUrl: URL.createObjectURL(file),
+                            previewUrl,
                           });
                           setError(null);
                         }}
@@ -577,11 +597,14 @@ export function Capture() {
                         return;
                       }
 
+                      const previewUrl = URL.createObjectURL(file);
+                      objectUrlsRef.current.add(previewUrl);
+
                       setImage({
                         type: step.type,
                         label: step.label,
                         file,
-                        previewUrl: URL.createObjectURL(file),
+                        previewUrl,
                       });
                       setError(null);
                     }}
