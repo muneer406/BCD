@@ -11,6 +11,7 @@ from ..services.db import get_supabase_client
 from ..services.image_service import get_session_images
 from ..services.interpretation import generate_interpretation, interpretation_to_api_dict
 from ..services.session_service import count_user_sessions, get_session
+from ..utils.validation import validate_session_id
 
 router = APIRouter(tags=["analysis"])
 
@@ -139,6 +140,10 @@ def analyze_session(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user context",
         )
+
+    err = validate_session_id(session_id)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
 
     session = get_session(session_id, user_id)
     if not session:

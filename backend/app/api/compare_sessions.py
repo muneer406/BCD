@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..dependencies import get_current_user
 from ..services.comparison_service import compare_sessions as run_comparison
 from ..services.session_service import get_session
+from ..utils.validation import validate_session_id
 
 router = APIRouter(tags=["comparison"])
 
@@ -19,6 +20,11 @@ def compare_sessions(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user context",
         )
+
+    err1 = validate_session_id(current_session_id, "current_session_id")
+    err2 = validate_session_id(previous_session_id, "previous_session_id")
+    if err1 or err2:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err1 or err2)
 
     if current_session_id == previous_session_id:
         raise HTTPException(
