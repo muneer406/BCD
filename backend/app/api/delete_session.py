@@ -1,6 +1,11 @@
 """
-Session deletion endpoint — allows users to delete their own sessions.
+Session deletion endpoint - allows users to delete their own sessions.
 Cleans up storage objects, then cascades to DB records via foreign keys.
+
+NOTE: This endpoint is currently unused. If it is re-enabled, it should share the
+same schema/column-discovery safeguards used in analyze_session.py because
+the Supabase tables (e.g. `embeddings`) may not exist in every environment yet.
+See Issue #67 and the `_get_table_columns` helper in analyze_session.py.
 """
 import logging
 
@@ -35,10 +40,8 @@ def delete_session(
 
     Only the owning user can delete their own session.
 
-    Known limitation: Supabase/CDN cached copies of deleted images may persist
-    for a period after the underlying storage objects are removed. To fully
-    invalidate cached images, either purge the CDN cache or wait for the cache
-    TTL to expire in addition to this deletion.
+    NOTE: This endpoint is unused. Re-activation needs schema-version or column
+    discovery handling for tables that may not exist in all environments.
     """
     user_id = user.get("user_id")
     if not user_id:
@@ -79,13 +82,6 @@ def delete_session(
                 # Delete in batches of 100 (Supabase limit)
                 for i in range(0, len(storage_paths), 100):
                     batch = storage_paths[i:i + 100]
-                    # NOTE: storage.remove() deletes the current objects in the
-                    # Supabase bucket, but cached copies served by the Supabase
-                    # CDN (or any downstream CDN in front of the bucket) may
-                    # continue to be available until the cache is purged or the
-                    # TTL expires. This is a known limitation of the current
-                    # deletion flow; full cache invalidation requires an
-                    # explicit purge or waiting for TTL expiry.
                     supabase.storage.from_("bcd-images").remove(batch)
             except Exception as e:
                 logger.warning("Storage cleanup partial failure for session %s: %s", session_id, e)
