@@ -60,7 +60,7 @@ def decode_supabase_jwt(token: str, jwks_url: str, algorithm: str) -> Dict[str, 
             token,
             key,
             algorithms=[algorithm],
-            options={"verify_aud": False}
+            audience="authenticated",
         )
 
         user_id = payload.get("sub")
