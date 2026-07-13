@@ -185,16 +185,18 @@ BCD/
 │  │  ├── pages/                # Route pages
 │  │  ├── context/              # Auth & state management
 │  │  └── lib/                  # Supabase client
-│  ├── DEVELOPMENT.md           # Frontend setup guide
+│  ├── public/                  # Static assets
 │  └── package.json
 │
-├── backend/                     # (Phase 2) FastAPI server
-│  └── DEVELOPMENT.md           # Backend setup guide
+├── backend/                    # Phase 2: FastAPI server
+│  ├── app/                     # Application code
+│  ├── tests/                   # Test suite
+│  ├── tools/                   # Utility scripts
+│  └── README.md
 │
-├── Docs/                        # Technical specifications (legacy)
-├── ARCHITECTURE.md             # System design & data flow
-├── API_INTEGRATION.md          # Frontend-Backend contract
+├── .github/                    # CI/CD workflows
 ├── SUPABASE_MIGRATIONS.sql     # Database schema
+├── LICENSE
 └── README.md
 ```
 
@@ -204,14 +206,11 @@ BCD/
 
 ### Comprehensive Guides
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** : System design, data flow, component hierarchy
-- **[API_INTEGRATION.md](API_INTEGRATION.md)** : Frontend-Backend API contract (Phase 2)
-- **[frontend/DEVELOPMENT.md](frontend/DEVELOPMENT.md)** : Frontend setup, workflow, code structure
-- **[backend/DEVELOPMENT.md](backend/DEVELOPMENT.md)** : Backend setup guide (Phase 2)
+- **[frontend/README.md](frontend/README.md)** : Frontend setup, workflow, code structure
+- **[backend/README.md](backend/README.md)** : Backend setup guide (Phase 2)
 
 ### Additional Resources
 
-- **[frontend/README.md](frontend/README.md)** : Frontend quick start
 - **[SUPABASE_MIGRATIONS.sql](SUPABASE_MIGRATIONS.sql)** : Database schema and migrations
 
 ---
