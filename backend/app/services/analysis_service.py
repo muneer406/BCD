@@ -114,7 +114,8 @@ def _load_per_angle_baselines(user_id: str, exclude_session_id: str) -> Dict[str
                 groups.setdefault(atype, []).append(emb)
 
         return {atype: np.mean(embs, axis=0) for atype, embs in groups.items()}
-    except Exception:
+    except Exception as e:
+        logger.warning("Per-angle baseline load failed: %s", e, exc_info=e)
         return {}
 
 
@@ -173,9 +174,9 @@ def _store_angle_embeddings(session_id: str, user_id: str, angle_embeddings: Dic
         ]
         if rows:
             supabase.table("angle_embeddings").insert(rows).execute()
-    except Exception:
+    except Exception as e:
         # Table not yet created — skip gracefully until migration is run
-        pass
+        logger.warning("angle_embeddings store skipped: %s", e, exc_info=e)
 
 
 def _store_session_embedding(session_id: str, user_id: str, embedding: np.ndarray) -> None:
@@ -212,8 +213,8 @@ def _store_region_embeddings(
                 })
         if rows:
             supabase.table("region_embeddings").insert(rows).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("region_embeddings store skipped: %s", e, exc_info=e)
 
 
 def _load_per_region_baselines(
@@ -237,7 +238,8 @@ def _load_per_region_baselines(
             key = (str(row["angle_type"]), int(row["region_index"]))
             groups.setdefault(key, []).append(emb)
         return {k: np.mean(v, axis=0) for k, v in groups.items()}
-    except Exception:
+    except Exception as e:
+        logger.warning("Per-region baseline load failed: %s", e, exc_info=e)
         return {}
 
 
@@ -260,7 +262,8 @@ def _load_session_region_embeddings(
                 continue
             out[(str(row["angle_type"]), int(row["region_index"]))] = emb
         return out
-    except Exception:
+    except Exception as e:
+        logger.warning("Session region embeddings load failed: %s", e, exc_info=e)
         return {}
 
 
