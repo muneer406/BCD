@@ -1,3 +1,4 @@
+import logging
 from threading import Lock
 from typing import Optional
 
@@ -14,6 +15,8 @@ from ..services.interpretation import generate_interpretation, interpretation_to
 from ..services.session_service import count_user_sessions, get_session
 from ..utils.validation import validate_session_id
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["analysis"])
 
 # ---------------------------------------------------------------------------
@@ -22,6 +25,43 @@ router = APIRouter(tags=["analysis"])
 # ---------------------------------------------------------------------------
 _analysis_jobs: dict = {}
 _analysis_lock = Lock()
+
+
+def _get_table_columns(supabase, table_name: str, schema: str = "public") -> set[str]:
+    """Return the set of column names for a given table by querying information_schema."""
+    try:
+        response = supabase.rpc(
+            "get_columns",
+            {
+                "p_table_name": table_name,
+                "p_schema_name": schema,
+            },
+        ).execute()
+        if response.data:
+            return {row["column_name"] for row in response.data}
+    except Exception as exc:
+        logger.warning(
+            "Could not query columns for %s.%s via RPC: %s", schema, table_name, exc
+        )
+
+    # Fallback to a direct information_schema query if the RPC helper is unavailable.
+    try:
+        response = (
+            supabase.schema("information_schema")
+            .table("columns")
+            .select("column_name")
+            .eq("table_schema", schema)
+            .eq("table_name", table_name)
+            .execute()
+        )
+        if response.data:
+            return {row["column_name"] for row in response.data}
+    except Exception as exc:
+        logger.warning(
+            "Could not query information_schema for %s.%s: %s", schema, table_name, exc
+        )
+
+    return set()
 
 
 def _interpretation_payload(
@@ -65,17 +105,25 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         for item in analysis["per_angle"]
     ]
     if per_angle_rows:
+        # Detect available columns in angle_analysis so we don't rely on silent failures.
+        angle_columns = _get_table_columns(supabase, "angle_analysis")
+        if angle_columns:
+            per_angle_rows = [
+                {k: v for k, v in row.items() if k in angle_columns}
+                for row in per_angle_rows
+            ]
         try:
             supabase.table("angle_analysis").insert(per_angle_rows).execute()
-        except Exception:
-            # angle_quality_score column may not exist — retry without it
-            for row in per_angle_rows:
-                row.pop("angle_quality_score", None)
-            supabase.table("angle_analysis").insert(per_angle_rows).execute()
+        except Exception as exc:
+            logger.warning(
+                "Failed to insert angle_analysis rows for session %s (columns may mismatch): %s",
+                session_id,
+                exc,
+            )
 
     scores = analysis.get("scores", {})
     quality_summary = analysis.get("image_quality_summary", {})
-    session_row = {
+    full_session_row = {
         "session_id": session_id,
         "user_id": user_id,
         "overall_change_score": scores.get("overall_change_score", 0.0),
@@ -91,29 +139,76 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         # First-session flag so cache reads don't have to infer it from scores
         "is_first_session": scores.get("is_first_session"),
     }
+
+    # TODO: Replace runtime information_schema probing with an explicit schema-version
+    # check at startup once the project ships a migration/version table. This would let
+    # us fail fast on real schema mismatches instead of silently dropping columns.
+    session_columns = _get_table_columns(supabase, "session_analysis")
+    if session_columns:
+        session_row = {
+            k: v
+            for k, v in full_session_row.items()
+            if k in session_columns
+        }
+    else:
+        # information_schema could not be queried; keep the legacy fallback pyramid
+        # but make each level visible in the logs.
+        session_row = full_session_row
+
     try:
         supabase.table("session_analysis").insert(session_row).execute()
-    except Exception:
-        # Phase 7 columns may not exist yet — retry without them
+    except Exception as exc:
+        logger.warning(
+            "Full session_analysis insert failed for session %s, trying Phase 5 subset: %s",
+            session_id,
+            exc,
+        )
         try:
-            p5_row = {k: v for k, v in session_row.items()
-                      if k not in ("angle_aware_score", "analysis_version", "localized_insights")}
+            p5_row = {
+                k: v
+                for k, v in session_row.items()
+                if k not in ("angle_aware_score", "analysis_version", "localized_insights")
+            }
             supabase.table("session_analysis").insert(p5_row).execute()
-        except Exception:
-            # Phase 5 columns also missing — retry with Phase 4 subset
+        except Exception as exc2:
+            logger.warning(
+                "Phase 5 session_analysis insert failed for session %s, trying Phase 4 subset: %s",
+                session_id,
+                exc2,
+            )
             try:
-                fallback_row = {k: v for k, v in session_row.items()
-                                if k in ("session_id", "user_id", "overall_change_score", "trend_score")}
-                supabase.table("session_analysis").insert(
-                    fallback_row).execute()
-            except Exception:
-                # trend_score column also missing — bare minimum insert
+                fallback_row = {
+                    k: v
+                    for k, v in session_row.items()
+                    if k in ("session_id", "user_id", "overall_change_score", "trend_score")
+                }
+                supabase.table("session_analysis").insert(fallback_row).execute()
+            except Exception as exc3:
+                logger.warning(
+                    "Phase 4 session_analysis insert failed for session %s, trying bare minimum: %s",
+                    session_id,
+                    exc3,
+                )
                 bare_row = {
                     "session_id": session_id,
                     "user_id": user_id,
                     "overall_change_score": scores.get("overall_change_score", 0.0),
                 }
                 supabase.table("session_analysis").insert(bare_row).execute()
+
+    # Verify that the row actually made it into the DB.
+    try:
+        verify = (
+            supabase.table("session_analysis")
+            .select("id")
+            .eq("session_id", session_id)
+            .limit(1)
+            .execute()
+        )
+        if not verify.data:
+            logger.error("session_analysis row for session %s was not found after insert", session_id)
+    except Exception as exc:
+        logger.warning("Could not verify session_analysis insert for session %s: %s", session_id, exc)
 
     return overwritten
 
