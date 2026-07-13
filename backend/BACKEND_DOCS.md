@@ -150,7 +150,7 @@ Flow:
 5. If valid → returns `{"user_id": str, "role": str, "email": str}` to the route handler
 6. If missing, malformed, or signature-invalid → `401 Unauthorized`
 
-**Why `verify_aud: False`:** Supabase JWTs have `aud: "authenticated"`. python-jose's audience check requires the expected audience be passed explicitly. Disabling it is safe because the signature is still fully cryptographically verified.
+**Audience verification:** Supabase JWTs carry `aud: "authenticated"`. The `jwt.decode` call passes `audience="authenticated"` so python-jose validates the token's `aud` claim in addition to verifying the signature. This ensures tokens minted for a different audience are rejected.
 
 **JWKS cache:** Keys fetched once are reused for up to 3600 seconds. On `kid` mismatch (key rotation), the cache is busted and JWKS is re-fetched once.
 
