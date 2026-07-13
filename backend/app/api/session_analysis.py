@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..dependencies import get_current_user
 from ..services.analysis_fetch_service import get_session_analysis
 from ..services.session_service import get_session
+from ..utils.validation import validate_session_id
 
 router = APIRouter(tags=["analysis"])
 
@@ -15,6 +16,10 @@ def fetch_session_analysis(session_id: str, user=Depends(get_current_user)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user context",
         )
+
+    err = validate_session_id(session_id)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
 
     session = get_session(session_id, user_id)
     if not session:
