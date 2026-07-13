@@ -65,6 +65,19 @@ def load_image_from_storage(storage_path: str, supabase: Client) -> np.ndarray:
     EXIF handles the remaining tag-based cases automatically.
     """
     response = supabase.storage.from_("bcd-images").download(storage_path)
+
+    # Check magic bytes
+    if response[:4] == b'\xff\xd8\xff\xe0' or response[:4] == b'\xff\xd8\xff\xe1':
+        pass  # JPEG
+    elif response[:8] == b'\x89PNG\r\n\x1a\n':
+        pass  # PNG
+    elif response[:4] == b'RIFF' and response[8:12] == b'WEBP':
+        pass  # WebP
+    elif response[:6] in (b'GIF87a', b'GIF89a'):
+        pass  # GIF
+    else:
+        raise ValueError(f"Unsupported image format: {response[:8].hex()}")
+
     image = Image.open(io.BytesIO(response))
     image = ImageOps.exif_transpose(image)   # honour EXIF rotation/flip tag
     if image.mode != "RGB":
