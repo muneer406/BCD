@@ -3,13 +3,17 @@ Utility API endpoints for image previews and session metadata.
 These endpoints move image signing and session queries from frontend to backend.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..dependencies import get_current_user
 from ..services.db import get_supabase_client
 from ..services.session_service import get_session
+from ..utils.validation import validate_session_id, validate_image_type
 
 router = APIRouter(tags=["utility"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/image-preview/{session_id}/{image_type}")
@@ -39,6 +43,13 @@ def get_image_preview(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user context",
         )
+
+    err = validate_session_id(session_id)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
+    err = validate_image_type(image_type)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
 
     # Verify session belongs to user
     session = get_session(session_id, user_id)
@@ -155,6 +166,10 @@ def get_session_info(
             detail="Invalid user context",
         )
 
+    err = validate_session_id(session_id)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
+
     try:
         # Get session
         session = get_session(session_id, user_id)
@@ -218,6 +233,7 @@ def get_session_info(
         )
 
 
+# NOTE: This endpoint is implemented but NOT currently called by the frontend.
 @router.get("/session-thumbnails/{session_id}")
 def get_session_thumbnails(
     session_id: str,
@@ -250,6 +266,10 @@ def get_session_thumbnails(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user context",
         )
+
+    err = validate_session_id(session_id)
+    if err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err)
 
     try:
         # Verify session belongs to user
@@ -307,9 +327,9 @@ def get_session_thumbnails(
 
                 if signed_url:
                     thumbnails[image_type] = signed_url
-            except Exception:
+            except Exception as e:
                 # Skip images that fail to generate URLs
-                pass
+                logger.warning("Signed URL generation failed for %s: %s", storage_path, e, exc_info=e)
 
         return {
             "session_id": session_id,

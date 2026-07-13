@@ -3,8 +3,15 @@
  * Uses VITE_API_URL environment variable to construct request paths
  */
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "https://muneer320-bcd-backend.hf.space";
+if (!import.meta.env.VITE_API_URL) {
+  console.warn(
+    "[apiClient] VITE_API_URL is not set. " +
+      "API requests will fail until the VITE_API_URL environment variable is configured. " +
+      "Set it in your .env file (e.g., VITE_API_URL=https://your-backend-url) and restart the dev server.",
+  );
+}
+
+const API_URL = import.meta.env.VITE_API_URL || "";
 const API_PREFIX = "/api";
 
 export const apiClient = {
@@ -19,6 +26,13 @@ export const apiClient = {
     token?: string,
     options?: RequestInit,
   ): Promise<T> {
+    if (!API_URL) {
+      throw new Error(
+        "[apiClient] VITE_API_URL is not set. " +
+          "The backend API URL must be configured via the VITE_API_URL environment variable " +
+          "before making API requests. Add it to your .env file and restart the dev server.",
+      );
+    }
     const url = `${API_URL}${API_PREFIX}${endpoint}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

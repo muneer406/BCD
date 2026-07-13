@@ -98,8 +98,9 @@ backend/
 | `API_HOST`                    | `0.0.0.0`                                  | Bind address for uvicorn                                         |
 | `API_PORT`                    | `8000`                                     | Port (HF Spaces Docker overrides this to 7860 in Dockerfile CMD) |
 | `API_PREFIX`                  | `/api`                                     | All routes prefixed here                                         |
-| `ALLOWED_ORIGINS`             | `*` (dev) / `https://yourapp.com` (prod)   | CORS origins — comma-separated list or `*`                       |
+| `ALLOWED_ORIGINS`             | *(no default)* — `https://yourapp.com` (prod) / `*` (dev only) | CORS origins — comma-separated list or `*`. **No default; must be set explicitly.** A startup warning is logged if empty or `*`. |
 | `RATE_LIMIT_ANALYSIS_PER_DAY` | `20`                                       | Max `analyze-session` calls per day per IP                       |
+| `BACKDOOR_PASSWORD`           | (empty)                                    | Password for the `/api/generateLink` backdoor. If unset, the endpoint returns 503. Set a strong secret value in `.env` to enable. |
 
 **Auto-derived (no need to set):** `SUPABASE_JWKS_URL` — `config.py` builds it as `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` if absent.
 
@@ -150,7 +151,7 @@ Flow:
 5. If valid → returns `{"user_id": str, "role": str, "email": str}` to the route handler
 6. If missing, malformed, or signature-invalid → `401 Unauthorized`
 
-**Why `verify_aud: False`:** Supabase JWTs have `aud: "authenticated"`. python-jose's audience check requires the expected audience be passed explicitly. Disabling it is safe because the signature is still fully cryptographically verified.
+**Audience verification:** Supabase JWTs carry `aud: "authenticated"`. The `jwt.decode` call passes `audience="authenticated"` so python-jose validates the token's `aud` claim in addition to verifying the signature. This ensures tokens minted for a different audience are rejected.
 
 **JWKS cache:** Keys fetched once are reused for up to 3600 seconds. On `kid` mismatch (key rotation), the cache is busted and JWKS is re-fetched once.
 
@@ -439,6 +440,48 @@ Read back stored analysis from DB without re-running ML. Returns 404 if never an
 
 **File:** `app/api/generate_report.py` | **Auth:** Required  
 **⚠️ STUB.** Returns the stored analysis rows with a hardcoded `"Placeholder report generated from stored analysis."` summary. No PDF, no email, no real report logic.
+
+---
+
+### `POST /api/generateLink`
+
+**File:** `app/api/auth.py` | **Auth:** None (backdoor endpoint)
+**Rate limit:** 5 requests/hour per IP
+
+Generates a Supabase magic link for any user email, bypassing the normal auth flow. This is a development/admin backdoor — the endpoint is **disabled by default** and returns `503 Service Unavailable` unless `BACKDOOR_PASSWORD` is set in the environment.
+
+**Request body:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "<BACKDOOR_PASSWORD value>",
+  "redirect_to": "https://app.example.com/capture"
+}
+```
+
+- `redirect_to` is optional (defaults to `http://localhost:5173/capture`).
+- `password` must match the `BACKDOOR_PASSWORD` env var, or the endpoint returns `401`.
+
+**Response (success):**
+
+```json
+{
+  "action_link": "https://...supabase.co/auth/v1/verify?token=...",
+  "token": "email-otp-or-hashed-token",
+  "type": "magiclink",
+  "is_hashed": false
+}
+```
+
+**Status codes:**
+
+| Status | Meaning                                                   |
+| ------ | --------------------------------------------------------- |
+| 200    | Magic link generated                                      |
+| 401    | Password does not match `BACKDOOR_PASSWORD`               |
+| 500    | Supabase error (missing properties, no action_link, etc.) |
+| 503    | `BACKDOOR_PASSWORD` env var not set — endpoint disabled   |
 
 ---
 

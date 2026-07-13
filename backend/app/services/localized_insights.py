@@ -4,11 +4,14 @@ Region-based localized copy for BCD. Non-diagnostic, observational language only
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Tuple
 
 import numpy as np
 
 from ..processing.region_grid import region_rc
+
+logger = logging.getLogger(__name__)
 
 REGION_SCORE_THRESHOLD = 0.35
 TOP_REGIONS = 3
@@ -116,25 +119,28 @@ def build_localized_insights(
         )
 
     # Left vs right full-angle asymmetry (embedding space), relative to baseline pair
-    left_e = angle_embeddings.get("left")
-    right_e = angle_embeddings.get("right")
-    bl = per_angle_baselines.get("left")
-    br = per_angle_baselines.get("right")
-    if (
-        left_e is not None
-        and right_e is not None
-        and bl is not None
-        and br is not None
-    ):
-        cur_asym = _cosine_distance(left_e, right_e)
-        base_asym = _cosine_distance(bl, br)
+    try:
+        left_e = angle_embeddings.get("left")
+        right_e = angle_embeddings.get("right")
+        bl = per_angle_baselines.get("left")
+        br = per_angle_baselines.get("right")
         if (
-            abs(cur_asym - base_asym) > ASYMMETRY_DELTA_THRESHOLD
-            and max(cur_asym, base_asym) > ASYMMETRY_MIN_DISTANCE
+            left_e is not None
+            and right_e is not None
+            and bl is not None
+            and br is not None
         ):
-            insights.append(
-                "The left-side and right-side captures show a different balance "
-                "between them than in your baseline reference."
-            )
+            cur_asym = _cosine_distance(left_e, right_e)
+            base_asym = _cosine_distance(bl, br)
+            if (
+                abs(cur_asym - base_asym) > ASYMMETRY_DELTA_THRESHOLD
+                and max(cur_asym, base_asym) > ASYMMETRY_MIN_DISTANCE
+            ):
+                insights.append(
+                    "The left-side and right-side captures show a different balance "
+                    "between them than in your baseline reference."
+                )
+    except Exception as e:
+        logger.warning("Asymmetry insight computation failed: %s", e, exc_info=e)
 
     return insights[: TOP_REGIONS + 1]
