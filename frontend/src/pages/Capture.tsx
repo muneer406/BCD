@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Aperture,
@@ -125,7 +125,7 @@ export function Capture() {
     imagesByType.has(step.type),
   ).length;
 
-  const handleSaveSession = async () => {
+  const handleSaveSession = useCallback(async () => {
     if (!user || !allStepsPresent) return;
     // Only show warning if exactly 6 images (1 per angle), and not already shown for this submission
     const totalImages = images.length;
@@ -266,19 +266,19 @@ export function Capture() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [user, allStepsPresent, images, clearDraft, navigate, setSaving, setError, setShowSixImageWarning, sixImageWarningShownRef]);
 
   // Handler for confirming the warning and proceeding
-  const handleSixImageWarningProceed = () => {
+  const handleSixImageWarningProceed = useCallback(() => {
     setShowSixImageWarning(false);
     sixImageWarningShownRef.current = true;
     handleSaveSession();
-  };
+  }, [setShowSixImageWarning, sixImageWarningShownRef, handleSaveSession]);
 
   // Handler for canceling and letting user add more images
-  const handleSixImageWarningCancel = () => {
+  const handleSixImageWarningCancel = useCallback(() => {
     setShowSixImageWarning(false);
-  };
+  }, []);
 
   return (
     <PageShell className="space-y-10">
