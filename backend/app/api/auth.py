@@ -48,8 +48,8 @@ def generate_link(request: Request, body: MagicRequest):
 
     try:
         # Generate magic link for user
-        # We include the origin to ensure redirect works correctly
-        redirect_to = body.redirect_to or "http://localhost:5173/capture"  # Default redirect after login
+        # redirect_to must be provided explicitly; no default fallback is used.
+        redirect_to = body.redirect_to or ""
 
         response = supabase.auth.admin.generate_link({
             "type": "magiclink",
