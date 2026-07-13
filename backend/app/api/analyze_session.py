@@ -88,6 +88,8 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         "analysis_version": scores.get("analysis_version"),
         # Phase 8: region-based copy (JSON array of strings)
         "localized_insights": analysis.get("localized_insights") or [],
+        # First-session flag so cache reads don't have to infer it from scores
+        "is_first_session": scores.get("is_first_session"),
     }
     try:
         supabase.table("session_analysis").insert(session_row).execute()
@@ -210,8 +212,12 @@ def analyze_session(
         if cached and cached.get("per_angle"):
             overall_score = float(cached.get("overall_change_score") or 0.0)
             trend = cached.get("trend_score")
-            # Infer first-session: overall score == 0 and no trend score
-            is_first = overall_score == 0.0 and trend is None
+            # Use the stored is_first_session flag from the DB analysis if available.
+            # Cached analysis rows created before that flag existed may return None,
+            # in which case fall back to counting the user's sessions directly.
+            is_first = cached.get("is_first_session")
+            if is_first is None:
+                is_first = count_user_sessions(user_id) <= 1
             per_angle_with_levels = [
                 {
                     **row,
