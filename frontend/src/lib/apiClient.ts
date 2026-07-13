@@ -3,6 +3,12 @@
  * Uses VITE_API_URL environment variable to construct request paths
  */
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
+// In-memory cache for signed URLs (4-min TTL, under the 5-min server expiry)
+const signedUrlCache = new Map<string, { data: unknown; expires: number }>();
+const CACHE_TTL = 4 * 60 * 1000;
+
 if (!import.meta.env.VITE_API_URL) {
   console.warn(
     "[apiClient] VITE_API_URL is not set. " +
@@ -11,16 +17,20 @@ if (!import.meta.env.VITE_API_URL) {
   );
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "";
 const API_PREFIX = "/api";
 
+function getCached<T>(key: string): T | null {
+  const entry = signedUrlCache.get(key);
+  if (entry && Date.now() < entry.expires) return entry.data as T;
+  signedUrlCache.delete(key);
+  return null;
+}
+
+function setCache<T>(key: string, data: T): void {
+  signedUrlCache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
 export const apiClient = {
-  /**
-   * Make an authenticated API request
-   * @param endpoint - API endpoint path (e.g., "/image-preview/uuid/front")
-   * @param options - Fetch options
-   * @returns - Parsed JSON response
-   */
   async request<T = unknown>(
     endpoint: string,
     token?: string,
@@ -30,7 +40,7 @@ export const apiClient = {
       throw new Error(
         "[apiClient] VITE_API_URL is not set. " +
           "The backend API URL must be configured via the VITE_API_URL environment variable " +
-          "before making API requests. Add it to your .env file and restart the dev server.",
+          "in your .env.local file.",
       );
     }
     const url = `${API_URL}${API_PREFIX}${endpoint}`;
@@ -42,7 +52,6 @@ export const apiClient = {
       headers.Authorization = `Bearer ${token}`;
     }
 
-    // Merge with any additional headers from options
     if (options?.headers) {
       Object.entries(options.headers as Record<string, string>).forEach(
         ([key, value]) => {
@@ -64,12 +73,6 @@ export const apiClient = {
     return response.json();
   },
 
-  /**
-   * Get signed URLs for all images of a specific angle
-   * @param sessionId - Session UUID
-   * @param imageType - angle type (front, left, right, up, down, raised)
-   * @param token - JWT token for authentication
-   */
   async getImagePreview(
     sessionId: string,
     imageType: string,
@@ -82,14 +85,17 @@ export const apiClient = {
     }>;
     count: number;
   }> {
-    return this.request(`/image-preview/${sessionId}/${imageType}`, token);
+    const cacheKey = `preview:${sessionId}:${imageType}`;
+    const cached = getCached<{
+      images: Array<{ preview_url: string; expires_in: number; image_type: string }>;
+      count: number;
+    }>(cacheKey);
+    if (cached) return cached;
+    const data = await this.request(`/image-preview/${sessionId}/${imageType}`, token);
+    setCache(cacheKey, data);
+    return data;
   },
 
-  /**
-   * Get session metadata and first-session status
-   * @param sessionId - Session UUID
-   * @param token - JWT token for authentication
-   */
   async getSessionInfo(
     sessionId: string,
     token: string,
@@ -101,15 +107,17 @@ export const apiClient = {
     created_at: string;
     previous_session_id: string | null;
   }> {
-    return this.request(`/session-info/${sessionId}`, token);
+    const cacheKey = `info:${sessionId}`;
+    const cached = getCached<{
+      session_id: string; is_first_session: boolean; is_current: boolean;
+      total_sessions: number; created_at: string; previous_session_id: string | null;
+    }>(cacheKey);
+    if (cached) return cached;
+    const data = await this.request(`/session-info/${sessionId}`, token);
+    setCache(cacheKey, data);
+    return data;
   },
 
-  /**
-   * Get all image thumbnails for a session
-   * More efficient than individual requests
-   * @param sessionId - Session UUID
-   * @param token - JWT token for authentication
-   */
   async getSessionThumbnails(
     sessionId: string,
     token: string,
@@ -121,11 +129,6 @@ export const apiClient = {
     return this.request(`/session-thumbnails/${sessionId}`, token);
   },
 
-  /**
-   * Delete a session and all its data.
-   * @param sessionId - Session UUID to delete
-   * @param token - JWT token for authentication
-   */
   async deleteSession(
     sessionId: string,
     token: string,
