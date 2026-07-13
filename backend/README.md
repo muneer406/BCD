@@ -1,50 +1,34 @@
----
-title: BCD Backend API
-emoji: 🔬
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
+# BCD Backend
 
-# BCD Backend API
+FastAPI + PyTorch + OpenCV backend for the BCD (Breast Changes Detection) app.
 
-FastAPI backend for the Body Composition Detection (BCD) Visual Anomaly Awareness System.
-
-## Environment Variables
-
-Set these as **Secrets** in your Hugging Face Space settings (Settings → Variables and Secrets):
-
-| Secret                        | Description                                                 |
-| ----------------------------- | ----------------------------------------------------------- |
-| `SUPABASE_URL`                | `https://<project-ref>.supabase.co`                         |
-| `SUPABASE_SERVICE_ROLE_KEY`   | Supabase → Project Settings → API → service_role key        |
-| `JWT_ALGORITHM`               | `ES256` (Supabase default)                                  |
-| `ALLOWED_ORIGINS`             | Your Vercel frontend URL, e.g. `https://bcd-app.vercel.app` |
-| `RATE_LIMIT_ANALYSIS_PER_DAY` | `20` (optional, default 20)                                 |
-
-> `SUPABASE_JWKS_URL` is auto-derived from `SUPABASE_URL` — no need to set it manually.
-
-## Health Check
-
-```
-GET /
-→ {"status": "ok"}
-```
-
-## Local Development (Docker)
+## Quick Start
 
 ```bash
-# In the backend/ directory
-cp .env.example .env        # fill in your secrets
-docker compose up --build
-# API available at http://localhost:8000
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+pip install -r requirements.txt
+cp .env.example .env        # Add your values
+uvicorn app.main:app --reload  # → http://localhost:8000
 ```
 
-## Notes
+## Documentation
 
-- Port **7860** is required by Hugging Face Spaces Docker SDK.
-- First cold start takes ~20–30 s while PyTorch loads EfficientNetV2-S.
-- CPU-only PyTorch is used (no GPU needed for inference).
-- Minimum RAM: **1 GB** (PyTorch + model ~600 MB).
+**Full comprehensive documentation:** [`BACKEND_DOCS.md`](BACKEND_DOCS.md) (985 lines)
+
+Covers:
+- Complete API reference with request/response schemas
+- ML pipeline architecture (EfficientNetV2-S embeddings)
+- Image preprocessing (CLAHE, denoise, torso crop, sharpening)
+- Environment variables and configuration
+- Deployment (Docker, HF Spaces)
+- Database schema and migrations
+- Testing guide
+
+## Key Features
+
+- **ML Pipeline:** EfficientNetV2-S 1280-dim embeddings for change detection
+- **Image Processing:** 8-step preprocessing (EXIF → denoise → CLAHE → crop → resize → sharpen)
+- **Comparison:** 5-layer session comparison (immediate, rolling, monthly, lifetime, per-angle)
+- **Quality Scoring:** Blur detection, brightness assessment, confidence scoring
+- **Security:** JWT verification via JWKS, rate limiting, CSP headers, input validation

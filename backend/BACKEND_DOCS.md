@@ -147,11 +147,11 @@ Flow:
 1. Frontend calls `supabase.auth.getSession()` to obtain the access token
 2. Frontend includes it as `Authorization: Bearer <token>` on every API request
 3. Backend `get_current_user()` dependency (`dependencies.py`) extracts the Bearer token
-4. `security.py` fetches JWKS from Supabase (cached for 1 hour), finds the matching key by `kid`, and verifies the JWT signature using `python-jose`
+4. `security.py` fetches JWKS from Supabase (cached for 1 hour), finds the matching key by `kid`, and verifies the JWT signature using `PyJWT`
 5. If valid → returns `{"user_id": str, "role": str, "email": str}` to the route handler
 6. If missing, malformed, or signature-invalid → `401 Unauthorized`
 
-**Audience verification:** Supabase JWTs carry `aud: "authenticated"`. The `jwt.decode` call passes `audience="authenticated"` so python-jose validates the token's `aud` claim in addition to verifying the signature. This ensures tokens minted for a different audience are rejected.
+**Audience verification:** Supabase JWTs carry `aud: "authenticated"`. The `jwt.decode` call passes `audience="authenticated"` so PyJWT validates the token's `aud` claim in addition to verifying the signature. This ensures tokens minted for a different audience are rejected.
 
 **JWKS cache:** Keys fetched once are reused for up to 3600 seconds. On `kid` mismatch (key rotation), the cache is busted and JWKS is re-fetched once.
 
@@ -401,7 +401,7 @@ Generates a 1-hour signed URL for a single image from Supabase Storage. Service 
 ```json
 {
   "preview_url": "https://vtpgeaqhkbbpvaigxwgq.supabase.co/storage/v1/object/sign/...",
-  "expires_in": 3600,
+  "expires_in": 300,
   "image_type": "front"
 }
 ```
@@ -807,7 +807,7 @@ cd backend
 | Item                                 | Detail                                                                                                                                                                    |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `report_service.py` is a stub        | Returns hardcoded summary. No PDF/email/structured format.                                                                                                                |
-| `_analysis_jobs` is in-process only  | Job status lost on server restart. A production system would persist job state to DB. In a multi-worker uvicorn deployment, status is not shared across worker processes. |
+| **Known Limitations** | See table below for remaining issues                                                                                                                                                                                                                            |
 | `per_angle[].summary` is hardcoded   | Not an LLM-generated summary.                                                                                                                                             |
 | `session-thumbnails` endpoint unused | Implemented, not called by any frontend page.                                                                                                                             |
 | `GET /sessions/{id}/analysis` unused | Implemented, not called by any frontend page.                                                                                                                             |
@@ -879,10 +879,9 @@ pip install python-dotenv
 | `fastapi`                | 0.110.0  | Web framework                                                                                  |
 | `uvicorn`                | 0.27.1   | ASGI server                                                                                    |
 | `python-dotenv`          | 1.0.1    | Load `.env`                                                                                    |
-| `supabase`               | 2.10.0   | Supabase Python client (DB + Storage)                                                          |
-| `python-jose`            | 3.3.0    | JWT decode + JWKS key construction                                                             |
-| `cryptography`           | 41.0.7   | Required by python-jose for EC (ES256) key support                                             |
-| `requests`               | 2.32.3   | HTTP client for JWKS fetch                                                                     |
+|| `supabase`               | 2.10.0   | Supabase Python client (DB + Storage)                                                          |
+|| `pyjwt`                  | 2.8.0    | JWT decode + JWKS key construction via PyJWK                                                   |
+|| `requests`               | 2.32.3   | HTTP client for JWKS fetch
 | `pytest`                 | 7.4.0    | Test runner                                                                                    |
 | `httpx`                  | 0.27.0   | Async HTTP client (required by FastAPI `TestClient`)                                           |
 | `torch`                  | 2.1.0    | PyTorch — EfficientNetV2-S inference (CPU-only build in Docker)                                |
