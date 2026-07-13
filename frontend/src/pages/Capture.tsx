@@ -137,18 +137,8 @@ export function Capture() {
     setError(null);
 
     try {
-      // Validate all files before starting upload
-      const uploadErrors: string[] = [];
-      for (const image of images) {
-        const validation = validateImageFile(image.file);
-        if (!validation.valid) {
-          uploadErrors.push(`${image.label}: ${validation.error}`);
-        }
-      }
-
-      if (uploadErrors.length > 0) {
-        throw new Error(uploadErrors.join("\n"));
-      }
+      // Files are already validated in the file input onChange handlers, so
+      // they can be uploaded directly.
 
       // Create session
       const { data: sessionData, error: sessionError } = await supabase
