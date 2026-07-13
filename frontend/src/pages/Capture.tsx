@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Aperture,
@@ -69,6 +69,13 @@ export function Capture() {
   const [expandedTooltip, setExpandedTooltip] = useState<string | null>(null);
   const [showSixImageWarning, setShowSixImageWarning] = useState(false);
   const sixImageWarningShownRef = useRef(false);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+    };
+  }, []);
 
   // Angle explanations for tooltips
   const angleExplanations: Record<string, string> = {
@@ -506,7 +513,8 @@ export function Capture() {
                           const validation = validateImageFile(file);
                           if (!validation.valid) {
                             setError(validation.error || "Invalid file");
-                            setTimeout(() => setError(null), 5000);
+                            if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+                            errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
                             return;
                           }
 
@@ -564,7 +572,8 @@ export function Capture() {
                       const validation = validateImageFile(file);
                       if (!validation.valid) {
                         setError(validation.error || "Invalid file");
-                        setTimeout(() => setError(null), 5000);
+                        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+                        errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
                         return;
                       }
 
