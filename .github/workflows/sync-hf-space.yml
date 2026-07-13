@@ -48,7 +48,28 @@ jobs:
           rsync -av --delete --exclude='.git' backend/ hf-space/
           echo "Rsync complete."
 
-      # ── 5. Commit & push (only if something actually changed) ─────────────
+      # ── 5. Create HF Spaces README with frontmatter ─────────────────────────
+      #     This must run AFTER rsync so --delete doesn't remove it.
+      - name: Create HF README
+        run: |
+          cat > hf-space/README.md << 'READMEOF'
+---
+title: BCD Backend
+emoji: 🩺
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+sdk_version: "1.0"
+python_version: "3.11"
+app_file: app/main.py
+pinned: false
+---
+
+READMEOF
+          cat backend/README.md >> hf-space/README.md
+          echo "HF README created."
+
+      # ── 6. Commit & push (only if something actually changed) ─────────────
       - name: Push to HF Space
         env:
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
