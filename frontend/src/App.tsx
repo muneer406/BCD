@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import { AppHeader } from "./components/AppHeader";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   RedirectIfAuthed,
   RequireAuth,
@@ -16,28 +17,30 @@ import { Signup } from "./pages/Signup";
 
 function App() {
   return (
-    <div className="min-h-screen">
-      <AppHeader />
-      <main>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route element={<RedirectIfAuthed />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-          </Route>
-          <Route element={<RequireAuth />}>
-            <Route path="/disclaimer" element={<Disclaimer />} />
-            <Route element={<RequireDisclaimer />}>
-              <Route path="/capture" element={<Capture />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/result" element={<Result />} />
-              <Route path="/result/:sessionId" element={<Result />} />
+    <ErrorBoundary>
+      <div className="min-h-screen">
+        <AppHeader />
+        <main>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route element={<RedirectIfAuthed />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
             </Route>
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </main>
-    </div>
+            <Route element={<RequireAuth />}>
+              <Route path="/disclaimer" element={<Disclaimer />} />
+              <Route element={<RequireDisclaimer />}>
+                <Route path="/capture" element={<Capture />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/result" element={<Result />} />
+                <Route path="/result/:sessionId" element={<Result />} />
+              </Route>
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 }
 
