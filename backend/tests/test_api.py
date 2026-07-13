@@ -148,11 +148,16 @@ def client(monkeypatch):
     class _FakeSupabase:
         def table(self, *a): return _FakeTable()
 
-    # Reset the client cache and patch get_supabase_client at the source
+    # Reset the client cache and patch get_supabase_client at all import sites
     from app.services import db as db_module
+    from app.api import analyze_session as session_module
+    from app.api import analyze_status as status_module
+    from app.api import compare_sessions as compare_module
+    from app.api import utility as utility_module
     db_module.reset_client()
-    monkeypatch.setattr(db_module, "get_supabase_client",
-                        lambda: _FakeSupabase())
+    mock_client = lambda: _FakeSupabase()
+    for mod in (db_module, session_module, status_module, compare_module, utility_module):
+        monkeypatch.setattr(mod, "get_supabase_client", mock_client)
 
     yield TestClient(app, raise_server_exceptions=False)
 
