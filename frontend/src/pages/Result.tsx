@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   CalendarDays,
@@ -326,7 +326,7 @@ export function Result() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, sessionId]);
 
-  const handleReanalyze = async () => {
+  const handleReanalyze = useCallback(async () => {
     if (!user || !sessionId || reanalyzing) return;
     setReanalyzing(true);
     setAnalysisLoading(true);
@@ -383,7 +383,27 @@ export function Result() {
     } finally {
       setReanalyzing(false);
     }
-  };
+  }, [user, sessionId, reanalyzing, isFirstSession, previousSessionId, setReanalyzing, setAnalysisLoading, setComparisonLoading, setAnalysisData, setComparisonData]);
+
+  const handleDownload = useCallback(async (previewUrl: string, index: number, title: string) => {
+    try {
+      const response = await fetch(previewUrl);
+      if (!response.ok) throw new Error("Failed to download image");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${title.replaceAll(" ", "-").toLowerCase()}-${
+        index + 1
+      }.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed:", err);
+    }
+  }, []);
 
   const renderPreview = (title: string) => {
     const imageType = imageTypeByTitle[title];
@@ -401,26 +421,6 @@ export function Result() {
       );
     }
 
-    const handleDownload = async (previewUrl: string, index: number) => {
-      try {
-        const response = await fetch(previewUrl);
-        if (!response.ok) throw new Error("Failed to download image");
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${title.replaceAll(" ", "-").toLowerCase()}-${
-          index + 1
-        }.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } catch (err) {
-        console.error("Download failed:", err);
-      }
-    };
-
     if (images.length === 1) {
       const image = images[0];
       return (
@@ -432,7 +432,7 @@ export function Result() {
               className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl object-cover"
             />
             <button
-              onClick={() => handleDownload(image.preview_url, 0)}
+              onClick={() => handleDownload(image.preview_url, 0, title)}
               className="w-full flex items-center justify-center gap-1 text-xs font-semibold text-ink-700 hover:text-ink-900 transition-colors"
             >
               <Download className="h-3 w-3" />
