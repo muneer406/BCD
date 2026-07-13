@@ -161,6 +161,18 @@ drop policy if exists "allow_upload_own_folder" on storage.objects;
 drop policy if exists "allow_read_own_images" on storage.objects;
 
 -- Users can upload to their own folder
+-- SECURITY NOTE: These RLS policies rely on the storage object path starting
+-- with the owning user's UUID as the first folder segment, e.g.:
+--   {user_id}/{session_id}/{type}_{timestamp}_{random}.{ext}
+-- This matches the convention documented in STORAGE_SETUP.md and enforced by
+-- the application upload helpers. If the upload path format ever changes, these
+-- policies MUST be updated in tandem. Relying solely on the first folder name
+-- is a deliberate trade-off to keep authorization stateless; it only remains
+-- safe while the first path segment is guaranteed to equal auth.uid().
+--
+-- TODO: Consider adding a path-format trigger/function (or bucket validation)
+-- to reject objects that do not match the expected structure, eliminating this
+-- assumption at the database level.
 drop policy if exists "Users can upload to own folder" on storage.objects;
 
 create policy "Users can upload to own folder"
@@ -172,6 +184,7 @@ with check (
 );
 
 -- Users can read their own images
+-- SECURITY NOTE: Same path-format assumption as the upload policy above.
 drop policy if exists "Users can read own images" on storage.objects;
 
 create policy "Users can read own images"
@@ -183,6 +196,7 @@ using (
 );
 
 -- Users can delete their own images
+-- SECURITY NOTE: Same path-format assumption as the upload policy above.
 drop policy if exists "Users can delete own images" on storage.objects;
 
 create policy "Users can delete own images"
