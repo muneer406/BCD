@@ -172,6 +172,17 @@ def analyze_session(
 
     if async_process:
         _analysis_jobs[session_id] = {"status": "processing", "error": None}
+        # Persist job state to DB so it survives restarts
+        try:
+            supabase = get_supabase_client()
+            supabase.table("analysis_logs").insert({
+                "session_id": session_id,
+                "user_id": user_id,
+                "status": "processing",
+                "processing_time_ms": None,
+            }).execute()
+        except Exception:
+            pass  # Non-critical — in-memory fallback still works
         background_tasks.add_task(
             _process_and_store, session_id, user_id, images)
         return {
