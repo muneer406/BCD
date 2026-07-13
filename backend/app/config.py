@@ -10,7 +10,7 @@ load_dotenv()
 class Settings:
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-    supabase_jwt_public_key: str = os.getenv("SUPABASE_JWT_PUBLIC_KEY", "")
+    # supabase_jwt_public_key was removed in favor of JWKS-based verification
     supabase_jwks_url: str = os.getenv("SUPABASE_JWKS_URL", "")
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "ES256")
     api_host: str = os.getenv("API_HOST", "0.0.0.0")
@@ -36,7 +36,6 @@ def get_settings() -> Settings:
         return Settings(
             supabase_url=settings.supabase_url,
             supabase_service_role_key=settings.supabase_service_role_key,
-            supabase_jwt_public_key=settings.supabase_jwt_public_key,
             supabase_jwks_url=jwks_url,
             jwt_algorithm=settings.jwt_algorithm,
             api_host=settings.api_host,
