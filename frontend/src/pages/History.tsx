@@ -9,13 +9,17 @@ import {
   Loader,
   Sparkles,
   TimerReset,
+  Trash2,
 } from "lucide-react";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
 import { SectionHeading } from "../components/SectionHeading";
+import { SimpleModal } from "../components/SimpleModal";
+import { Button } from "../components/Button";
 import { useAuth } from "../context/AuthContext";
 import { useSessionCache } from "../context/SessionCacheContext";
 import { supabase } from "../lib/supabaseClient";
+import { apiClient } from "../lib/apiClient";
 import { ROYAL_RESULT_IDS } from "../lib/constants";
 
 type SessionRow = {
@@ -43,8 +47,27 @@ export function History() {
   const [page, setPage] = useState(1);
   const prevUserIdRef = useRef<string | undefined>(undefined);
   const [totalSessions, setTotalSessions] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Process session data - add metadata (no thumbnails for privacy)
+  const handleDeleteSession = async () => {
+    if (!deleteTarget || !user || deleting) return;
+    setDeleting(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token || "";
+      if (!token) throw new Error("Not authenticated");
+      await apiClient.deleteSession(deleteTarget, token);
+      setSessions((prev) => prev.filter((s) => s.id !== deleteTarget));
+      setTotalSessions((prev) => Math.max(0, prev - 1));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Delete failed:", err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const processSessionsData = useCallback(
     (rows: SessionRow[], totalCount: number): SessionWithThumbnail[] => {
       return rows.map((session, index) => {
@@ -407,6 +430,18 @@ export function History() {
                       </div>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDeleteTarget(session.id);
+                    }}
+                    className="self-start sm:self-center flex-shrink-0 rounded-full p-2 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                    title="Delete session"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </Card>
               </Link>
             );
@@ -428,6 +463,37 @@ export function History() {
           )}
         </div>
       )}
+
+      {/* Delete confirmation modal */}
+      <SimpleModal open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)}>
+        <div className="space-y-4 text-center">
+          <Trash2 className="h-10 w-10 mx-auto text-red-500" />
+          <h3 className="text-lg font-heading font-semibold text-ink-900">
+            Delete this session?
+          </h3>
+          <p className="text-sm text-ink-700">
+            This will permanently delete all images and analysis results for this
+            session. This action cannot be undone.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDeleteSession}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
+      </SimpleModal>
     </PageShell>
   );
 }

@@ -12,6 +12,7 @@ from .api.compare_sessions import router as compare_router
 from .api.generate_report import router as report_router
 from .api.session_analysis import router as session_analysis_router
 from .api.utility import router as utility_router
+from .api.delete_session import router as delete_session_router
 from .api.auth import router as auth_router
 from .config import get_settings
 from .limiter import limiter as _shared_limiter
@@ -153,6 +154,7 @@ app.include_router(report_router, prefix=settings.api_prefix)
 app.include_router(session_analysis_router, prefix=settings.api_prefix)
 app.include_router(utility_router, prefix=settings.api_prefix)
 app.include_router(auth_router, prefix=settings.api_prefix)
+app.include_router(delete_session_router, prefix=settings.api_prefix)
 
 
 # ---------------------------------------------------------------------------
