@@ -72,28 +72,35 @@ try:
         os.environ["SUPABASE_SERVICE_ROLE_KEY"],
     )
     EMAIL = os.environ.get("TEST_EMAIL", "test1@dev.com")
-    PASSWORD = os.environ.get("TEST_PASSWORD", "test@123")
-    res = sb.auth.sign_in_with_password({"email": EMAIL, "password": PASSWORD})
-    TOKEN = res.session.access_token
-    USER_ID = res.user.id
-    check("sign_in_with_password succeeds", bool(TOKEN))
-    print(f"  user_id: {USER_ID}")
-    print(f"  token:   {TOKEN[:40]}...")
+    PASSWORD = os.environ.get("TEST_PASSWORD", "")
+    if not PASSWORD:
+        print("  WARNING TEST_PASSWORD env var not set, skipping login")
+        check("sign_in_with_password skipped (no TEST_PASSWORD)", True)
+        TOKEN = None
+        USER_ID = None
+        SESSION_ID = None
+    else:
+        res = sb.auth.sign_in_with_password({"email": EMAIL, "password": PASSWORD})
+        TOKEN = res.session.access_token
+        USER_ID = res.user.id
+        check("sign_in_with_password succeeds", bool(TOKEN))
+        print(f"  user_id: {USER_ID}")
+        print(f"  token:   {TOKEN[:40]}...")
 
-    sessions = (
-        sb.table("sessions")
-        .select("id, created_at, status")
-        .eq("user_id", USER_ID)
-        .order("created_at", desc=True)
-        .limit(3)
-        .execute()
-    )
-    if sessions.data:
-        for s in sessions.data:
-            print(
-                f"  session: {s['id']}  status={s['status']}  {s['created_at'][:19]}")
-        SESSION_ID = sessions.data[0]["id"]
-    check("at least one session found", bool(SESSION_ID))
+        sessions = (
+            sb.table("sessions")
+            .select("id, created_at, status")
+            .eq("user_id", USER_ID)
+            .order("created_at", desc=True)
+            .limit(3)
+            .execute()
+        )
+        if sessions.data:
+            for s in sessions.data:
+                print(
+                    f"  session: {s['id']}  status={s['status']}  {s['created_at'][:19]}")
+            SESSION_ID = sessions.data[0]["id"]
+        check("at least one session found", bool(SESSION_ID))
 except Exception as e:
     check("auth + session lookup", False, str(e))
 
