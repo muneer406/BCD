@@ -131,5 +131,5 @@ def generate_link(request: Request, body: MagicRequest):
         logger.exception("Unexpected error in Magic Pass login")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Magic Pass error: {str(e)}",
+            detail="Failed to process authentication request",
         )
