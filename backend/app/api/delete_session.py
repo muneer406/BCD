@@ -34,6 +34,11 @@ def delete_session(
     - Embeddings (session, angle, region)
 
     Only the owning user can delete their own session.
+
+    Known limitation: Supabase/CDN cached copies of deleted images may persist
+    for a period after the underlying storage objects are removed. To fully
+    invalidate cached images, either purge the CDN cache or wait for the cache
+    TTL to expire in addition to this deletion.
     """
     user_id = user.get("user_id")
     if not user_id:
@@ -74,6 +79,13 @@ def delete_session(
                 # Delete in batches of 100 (Supabase limit)
                 for i in range(0, len(storage_paths), 100):
                     batch = storage_paths[i:i + 100]
+                    # NOTE: storage.remove() deletes the current objects in the
+                    # Supabase bucket, but cached copies served by the Supabase
+                    # CDN (or any downstream CDN in front of the bucket) may
+                    # continue to be available until the cache is purged or the
+                    # TTL expires. This is a known limitation of the current
+                    # deletion flow; full cache invalidation requires an
+                    # explicit purge or waiting for TTL expiry.
                     supabase.storage.from_("bcd-images").remove(batch)
             except Exception as e:
                 logger.warning("Storage cleanup partial failure for session %s: %s", session_id, e)
