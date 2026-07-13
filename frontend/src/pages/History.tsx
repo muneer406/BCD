@@ -50,7 +50,7 @@ export function History() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const handleDeleteSession = async () => {
+  const handleDeleteSession = useCallback(async () => {
     if (!deleteTarget || !user || deleting) return;
     setDeleting(true);
     try {
@@ -66,7 +66,7 @@ export function History() {
     } finally {
       setDeleting(false);
     }
-  };
+  }, [deleteTarget, user, deleting, setDeleting, setSessions, setTotalSessions, setDeleteTarget]);
 
   const processSessionsData = useCallback(
     (rows: SessionRow[], totalCount: number): SessionWithThumbnail[] => {
