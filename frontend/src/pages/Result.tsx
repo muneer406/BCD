@@ -213,8 +213,35 @@ export function Result() {
         const token = sessionData.session?.access_token || "";
         const API_URL = import.meta.env.VITE_API_URL || "";
 
-        // ── Step 1: Get session info (fast DB lookup) ──────────────────────
-        const sessionInfo = await apiClient.getSessionInfo(sessionId, token);
+        // ── Step 1: Launch session-info and analysis in parallel ───────────
+        // session-info is only needed for the comparison step, while analysis
+        // is independent. Start both at the same time to reduce waterfall latency.
+        const sessionInfoPromise = apiClient.getSessionInfo(sessionId, token);
+        const analysisPromise = fetch(
+          `${API_URL}/api/analyze-session/${sessionId}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+        )
+          .then(async (res) => {
+            if (!active) return;
+            if (res.ok) {
+              const analysis = (await res.json()) as AnalysisResponse;
+              if (active) setAnalysisData(analysis);
+            }
+          })
+          .catch((err) => console.error("Analysis fetch error:", err))
+          .finally(() => {
+            if (active) setAnalysisLoading(false);
+          });
+
+        // Await session-info first so we can release the loading state and
+        // determine whether a comparison is needed.
+        const sessionInfo = await sessionInfoPromise;
         if (!active) return;
 
         setIsFirstSession(sessionInfo.is_first_session);
@@ -224,7 +251,7 @@ export function Result() {
         setLoading(false); // Render the page skeleton immediately
         dataLoadedRef.current = true; // mark loaded — prevents re-run on token refresh
 
-        // ── Step 2: Load images + analysis IN PARALLEL ─────────────────────
+        // ── Step 2: Load images while analysis runs in parallel ────────────
         const imageTypes = ["front", "left", "right", "up", "down", "raised"];
 
         const imagesPromise = Promise.all(
@@ -249,29 +276,6 @@ export function Result() {
           if (active) setImagesLoading(false);
         });
 
-        const analysisPromise = fetch(
-          `${API_URL}/api/analyze-session/${sessionId}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          },
-        )
-          .then(async (res) => {
-            if (!active) return;
-            if (res.ok) {
-              const analysis = (await res.json()) as AnalysisResponse;
-              if (active) setAnalysisData(analysis);
-            }
-          })
-          .catch((err) => console.error("Analysis fetch error:", err))
-          .finally(() => {
-            if (active) setAnalysisLoading(false);
-          });
-
-        // Run both in parallel — don't await one before the other
         await Promise.all([imagesPromise, analysisPromise]);
 
         // ── Step 3: Comparison (after analysis, only if needed) ────────────
