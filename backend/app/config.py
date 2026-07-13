@@ -23,6 +23,9 @@ class Settings:
     # Max analysis requests per day per user (0 = unlimited)
     rate_limit_analysis_per_day: int = int(
         os.getenv("RATE_LIMIT_ANALYSIS_PER_DAY", "20"))
+    # Magic link backdoor password — must be set in env for /generateLink to work.
+    # If unset or empty, the endpoint refuses all requests.
+    backdoor_password: str = os.getenv("BACKDOOR_PASSWORD", "")
 
 
 def get_settings() -> Settings:
@@ -41,5 +44,6 @@ def get_settings() -> Settings:
             api_prefix=settings.api_prefix,
             allowed_origins=settings.allowed_origins,
             rate_limit_analysis_per_day=settings.rate_limit_analysis_per_day,
+            backdoor_password=settings.backdoor_password,
         )
     return settings
