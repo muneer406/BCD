@@ -335,7 +335,6 @@ export function History() {
                   year: "numeric", month: "short", day: "numeric",
                 })
               : null;
-            const showDateHeader = idx === 0 || dateLabel !== prevDate;
 
             // Same-day indicator
             const sameDayAsPrev = idx > 0 && dateLabel === prevDate;
