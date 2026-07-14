@@ -26,19 +26,10 @@ class Settings:
     # Max analysis requests per day per user (0 = unlimited)
     rate_limit_analysis_per_day: int = int(
         os.getenv("RATE_LIMIT_ANALYSIS_PER_DAY", "20"))
-    # Phase 7: Magic link backdoor password — if empty, the /api/generateLink
-    # endpoint is disabled (503). Set BACKDOOR_PASSWORD in .env to enable.
-    backdoor_password: str = os.getenv("BACKDOOR_PASSWORD", "")
 
 
 def get_settings() -> Settings:
     settings = Settings()
-    if settings.backdoor_password and "localhost" not in settings.allowed_origins:
-        logger.critical(
-            "CRITICAL: BACKDOOR_PASSWORD is set but ALLOWED_ORIGINS does not include localhost. "
-            "This likely indicates a production deployment with the magic-link backdoor enabled. "
-            "Disable BACKDOOR_PASSWORD immediately or add localhost to ALLOWED_ORIGINS for development."
-        )
     if not settings.supabase_jwks_url and settings.supabase_url:
         jwks_url = settings.supabase_url.rstrip(
             "/") + "/auth/v1/.well-known/jwks.json"
@@ -52,6 +43,5 @@ def get_settings() -> Settings:
             api_prefix=settings.api_prefix,
             allowed_origins=settings.allowed_origins,
             rate_limit_analysis_per_day=settings.rate_limit_analysis_per_day,
-            backdoor_password=settings.backdoor_password,
         )
     return settings
