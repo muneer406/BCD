@@ -33,7 +33,7 @@ from .session_service import get_previous_session_id
 
 logger = logging.getLogger(__name__)
 
-ANALYSIS_VERSION = "v0.8"   # Bump when model or pipeline changes
+ANALYSIS_VERSION = "v0.8.1" # Bump when model or pipeline changes
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +122,22 @@ def _load_per_angle_baselines(user_id: str, exclude_session_id: str) -> Dict[str
 # ---------------------------------------------------------------------------
 # Trend score
 # ---------------------------------------------------------------------------
+
+def _compute_symmetry_score(angle_embeddings: Dict[str, np.ndarray]) -> Optional[float]:
+    """
+    Single-session symmetry score: cosine distance between left and right
+    angle embeddings captured in the same session.
+
+    Returns None if either left or right angle embeddings are missing.
+    This score is independent of any prior baseline, so it is available
+    even on a user's first session.
+    """
+    left = angle_embeddings.get("left")
+    right = angle_embeddings.get("right")
+    if left is None or right is None:
+        return None
+    return min(1.0, _cosine_distance(left, right))
+
 
 def _load_trend_score(user_id: str, exclude_session_id: str, n: int = 5) -> Optional[float]:
     """
@@ -438,6 +454,11 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
         else 0.0
     )
 
+    # ── 8c. Single-session symmetry score (Issue #141) ────────────────────────
+    # Compares left and right angle embeddings within the current session.
+    # Available even for first sessions because it does not require a baseline.
+    symmetry_score = _compute_symmetry_score(angle_embeddings)
+
     # ── 9. Image quality summary for API trust response ───────────────────────
     all_image_details: List[dict] = []
     for angle_result in per_angle_results:
@@ -495,6 +516,8 @@ def analyze_session(images: List[dict], user_id: str, session_id: str) -> Dict[s
             "variation_level": variation_level(overall_change_score),
             "angle_aware_score": angle_aware_score,
             "angle_aware_variation_level": variation_level(angle_aware_score),
+            "symmetry_score": float(symmetry_score) if symmetry_score is not None else None,
+            "symmetry_variation_level": variation_level(symmetry_score) if symmetry_score is not None else None,
             "trend_score": float(trend_score) if trend_score is not None else None,
             "is_first_session": is_first_session,
             "analysis_confidence_score": analysis_confidence_score,

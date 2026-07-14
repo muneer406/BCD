@@ -6,6 +6,8 @@ import {
   useCallback,
 } from "react";
 
+export type CaptureMode = "quick" | "full";
+
 export type CaptureImage = {
   type: string;
   label: string;
@@ -15,8 +17,10 @@ export type CaptureImage = {
 
 type DraftContextValue = {
   images: CaptureImage[];
+  mode: CaptureMode;
   setImage: (image: CaptureImage) => void;
   removeImage: (type: string) => void;
+  setMode: (mode: CaptureMode) => void;
   clearDraft: () => void;
 };
 
@@ -24,6 +28,7 @@ const DraftContext = createContext<DraftContextValue | undefined>(undefined);
 
 export function DraftProvider({ children }: { children: React.ReactNode }) {
   const [images, setImages] = useState<CaptureImage[]>([]);
+  const [mode, setModeState] = useState<CaptureMode>("full");
 
   const setImage = useCallback((image: CaptureImage) => {
     // Add new image without removing previous ones of the same type
@@ -54,6 +59,10 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setMode = useCallback((nextMode: CaptureMode) => {
+    setModeState(nextMode);
+  }, []);
+
   const clearDraft = useCallback(() => {
     setImages((prev) => {
       prev.forEach((entry) => {
@@ -65,11 +74,12 @@ export function DraftProvider({ children }: { children: React.ReactNode }) {
       });
       return [];
     });
+    setModeState("full");
   }, []);
 
   const value = useMemo(
-    () => ({ images, setImage, removeImage, clearDraft }),
-    [images, setImage, removeImage, clearDraft],
+    () => ({ images, mode, setImage, removeImage, setMode, clearDraft }),
+    [images, mode, setImage, removeImage, setMode, clearDraft],
   );
 
   return (

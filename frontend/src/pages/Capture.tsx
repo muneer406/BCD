@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Sparkles,
   Trash2,
+  Zap,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -21,7 +23,7 @@ import { SimpleModal } from "../components/SimpleModal";
 import { SectionHeading } from "../components/SectionHeading";
 import { useAuth } from "../context/AuthContext";
 import { useDraft } from "../context/DraftContext";
-import { captureSteps } from "../data/captureSteps";
+import { quickSteps, fullSteps } from "../data/captureSteps";
 import { supabase } from "../lib/supabaseClient";
 import {
   analyzeImageQuality,
@@ -66,21 +68,24 @@ function validateImageFile(file: File): { valid: boolean; error?: string } {
 
 export function Capture() {
   const { user } = useAuth();
-  const { images, setImage, removeImage, clearDraft } = useDraft();
+  const { images, mode, setImage, removeImage, setMode, clearDraft } =
+    useDraft();
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTooltip, setExpandedTooltip] = useState<string | null>(null);
-  const [showSixImageWarning, setShowSixImageWarning] = useState(false);
+  const [showMinimumImageWarning, setShowMinimumImageWarning] = useState(false);
   const [qualityWarnings, setQualityWarnings] = useState<
     Record<string, QualityIssue[]>
   >({});
   const [qualityLoading, setQualityLoading] = useState<Record<string, boolean>>(
     {},
   );
-  const sixImageWarningShownRef = useRef(false);
+  const minimumImageWarningShownRef = useRef(false);
   const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qualityAbortRefs = useRef<Record<string, AbortController>>({});
+
+  const currentSteps = mode === "quick" ? quickSteps : fullSteps;
 
   useEffect(() => {
     return () => {
@@ -105,6 +110,12 @@ export function Capture() {
     };
   }, []);
 
+  // Reset the minimum-image warning when the user switches modes so the
+  // recommendation is shown again for the new tier.
+  useEffect(() => {
+    minimumImageWarningShownRef.current = false;
+  }, [mode]);
+
   // Angle explanations for tooltips
   const angleExplanations: Record<string, string> = {
     front:
@@ -114,7 +125,7 @@ export function Capture() {
       "Right side view. Complements the left side for full awareness of lateral changes.",
     up: "Upward angled view. Reveals how the area appears from above.",
     down: "Downward angled view. Shows how the area appears from below for complete perspective.",
-    "full-body": "Full body view showing the overall proportions and context.",
+    raised: "Full body view showing the overall proportions and context.",
   };
 
   // Get all images grouped by type
@@ -129,19 +140,31 @@ export function Capture() {
     return groups;
   }, [images]);
 
-  const allStepsPresent = captureSteps.every((step) =>
+  // Images that belong to the currently selected capture tier
+  const currentImages = useMemo(
+    () =>
+      images.filter((image) =>
+        currentSteps.some((step) => step.type === image.type),
+      ),
+    [images, currentSteps],
+  );
+
+  const allStepsPresent = currentSteps.every((step) =>
     imagesByType.has(step.type),
   );
-  const completedCount = captureSteps.filter((step) =>
+  const completedCount = currentSteps.filter((step) =>
     imagesByType.has(step.type),
   ).length;
 
   const handleSaveSession = useCallback(async () => {
     if (!user || !allStepsPresent) return;
-    // Only show warning if exactly 6 images (1 per angle), and not already shown for this submission
-    const totalImages = images.length;
-    if (totalImages === 6 && !sixImageWarningShownRef.current) {
-      setShowSixImageWarning(true);
+    // Only show warning if exactly one image per required angle, and not
+    // already shown for this submission.
+    if (
+      currentImages.length === currentSteps.length &&
+      !minimumImageWarningShownRef.current
+    ) {
+      setShowMinimumImageWarning(true);
       return;
     }
     setSaving(true);
@@ -151,10 +174,10 @@ export function Capture() {
       // Files are already validated in the file input onChange handlers, so
       // they can be uploaded directly.
 
-      // Create session
+      // Create session with the selected capture tier
       const { data: sessionData, error: sessionError } = await supabase
         .from("sessions")
-        .insert({ user_id: user.id })
+        .insert({ user_id: user.id, session_type: mode })
         .select("id")
         .single();
 
@@ -166,8 +189,8 @@ export function Capture() {
       const failedImages: string[] = [];
       const uploadedPaths: string[] = [];
 
-      // Save all images (including duplicates per type)
-      for (const image of images) {
+      // Save only images belonging to the current capture tier
+      for (const image of currentImages) {
         try {
           const ext = getFileExtension(image.file);
           // Use timestamp to ensure unique filename for each save
@@ -269,7 +292,6 @@ export function Capture() {
       }
 
       clearDraft();
-      sixImageWarningShownRef.current = false; // reset for next submission
       navigate(`/result/${sessionId}`, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "An error occurred";
@@ -277,18 +299,26 @@ export function Capture() {
     } finally {
       setSaving(false);
     }
-  }, [user, allStepsPresent, images, clearDraft, navigate, setSaving, setError, setShowSixImageWarning, sixImageWarningShownRef]);
+  }, [
+    user,
+    allStepsPresent,
+    currentImages,
+    currentSteps.length,
+    mode,
+    clearDraft,
+    navigate,
+  ]);
 
   // Handler for confirming the warning and proceeding
-  const handleSixImageWarningProceed = useCallback(() => {
-    setShowSixImageWarning(false);
-    sixImageWarningShownRef.current = true;
+  const handleMinimumImageWarningProceed = useCallback(() => {
+    setShowMinimumImageWarning(false);
+    minimumImageWarningShownRef.current = true;
     handleSaveSession();
-  }, [setShowSixImageWarning, sixImageWarningShownRef, handleSaveSession]);
+  }, [handleSaveSession]);
 
   // Handler for canceling and letting user add more images
-  const handleSixImageWarningCancel = useCallback(() => {
-    setShowSixImageWarning(false);
+  const handleMinimumImageWarningCancel = useCallback(() => {
+    setShowMinimumImageWarning(false);
   }, []);
 
   const clearQualityWarnings = useCallback((type: string) => {
@@ -322,7 +352,7 @@ export function Capture() {
         if (result.issues.length > 0) {
           setQualityWarnings((prev) => ({ ...prev, [type]: result.issues }));
         }
-      } catch (err) {
+      } catch {
         if (controller.signal.aborted) return;
         // Non-blocking: quality checks failing should not prevent capture.
       } finally {
@@ -344,13 +374,113 @@ export function Capture() {
     });
   }, []);
 
+  const handleFileChange = useCallback(
+    (
+      event: React.ChangeEvent<HTMLInputElement>,
+      step: { type: string; label: string },
+    ) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      // Validate file
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        setError(validation.error || "Invalid file");
+        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+        errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
+        return;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      objectUrlsRef.current.add(previewUrl);
+
+      setImage({
+        type: step.type,
+        label: step.label,
+        file,
+        previewUrl,
+      });
+      setError(null);
+      void runQualityCheck(file, step.type);
+    },
+    [setImage, runQualityCheck],
+  );
+
+  const pageTitle =
+    mode === "quick" ? "Quick 2-angle check" : "Capture from 6 angles";
+  const pageDescription =
+    mode === "quick"
+      ? "A fast front + side check for weekly tracking."
+      : "Follow each angle for a complete baseline or monthly session.";
+
   return (
     <PageShell className="space-y-10">
       <SectionHeading
         eyebrow="Capture session"
-        title="Capture from 6 angles"
-        description="Follow each angle for consistent results."
+        title={pageTitle}
+        description={pageDescription}
       />
+
+      {/* Tier selector */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setMode("quick")}
+          className={`relative flex items-start gap-4 rounded-2xl border p-4 text-left transition ${
+            mode === "quick"
+              ? "border-amber-300 bg-amber-50/70 ring-1 ring-amber-300"
+              : "border-sand-200 bg-white/70 hover:bg-sand-50"
+          }`}
+        >
+          <div
+            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
+              mode === "quick" ? "bg-amber-200 text-amber-900" : "bg-sand-100 text-ink-700"
+            }`}
+          >
+            <Zap className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-ink-900">Quick check</p>
+            <p className="mt-0.5 text-xs text-ink-700">
+              2 photos · front + side
+            </p>
+            <p className="mt-1.5 text-xs text-ink-600">
+              Best for frequent, low-friction tracking.
+            </p>
+          </div>
+          {mode === "quick" && (
+            <span className="absolute right-3 top-3 flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMode("full")}
+          className={`relative flex items-start gap-4 rounded-2xl border p-4 text-left transition ${
+            mode === "full"
+              ? "border-tide-300 bg-tide-50/70 ring-1 ring-tide-300"
+              : "border-sand-200 bg-white/70 hover:bg-sand-50"
+          }`}
+        >
+          <div
+            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
+              mode === "full" ? "bg-tide-200 text-tide-900" : "bg-sand-100 text-ink-700"
+            }`}
+          >
+            <ClipboardList className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-ink-900">Full session</p>
+            <p className="mt-0.5 text-xs text-ink-700">6 photos · all angles</p>
+            <p className="mt-1.5 text-xs text-ink-600">
+              Best for establishing or refreshing your baseline.
+            </p>
+          </div>
+          {mode === "full" && (
+            <span className="absolute right-3 top-3 flex h-2.5 w-2.5 rounded-full bg-tide-500" />
+          )}
+        </button>
+      </div>
 
       <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-tide-200 bg-[linear-gradient(135deg,rgba(232,242,247,0.96),rgba(248,244,238,0.94))] p-5 sm:p-6 shadow-lift">
         <div className="pointer-events-none absolute -right-12 top-0 h-28 w-28 rounded-full bg-tide-200/40 blur-3xl" />
@@ -460,13 +590,13 @@ export function Capture() {
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex-1 rounded-full bg-sand-100 px-3 sm:px-4 py-2 sm:py-3">
             <p className="text-xs sm:text-sm font-semibold text-ink-900">
-              {completedCount} of {captureSteps.length} angles captured
+              {completedCount} of {currentSteps.length} angles captured
             </p>
             <div className="mt-2 h-2 w-full rounded-full bg-sand-200">
               <div
                 className="h-full rounded-full bg-ink-900 transition-all"
                 style={{
-                  width: `${(completedCount / captureSteps.length) * 100}%`,
+                  width: `${(completedCount / currentSteps.length) * 100}%`,
                 }}
               />
             </div>
@@ -476,7 +606,7 @@ export function Capture() {
 
       {/* Image capture grid */}
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-        {captureSteps.map((step) => {
+        {currentSteps.map((step) => {
           const typeImages = imagesByType.get(step.type) || [];
           const hasImages = typeImages.length > 0;
 
@@ -493,49 +623,52 @@ export function Capture() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900">
-                    {step.label}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedTooltip(
-                        expandedTooltip === step.type ? null : step.type,
-                      )
-                    }
-                    className="inline-flex items-center justify-center rounded-full p-1 hover:bg-sand-100 transition-colors flex-shrink-0"
-                    title={angleExplanations[step.type] || ""}
-                  >
-                    <HelpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-600" />
-                  </button>
-                </div>
-
-                {expandedTooltip === step.type && (
-                  <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-2 sm:p-3">
-                    <p className="text-xs sm:text-sm text-blue-900">
-                      {angleExplanations[step.type] || step.guidance}
-                    </p>
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900">
+                      {step.label}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedTooltip(
+                          expandedTooltip === step.type ? null : step.type,
+                        )
+                      }
+                      className="inline-flex items-center justify-center rounded-full p-1 hover:bg-sand-100 transition-colors flex-shrink-0"
+                      title={angleExplanations[step.type] || ""}
+                    >
+                      <HelpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-600" />
+                    </button>
                   </div>
-                )}
 
-                <p className="text-xs sm:text-sm text-ink-700">
-                  {step.guidance}
-                </p>
-                {hasImages && (
-                  <p className="text-xs text-sand-600 font-medium">
-                    {typeImages.length} image
-                    {typeImages.length !== 1 ? "s" : ""} captured ✓
+                  {expandedTooltip === step.type && (
+                    <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-2 sm:p-3">
+                      <p className="text-xs sm:text-sm text-blue-900">
+                        {angleExplanations[step.type] || step.guidance}
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-xs sm:text-sm text-ink-700">
+                    {step.guidance}
                   </p>
-                )}
+                  {hasImages && (
+                    <p className="text-xs text-sand-600 font-medium">
+                      {typeImages.length} image
+                      {typeImages.length !== 1 ? "s" : ""} captured ✓
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
 
               {hasImages ? (
                 <div className="space-y-2 sm:space-y-3">
                   {/* Gallery grid for multiple images */}
                   {typeImages.length === 1 ? (
-                    <ImageModal src={typeImages[0].previewUrl} alt={step.label}>
+                    <ImageModal
+                      src={typeImages[0].previewUrl}
+                      alt={step.label}
+                    >
                       <img
                         src={typeImages[0].previewUrl}
                         alt={step.label}
@@ -635,31 +768,7 @@ export function Capture() {
                         capture="environment"
                         className="sr-only"
                         disabled={saving}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (!file) return;
-
-                          // Validate file
-                          const validation = validateImageFile(file);
-                          if (!validation.valid) {
-                            setError(validation.error || "Invalid file");
-                            if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
-                            errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
-                            return;
-                          }
-
-                          const previewUrl = URL.createObjectURL(file);
-                          objectUrlsRef.current.add(previewUrl);
-
-                          setImage({
-                            type: step.type,
-                            label: step.label,
-                            file,
-                            previewUrl,
-                          });
-                          setError(null);
-                          void runQualityCheck(file, step.type);
-                        }}
+                        onChange={(event) => handleFileChange(event, step)}
                       />
                       <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       Add more
@@ -699,31 +808,7 @@ export function Capture() {
                     capture="environment"
                     className="sr-only"
                     disabled={saving}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) return;
-
-                      // Validate file
-                      const validation = validateImageFile(file);
-                      if (!validation.valid) {
-                        setError(validation.error || "Invalid file");
-                        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
-                        errorTimeoutRef.current = setTimeout(() => setError(null), 5000);
-                        return;
-                      }
-
-                      const previewUrl = URL.createObjectURL(file);
-                      objectUrlsRef.current.add(previewUrl);
-
-                      setImage({
-                        type: step.type,
-                        label: step.label,
-                        file,
-                        previewUrl,
-                      });
-                      setError(null);
-                      void runQualityCheck(file, step.type);
-                    }}
+                    onChange={(event) => handleFileChange(event, step)}
                   />
                   <Camera className="h-8 w-8 sm:h-10 sm:w-10 text-ink-900" />
                   <span className="mt-2 text-xs sm:text-sm font-semibold text-ink-900">
@@ -767,10 +852,10 @@ export function Capture() {
         </Button>
       </div>
 
-      {/* 6-image warning modal */}
+      {/* Minimum-image warning modal */}
       <SimpleModal
-        open={showSixImageWarning}
-        onClose={handleSixImageWarningCancel}
+        open={showMinimumImageWarning}
+        onClose={handleMinimumImageWarningCancel}
       >
         <div className="space-y-4">
           <div className="flex items-center gap-2">
@@ -781,7 +866,10 @@ export function Capture() {
           </div>
           <p className="text-ink-800 text-sm">
             You are submitting only{" "}
-            <span className="font-semibold">1 image per angle</span> (6 total).
+            <span className="font-semibold">
+              1 image per angle ({currentImages.length} total)
+            </span>
+            .
             <br />
             <span className="text-amber-700 font-semibold">
               For best accuracy, add more images for each angle if possible.
@@ -791,10 +879,10 @@ export function Capture() {
             errors from lighting or pose.
           </p>
           <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={handleSixImageWarningCancel}>
+            <Button variant="outline" onClick={handleMinimumImageWarningCancel}>
               Go back & add more
             </Button>
-            <Button onClick={handleSixImageWarningProceed}>
+            <Button onClick={handleMinimumImageWarningProceed}>
               Submit anyway
             </Button>
           </div>

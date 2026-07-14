@@ -38,10 +38,11 @@ function App() {
               <Route element={<RequireConsent />}>
                 <Route path="/disclaimer" element={<Disclaimer />} />
                 <Route element={<RequireDisclaimer />}>
-                <Route path="/capture" element={<Capture />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/result" element={<Result />} />
-                <Route path="/result/:sessionId" element={<Result />} />
+                  <Route path="/capture" element={<Capture />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/result" element={<Result />} />
+                  <Route path="/result/:sessionId" element={<Result />} />
+                </Route>
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

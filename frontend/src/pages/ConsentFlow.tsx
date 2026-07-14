@@ -81,7 +81,7 @@ export function ConsentFlow() {
       <div className="w-full max-w-lg space-y-6">
         {/* Step indicator */}
         <div className="flex items-center gap-2 justify-center">
-          {STEPS.map((s, i) => (
+          {STEPS.map((_, i) => (
             <div key={i} className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
@@ -198,7 +198,6 @@ export function ConsentFlow() {
           <Button
             onClick={handleNext}
             disabled={!canProceed}
-            variant={canProceed ? "primary" : "disabled"}
           >
             {isLastStep ? "Start using BCD" : "Continue"}
           </Button>
