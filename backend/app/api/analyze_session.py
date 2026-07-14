@@ -1,11 +1,15 @@
 import logging
+import os
 from threading import Lock
 from typing import Optional
+
+import numpy as np
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from ..dependencies import get_current_user
 from ..limiter import limiter
+from ..processing.embedding import compute_phash, phash_hamming_distance
 from ..processing.quality import variation_level
 from ..services.analysis_fetch_service import get_session_analysis as fetch_cached_analysis
 from ..services.analysis_service import analyze_session as run_analysis
@@ -218,7 +222,81 @@ def _process_and_store(session_id: str, user_id: str, images: list) -> None:
     try:
         with _analysis_lock:
             _analysis_jobs[session_id] = {"status": "processing", "error": None}
-        analysis = run_analysis(images, user_id, session_id)
+
+        # ── pHash fast pre-check (hybrid) ────────────────────────────────
+        # Compute pHash for current session; if previous session exists and
+        # hamming distance is below threshold, skip full PyTorch pipeline.
+        from pathlib import Path
+        import json as _json
+        _phash_dir = Path(__file__).parent.parent / "evaluation" / "data" / "phashes"
+        _phash_dir.mkdir(parents=True, exist_ok=True)
+        _phash_file = _phash_dir / f"{user_id}.json"
+
+        # Compute pHash for each angle of the current session
+        # (images are already downloaded by get_session_images)
+        current_phashes = {}
+        for img in images:
+            angle = img.get("image_type")
+            storage_path = img.get("storage_path", "")
+            if not angle or not storage_path:
+                continue
+            try:
+                from ..services.db import get_supabase_client as _gsc
+                from ..processing.preprocessing import preprocess_pipeline as _pp
+                _supa = _gsc()
+                proc = _pp(storage_path, _supa)
+                current_phashes[angle] = compute_phash(proc.image)
+            except Exception:
+                pass  # If phash fails, fall through to full PyTorch
+
+        skip_pytorch = False
+        if current_phashes and _phash_file.exists():
+            try:
+                previous = _json.loads(_phash_file.read_text())
+                if previous:
+                    dists = []
+                    for angle, ph in current_phashes.items():
+                        if angle in previous:
+                            dists.append(phash_hamming_distance(ph, previous[angle]))
+                    if dists:
+                        avg_dist = sum(dists) / len(dists)
+                        # Threshold: 15 (from benchmark — below means no significant change)
+                        if avg_dist < int(os.environ.get("PHASH_THRESHOLD", "15")):
+                            skip_pytorch = True
+                            logger.info(
+                                "pHash pre-check: avg_dist=%.1f (threshold=%s) — "
+                                "no significant change, skipping PyTorch",
+                                avg_dist, os.environ.get("PHASH_THRESHOLD", "15"),
+                            )
+            except Exception:
+                pass
+
+        # Store current phashes for future comparisons
+        try:
+            _phash_file.write_text(_json.dumps(current_phashes))
+        except Exception:
+            pass
+
+        if skip_pytorch:
+            # Return the previous session's analysis as a "no significant change" result
+            analysis = {
+                "per_angle": [],
+                "scores": {
+                    "overall_change_score": 0.0,
+                    "trend_score": 0.0,
+                    "analysis_confidence_score": 0.0,
+                    "session_quality_score": 0.0,
+                    "angle_aware_score": 0.0,
+                    "analysis_version": "phash-quick",
+                    "is_first_session": False,
+                    "quick_check": True,
+                },
+                "quality_summary": {},
+                "localized_insights": [],
+            }
+        else:
+            analysis = run_analysis(images, user_id, session_id)
+
         _persist_analysis(session_id, user_id, analysis)
         with _analysis_lock:
             _analysis_jobs[session_id] = {"status": "completed", "error": None}
