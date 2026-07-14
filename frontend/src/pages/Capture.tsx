@@ -418,7 +418,17 @@ export function Capture() {
 
           return (
             <Card key={step.type} className="space-y-3 sm:space-y-4">
-              <div className="space-y-1">
+              <div className="flex gap-4">
+                {/* Pose guide silhouette */}
+                {step.guideSvg && (
+                  <div className="hidden sm:flex flex-shrink-0 w-16 h-24 text-tide-500/60 items-center justify-center">
+                    <div
+                      className="w-full h-full"
+                      dangerouslySetInnerHTML={{ __html: step.guideSvg }}
+                    />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-center gap-1 sm:gap-2">
                   <h3 className="text-base sm:text-lg font-heading font-semibold text-ink-900">
                     {step.label}
@@ -455,6 +465,7 @@ export function Capture() {
                   </p>
                 )}
               </div>
+            </div>
 
               {hasImages ? (
                 <div className="space-y-2 sm:space-y-3">
