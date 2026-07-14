@@ -13,6 +13,9 @@ import {
   Sparkles,
   TrendingDown,
   TrendingUp,
+  ArrowLeftRight,
+  Columns2,
+  Maximize2,
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -65,6 +68,7 @@ type AnalysisResponse = {
         change_score: number;
         angle_quality_score?: number;
         summary: string;
+        symmetry_score?: number;
       }>;
       overall_summary: string;
     };
@@ -78,6 +82,10 @@ type AnalysisResponse = {
       angle_aware_variation_level?: string;
       analysis_version?: string;
       analysis_confidence_score?: number;
+      /** Optional confidence interval around the change score. */
+      change_confidence_interval?: [number, number] | number[];
+      /** Fallback symmetry metric shown for first sessions. */
+      symmetry_score?: number;
     };
     processing_time_ms?: number;
     image_quality_summary?: {
@@ -187,6 +195,13 @@ export function Result() {
   const [previousSessionId, setPreviousSessionId] = useState<string | null>(
     null,
   );
+  const [comparisonView, setComparisonView] = useState<"side" | "swipe">("side");
+  const [selectedAngle, setSelectedAngle] = useState<string>("front");
+  const [baselinePreviewMap, setBaselinePreviewMap] = useState<ImagePreviewMap>({});
+  const [baselineImagesLoading, setBaselineImagesLoading] = useState(true);
+  const swipeContainerRef = useRef<HTMLDivElement>(null);
+  const [swipePct, setSwipePct] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
   // Tracks whether initial load already completed — prevents re-runs from
   // token refresh events (Supabase recreates the user object on TOKEN_REFRESHED,
   // which would otherwise re-trigger the effect).
@@ -276,7 +291,35 @@ export function Result() {
           if (active) setImagesLoading(false);
         });
 
-        await Promise.all([imagesPromise, analysisPromise]);
+        const baselineImagesPromise = (async () => {
+          if (!sessionInfo.is_first_session && sessionInfo.previous_session_id) {
+            setBaselineImagesLoading(true);
+            await Promise.all(
+              imageTypes.map(async (imageType) => {
+                try {
+                  const imageResponse = await apiClient.getImagePreview(
+                    sessionInfo.previous_session_id!,
+                    imageType,
+                    token,
+                  );
+                  if (active) {
+                    setBaselinePreviewMap((prev) => ({
+                      ...prev,
+                      [imageType]: imageResponse.images,
+                    }));
+                  }
+                } catch {
+                  // angle may not exist, skip
+                }
+              }),
+            );
+            if (active) setBaselineImagesLoading(false);
+          } else {
+            if (active) setBaselineImagesLoading(false);
+          }
+        })();
+
+        await Promise.all([imagesPromise, baselineImagesPromise, analysisPromise]);
 
         // ── Step 3: Comparison (after analysis, only if needed) ────────────
         if (!active) return;
@@ -404,6 +447,223 @@ export function Result() {
       console.error("Download failed:", err);
     }
   }, []);
+
+  const availableAngles = captureOrder.filter(
+    (angle) => previewMap[angle]?.length || baselinePreviewMap[angle]?.length,
+  );
+
+  const getCurrentImage = (angle: string) => {
+    const images = previewMap[angle] ?? [];
+    return images[0]?.preview_url ?? null;
+  };
+
+  const getBaselineImage = (angle: string) => {
+    const images = baselinePreviewMap[angle] ?? [];
+    return images[0]?.preview_url ?? null;
+  };
+
+  const activeAngle = availableAngles.includes(selectedAngle)
+    ? selectedAngle
+    : availableAngles[0] ?? "front";
+
+  const handleSwipeMove = useCallback(
+    (clientX: number) => {
+      const el = swipeContainerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const pct = (x / rect.width) * 100;
+      setSwipePct(pct);
+    },
+    [setSwipePct],
+  );
+
+  const handleSwipeStart = useCallback(
+    (clientX: number) => {
+      setIsDragging(true);
+      handleSwipeMove(clientX);
+    },
+    [handleSwipeMove],
+  );
+
+  const handleSwipeEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e: MouseEvent) => handleSwipeMove(e.clientX);
+    const onUp = () => handleSwipeEnd();
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches[0]) handleSwipeMove(e.touches[0].clientX);
+    };
+    const onTouchEnd = () => handleSwipeEnd();
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onTouchMove);
+    window.addEventListener("touchend", onTouchEnd);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [isDragging, handleSwipeMove, handleSwipeEnd]);
+
+  const renderComparison = () => {
+    const currentUrl = getCurrentImage(activeAngle);
+    const baselineUrl = getBaselineImage(activeAngle);
+    const hasCurrent = Boolean(currentUrl);
+    const hasBaseline = Boolean(baselineUrl);
+
+    if (!hasCurrent && !hasBaseline) {
+      return (
+        <div className="rounded-2xl bg-sand-100 p-8 text-center">
+          <p className="text-sm text-ink-700">
+            No comparison data available for this session.
+          </p>
+        </div>
+      );
+    }
+
+    if (isFirstSession) {
+      const symmetryScore =
+        analysisResults?.per_angle.find((a) => a.angle_type === activeAngle)
+          ?.symmetry_score ?? analysisData?.data?.scores?.symmetry_score;
+      return (
+        <div className="space-y-4">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-sand-100">
+            {currentUrl ? (
+              <img
+                src={currentUrl}
+                alt={`Current ${activeAngle}`}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm text-ink-700">
+                No current image
+              </div>
+            )}
+          </div>
+          <div className="rounded-xl bg-white/70 p-4">
+            <p className="text-sm font-semibold text-ink-900">Baseline</p>
+            <p className="text-sm text-ink-700">
+              This is your first session, so there is no prior session to
+              compare against.
+            </p>
+            {symmetryScore != null && (
+              <p className="mt-2 text-sm text-ink-700">
+                Symmetry score:{" "}
+                <span className="font-mono font-semibold text-ink-900">
+                  {symmetryScore.toFixed(3)}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (comparisonView === "side") {
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
+              Current session
+            </p>
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-sand-100">
+              {currentUrl ? (
+                <img
+                  src={currentUrl}
+                  alt={`Current ${activeAngle}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-ink-700">
+                  No current image
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
+              Baseline session
+            </p>
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-sand-100">
+              {baselineUrl ? (
+                <img
+                  src={baselineUrl}
+                  alt={`Baseline ${activeAngle}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-ink-700">
+                  No baseline image
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        ref={swipeContainerRef}
+        className="relative aspect-[4/3] w-full cursor-ew-resize select-none overflow-hidden rounded-2xl bg-sand-100"
+        onMouseDown={(e) => handleSwipeStart(e.clientX)}
+        onTouchStart={(e) => {
+          if (e.touches[0]) handleSwipeStart(e.touches[0].clientX);
+        }}
+      >
+        {baselineUrl ? (
+          <img
+            src={baselineUrl}
+            alt={`Baseline ${activeAngle}`}
+            className="absolute inset-0 h-full w-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-ink-700">
+            No baseline image
+          </div>
+        )}
+        {currentUrl && (
+          <div
+            className="absolute inset-0 h-full"
+            style={{ clipPath: `inset(0 ${100 - swipePct}% 0 0)` }}
+          >
+            <img
+              src={currentUrl}
+              alt={`Current ${activeAngle}`}
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
+          </div>
+        )}
+        {currentUrl && baselineUrl && (
+          <div
+            className="absolute top-0 bottom-0 w-1 bg-white/90 shadow-[0_0_10px_rgba(0,0,0,0.25)]"
+            style={{ left: `${swipePct}%`, transform: "translateX(-50%)" }}
+          >
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-1.5 shadow-md">
+              <ArrowLeftRight className="h-4 w-4 text-ink-900" />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const changeScoreInterval = analysisData?.data?.scores?.change_confidence_interval;
+  const changeScoreValue = analysisData?.data?.scores?.change_score ?? 0;
+  const renderChangeScore = () => {
+    if (changeScoreInterval && changeScoreInterval.length >= 2) {
+      const half = (Number(changeScoreInterval[1]) - Number(changeScoreInterval[0])) / 2;
+      return `Change score: ${changeScoreValue.toFixed(3)} ± ${half.toFixed(3)}`;
+    }
+    return `Change score: ${changeScoreValue.toFixed(3)}`;
+  };
 
   const renderPreview = (title: string) => {
     const imageType = imageTypeByTitle[title];
@@ -534,6 +794,8 @@ export function Result() {
         : analysisConfidence >= 0.5
           ? "text-amber-600"
           : "text-red-600";
+
+  const angleOptions = availableAngles.length > 0 ? availableAngles : captureOrder;
 
   return (
     <div className={`min-h-screen ${isRoyal ? 'bg-[#fdfaf6] royal-pattern relative' : ''}`}>
@@ -705,9 +967,14 @@ export function Result() {
         <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-4">
           {interpretation ? (
             <>
-              <h2 className="text-xl sm:text-2xl font-heading font-semibold text-ink-900 leading-snug">
-                {interpretation.summary_text}
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h2 className="text-xl sm:text-2xl font-heading font-semibold text-ink-900 leading-snug">
+                  {interpretation.summary_text}
+                </h2>
+                <span className="inline-flex items-center rounded-full bg-white border border-sand-200 px-3 py-1 text-xs font-mono font-semibold text-ink-800">
+                  {renderChangeScore()}
+                </span>
+              </div>
               <p className="text-sm text-ink-700 leading-relaxed">
                 {interpretation.explanation_text}
               </p>
@@ -954,6 +1221,92 @@ export function Result() {
           )}
         </Card>
       </div>
+
+      {/* ===== SIDE-BY-SIDE COMPARISON SECTION ===== */}
+      {!analysisLoading && (
+        <div className="space-y-6 border-t-2 border-sand-200 pt-8">
+          <div>
+            <h2 className="text-2xl font-heading font-semibold text-ink-900">
+              Compare
+            </h2>
+            <p className="mt-1 text-sm text-ink-700">
+              {isFirstSession
+                ? "Preview your baseline capture. Future sessions will appear here for comparison."
+                : "See how this session compares to your previous baseline side-by-side or with a swipe overlay."}
+            </p>
+          </div>
+
+          <Card className="space-y-5">
+            {imagesLoading || baselineImagesLoading ? (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Skeleton className="h-9 w-24" />
+                  <Skeleton className="h-9 w-24" />
+                  <Skeleton className="h-9 w-24" />
+                </div>
+                <Skeleton className="aspect-[4/3] w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {angleOptions.map((angle) => {
+                      const title =
+                        Object.entries(imageTypeByTitle).find(
+                          ([, v]) => v === angle,
+                        )?.[0] || angle;
+                      const isActive = activeAngle === angle;
+                      return (
+                        <button
+                          key={angle}
+                          onClick={() => setSelectedAngle(angle)}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            isActive
+                              ? "bg-ink-900 text-sand-50"
+                              : "bg-sand-100 text-ink-700 hover:bg-sand-200"
+                          }`}
+                        >
+                          <Maximize2 className="h-3 w-3" />
+                          {title}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!isFirstSession && (
+                    <div className="inline-flex rounded-full border border-sand-200 bg-sand-50 p-1">
+                      <button
+                        onClick={() => setComparisonView("side")}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          comparisonView === "side"
+                            ? "bg-white text-ink-900 shadow-sm"
+                            : "text-ink-600 hover:text-ink-900"
+                        }`}
+                      >
+                        <Columns2 className="h-3.5 w-3.5" />
+                        Side by side
+                      </button>
+                      <button
+                        onClick={() => setComparisonView("swipe")}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          comparisonView === "swipe"
+                            ? "bg-white text-ink-900 shadow-sm"
+                            : "text-ink-600 hover:text-ink-900"
+                        }`}
+                      >
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
+                        Swipe overlay
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {renderComparison()}
+              </>
+            )}
+          </Card>
+        </div>
+      )}
 
       {/* ===== OVER TIME SECTION ===== */}
       {!isFirstSession && (
