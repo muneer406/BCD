@@ -23,6 +23,10 @@ import { useAuth } from "../context/AuthContext";
 import { useDraft } from "../context/DraftContext";
 import { captureSteps } from "../data/captureSteps";
 import { supabase } from "../lib/supabaseClient";
+import {
+  analyzeImageQuality,
+  type QualityIssue,
+} from "../utils/imageQuality";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -68,8 +72,15 @@ export function Capture() {
   const [error, setError] = useState<string | null>(null);
   const [expandedTooltip, setExpandedTooltip] = useState<string | null>(null);
   const [showSixImageWarning, setShowSixImageWarning] = useState(false);
+  const [qualityWarnings, setQualityWarnings] = useState<
+    Record<string, QualityIssue[]>
+  >({});
+  const [qualityLoading, setQualityLoading] = useState<Record<string, boolean>>(
+    {},
+  );
   const sixImageWarningShownRef = useRef(false);
   const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qualityAbortRefs = useRef<Record<string, AbortController>>({});
 
   useEffect(() => {
     return () => {
@@ -278,6 +289,59 @@ export function Capture() {
   // Handler for canceling and letting user add more images
   const handleSixImageWarningCancel = useCallback(() => {
     setShowSixImageWarning(false);
+  }, []);
+
+  const clearQualityWarnings = useCallback((type: string) => {
+    qualityAbortRefs.current[type]?.abort();
+    setQualityWarnings((prev) => {
+      if (!prev[type]) return prev;
+      const next = { ...prev };
+      delete next[type];
+      return next;
+    });
+    setQualityLoading((prev) => ({ ...prev, [type]: false }));
+  }, []);
+
+  const runQualityCheck = useCallback(
+    async (file: File, type: string) => {
+      qualityAbortRefs.current[type]?.abort();
+      const controller = new AbortController();
+      qualityAbortRefs.current[type] = controller;
+
+      setQualityWarnings((prev) => {
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
+      setQualityLoading((prev) => ({ ...prev, [type]: true }));
+
+      try {
+        const result = await analyzeImageQuality(file, controller.signal);
+        if (controller.signal.aborted) return;
+
+        if (result.issues.length > 0) {
+          setQualityWarnings((prev) => ({ ...prev, [type]: result.issues }));
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        // Non-blocking: quality checks failing should not prevent capture.
+      } finally {
+        if (!controller.signal.aborted) {
+          setQualityLoading((prev) => ({ ...prev, [type]: false }));
+        }
+      }
+    },
+    [],
+  );
+
+  const dismissQualityWarning = useCallback((type: string, index: number) => {
+    setQualityWarnings((prev) => {
+      const issues = prev[type];
+      if (!issues) return prev;
+      const next = { ...prev, [type]: issues.filter((_, i) => i !== index) };
+      if (next[type].length === 0) delete next[type];
+      return next;
+    });
   }, []);
 
   return (
@@ -501,6 +565,54 @@ export function Capture() {
                     </div>
                   )}
 
+                  {qualityLoading[step.type] && (
+                    <div className="flex items-center gap-2 text-xs text-sand-600">
+                      <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-sand-300 border-t-ink-900" />
+                      Checking image quality...
+                    </div>
+                  )}
+
+                  {qualityWarnings[step.type]?.map((issue, idx) => (
+                    <div
+                      key={`${issue.kind}-${idx}`}
+                      className={`rounded-lg p-3 text-xs sm:text-sm ${
+                        issue.kind === "coverage"
+                          ? "bg-amber-50 border border-amber-200 text-amber-900"
+                          : "bg-red-50 border border-red-200 text-red-900"
+                      }`}
+                      role="alert"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p>{issue.message}</p>
+                          {issue.kind !== "coverage" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                dismissQualityWarning(step.type, idx)
+                              }
+                              className="mt-2 inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+                            >
+                              Retake
+                            </button>
+                          )}
+                          {issue.kind === "coverage" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                dismissQualityWarning(step.type, idx)
+                              }
+                              className="mt-2 inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+                            >
+                              Dismiss
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label
                       tabIndex={saving ? -1 : 0}
@@ -546,6 +658,7 @@ export function Capture() {
                             previewUrl,
                           });
                           setError(null);
+                          void runQualityCheck(file, step.type);
                         }}
                       />
                       <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -558,6 +671,7 @@ export function Capture() {
                         // Remove the last image of this type
                         if (typeImages.length > 0) {
                           removeImage(step.type);
+                          clearQualityWarnings(step.type);
                         }
                       }}
                       className="min-h-[44px] w-full gap-2 rounded-full border-red-200 text-xs text-red-700 hover:bg-red-50 active:bg-red-100"
@@ -608,6 +722,7 @@ export function Capture() {
                         previewUrl,
                       });
                       setError(null);
+                      void runQualityCheck(file, step.type);
                     }}
                   />
                   <Camera className="h-8 w-8 sm:h-10 sm:w-10 text-ink-900" />
