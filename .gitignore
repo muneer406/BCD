@@ -88,3 +88,5 @@ dataset_export.py
 Thumbs.db
 *SUMMARY*.md
 *ignore*
+# Evaluation tools and test data (not in repo)
+backend/evaluation/
