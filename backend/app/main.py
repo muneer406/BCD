@@ -117,12 +117,22 @@ app.add_middleware(
 @app.middleware("http")
 async def add_csp_header(request: Request, call_next):
     response = await call_next(request)
+    # Allow dev (localhost:8000), Supabase Auth, Sentry, and HF Spaces
+    csp_connect = (
+        "connect-src 'self' "
+        "http://localhost:8000 ws://localhost:8000 "
+        "https://vtpgeaqhkbbpvaigxwgq.supabase.co "
+        "https://o4510489331236864.ingest.us.sentry.io "
+        "https://*.hf.space "
+        "https://*.vercel.app"
+    )
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'none'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
-        "connect-src 'self'; "
+        f"{csp_connect}; "
+        "worker-src blob:; "
         "frame-src 'none'; "
         "object-src 'none'"
     )
