@@ -1,7 +1,7 @@
 # BCD - Breast Changes Detection
 
 <p align="center">
-  <img src="frontend/public/image.png" alt="BCD Logo" width="120">
+  <img src="frontend/public/image.png" alt="BCD Logo" width="120">  <a href="https://github.com/muneer406/BCD/blob/master/backend/docs/adr/ADR-001-to-010.md">Architecture Decisions</a>
 </p>
 
 [![CI](https://github.com/muneer406/BCD/actions/workflows/ci.yml/badge.svg)](https://github.com/muneer406/BCD/actions/workflows/ci.yml)
