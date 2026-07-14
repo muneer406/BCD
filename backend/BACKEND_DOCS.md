@@ -897,9 +897,11 @@ pip install python-dotenv
 
 **Install:**
 
-```powershell
-cd backend
-uv venv
+Requires **Python 3.11**.
+
+```bash
+# Recommended: using uv
+uv venv --python 3.11
 .venv\Scripts\activate
 
 # Recommended: using uv

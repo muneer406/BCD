@@ -4,8 +4,10 @@ FastAPI + PyTorch + OpenCV backend for the BCD (Breast Changes Detection) app.
 
 ## Quick Start
 
+Requires **Python 3.11**.
+
 ```bash
-uv venv
+uv venv --python 3.11
 source .venv/bin/activate  # Linux/Mac
 # .venv\Scripts\activate   # Windows
 
