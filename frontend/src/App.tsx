@@ -4,9 +4,11 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   RedirectIfAuthed,
   RequireAuth,
+  RequireConsent,
   RequireDisclaimer,
 } from "./components/RouteGuards";
 import { Capture } from "./pages/Capture";
+import { ConsentFlow } from "./pages/ConsentFlow";
 import { Disclaimer } from "./pages/Disclaimer";
 import { History } from "./pages/History";
 import { Landing } from "./pages/Landing";
@@ -32,8 +34,10 @@ function App() {
               <Route path="/signup" element={<Signup />} />
             </Route>
             <Route element={<RequireAuth />}>
-              <Route path="/disclaimer" element={<Disclaimer />} />
-              <Route element={<RequireDisclaimer />}>
+              <Route path="/consent" element={<ConsentFlow />} />
+              <Route element={<RequireConsent />}>
+                <Route path="/disclaimer" element={<Disclaimer />} />
+                <Route element={<RequireDisclaimer />}>
                 <Route path="/capture" element={<Capture />} />
                 <Route path="/history" element={<History />} />
                 <Route path="/result" element={<Result />} />

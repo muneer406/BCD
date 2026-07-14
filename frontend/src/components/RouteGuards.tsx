@@ -20,6 +20,24 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
+export function RequireConsent() {
+  const consent = (() => {
+    try {
+      const stored = localStorage.getItem("bcd_consent");
+      if (!stored) return null;
+      return JSON.parse(stored);
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!consent?.completed) {
+    return <Navigate to="/consent" replace />;
+  }
+
+  return <Outlet />;
+}
+
 export function RequireDisclaimer() {
   const { disclaimerAccepted, loading } = useAuth();
   const location = useLocation();
