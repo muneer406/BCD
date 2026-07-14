@@ -103,7 +103,8 @@ export function Capture() {
       "Right side view. Complements the left side for full awareness of lateral changes.",
     up: "Upward angled view. Reveals how the area appears from above.",
     down: "Downward angled view. Shows how the area appears from below for complete perspective.",
-    "full-body": "Full body view showing the overall proportions and context.",
+    raised:
+      "Full body view showing the overall proportions and context.",
   };
 
   // Get all images grouped by type
@@ -124,6 +125,7 @@ export function Capture() {
   const completedCount = captureSteps.filter((step) =>
     imagesByType.has(step.type),
   ).length;
+  const missingCount = captureSteps.length - completedCount;
 
   const handleSaveSession = useCallback(async () => {
     if (!user || !allStepsPresent) return;
@@ -266,14 +268,14 @@ export function Capture() {
     } finally {
       setSaving(false);
     }
-  }, [user, allStepsPresent, images, clearDraft, navigate, setSaving, setError, setShowSixImageWarning, sixImageWarningShownRef]);
+  }, [user, allStepsPresent, images, clearDraft, navigate]);
 
   // Handler for confirming the warning and proceeding
   const handleSixImageWarningProceed = useCallback(() => {
     setShowSixImageWarning(false);
     sixImageWarningShownRef.current = true;
     handleSaveSession();
-  }, [setShowSixImageWarning, sixImageWarningShownRef, handleSaveSession]);
+  }, [handleSaveSession]);
 
   // Handler for canceling and letting user add more images
   const handleSixImageWarningCancel = useCallback(() => {
@@ -392,22 +394,108 @@ export function Capture() {
       </div>
 
       {/* Progress */}
-      <div className="space-y-3 sm:space-y-4">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex-1 rounded-full bg-sand-100 px-3 sm:px-4 py-2 sm:py-3">
-            <p className="text-xs sm:text-sm font-semibold text-ink-900">
-              {completedCount} of {captureSteps.length} angles captured
-            </p>
-            <div className="mt-2 h-2 w-full rounded-full bg-sand-200">
-              <div
-                className="h-full rounded-full bg-ink-900 transition-all"
-                style={{
-                  width: `${(completedCount / captureSteps.length) * 100}%`,
-                }}
-              />
+      <div className="space-y-4 sm:space-y-5">
+        <div className="rounded-2xl sm:rounded-3xl border border-tide-200 bg-white/80 p-4 sm:p-5 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sand-700">
+                Capture progress
+              </p>
+              <p className="mt-1 text-xl sm:text-2xl font-heading font-semibold text-ink-900">
+                {completedCount} of {captureSteps.length} angles captured
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {missingCount === 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  All angles ready
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {missingCount} angle{missingCount !== 1 ? "s" : ""} missing
+                </span>
+              )}
             </div>
           </div>
+
+          <div className="mt-4 h-2.5 w-full rounded-full bg-sand-200 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-ink-900 transition-all duration-500"
+              style={{
+                width: `${(completedCount / captureSteps.length) * 100}%`,
+              }}
+            />
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {captureSteps.map((step) => {
+              const typeImages = imagesByType.get(step.type) || [];
+              const isCaptured = typeImages.length > 0;
+              const thumbnail = isCaptured ? typeImages[0].previewUrl : null;
+
+              return (
+                <div
+                  key={step.type}
+                  className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 transition-colors ${
+                    isCaptured
+                      ? "border-green-200 bg-green-50/60"
+                      : "border-sand-200 bg-sand-50"
+                  }`}
+                >
+                  {isCaptured ? (
+                    <>
+                      {thumbnail ? (
+                        <img
+                          src={thumbnail}
+                          alt=""
+                          className="h-8 w-8 rounded-md object-cover border border-white shadow-sm"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-100 text-green-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                        </div>
+                      )}
+                      <span className="min-w-0 flex-1 text-[11px] font-semibold text-ink-900 truncate">
+                        {step.label}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sand-200 text-ink-500">
+                        <Camera className="h-4 w-4" />
+                      </div>
+                      <span className="min-w-0 flex-1 text-[11px] font-semibold text-ink-500 truncate">
+                        {step.label}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        {missingCount > 0 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3 sm:p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  Finish all 6 angles before saving
+                </p>
+                <p className="mt-0.5 text-xs text-amber-800">
+                  Missing:{" "}
+                  {captureSteps
+                    .filter((step) => !imagesByType.has(step.type))
+                    .map((step) => step.label)
+                    .join(", ")}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Image capture grid */}

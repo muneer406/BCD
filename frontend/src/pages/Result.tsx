@@ -54,6 +54,13 @@ type InterpretationPayload = {
   };
 };
 
+/** Per-image quality fields returned by the backend. */
+type ImageQuality = {
+  blur_score?: number | null;
+  brightness_score?: number | null;
+  confidence_score?: number | null;
+};
+
 type AnalysisResponse = {
   success: boolean;
   data?: {
@@ -65,6 +72,8 @@ type AnalysisResponse = {
         change_score: number;
         angle_quality_score?: number;
         summary: string;
+        /** Per-image quality details when available. */
+        image_quality?: ImageQuality[];
       }>;
       overall_summary: string;
     };
@@ -136,6 +145,40 @@ function angleQualityLabel(score: number | null | undefined): {
   if (score >= 0.8) return { text: "Good", color: "text-green-700" };
   if (score >= 0.6) return { text: "Acceptable", color: "text-amber-600" };
   return { text: "Low quality", color: "text-red-600" };
+}
+
+/** Convert a numeric score into a green/yellow/red status dot. */
+function qualityStatus(score: number | null | undefined): {
+  colorClass: string;
+  ringClass: string;
+  label: string;
+} {
+  if (score == null) {
+    return {
+      colorClass: "bg-ink-300",
+      ringClass: "ring-ink-200",
+      label: "Unknown",
+    };
+  }
+  if (score >= 0.8) {
+    return { colorClass: "bg-green-500", ringClass: "ring-green-200", label: "Good" };
+  }
+  if (score >= 0.6) {
+    return { colorClass: "bg-amber-400", ringClass: "ring-amber-200", label: "Okay" };
+  }
+  return { colorClass: "bg-red-500", ringClass: "ring-red-200", label: "Low" };
+}
+
+/** Aggregate per-image quality scores into an overall score for an angle. */
+function aggregateQualityScore(
+  qualityList: ImageQuality[] | undefined,
+): number | null {
+  if (!qualityList || qualityList.length === 0) return null;
+  const values = qualityList
+    .map((q) => q.confidence_score ?? q.blur_score ?? q.brightness_score)
+    .filter((v): v is number => typeof v === "number");
+  if (values.length === 0) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
 function SessionVariationIndicator({ kind }: { kind: SessionDeltaKind }) {
@@ -383,7 +426,7 @@ export function Result() {
     } finally {
       setReanalyzing(false);
     }
-  }, [user, sessionId, reanalyzing, isFirstSession, previousSessionId, setReanalyzing, setAnalysisLoading, setComparisonLoading, setAnalysisData, setComparisonData]);
+  }, [user, sessionId, reanalyzing, isFirstSession, previousSessionId]);
 
   const handleDownload = useCallback(async (previewUrl: string, index: number, title: string) => {
     try {
@@ -543,15 +586,15 @@ export function Result() {
           <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-pink-200/50 to-transparent pointer-events-none" />
           <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-amber-300/20 blur-[120px] rounded-full pointer-events-none" />
           <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-pink-400/10 blur-[100px] rounded-full pointer-events-none" />
-          
+
           <div className="absolute top-10 w-full flex justify-center pointer-events-none opacity-[0.15] mix-blend-multiply">
             <Sparkles className="w-96 h-96 text-amber-500" strokeWidth={0.3} />
           </div>
         </>
       )}
-      
+
       <PageShell className={`space-y-10 relative z-10 ${isRoyal ? 'pt-8' : ''}`}>
-        
+
         {isRoyal && (
           <div className="flex justify-center mb-10">
             <div className="relative inline-flex items-center justify-center p-8 bg-white/40 backdrop-blur-xl border-y-[3px] border-amber-300 shadow-[0_10px_40px_rgba(212,175,55,0.2)] w-full max-w-5xl royal-clip">
@@ -560,7 +603,7 @@ export function Result() {
               <div className="absolute -right-6 -top-6 w-12 h-12 border-t-4 border-r-4 border-amber-400 opacity-80" />
               <div className="absolute -left-6 -bottom-6 w-12 h-12 border-b-4 border-l-4 border-amber-400 opacity-80" />
               <div className="absolute -right-6 -bottom-6 w-12 h-12 border-b-4 border-r-4 border-amber-400 opacity-80" />
-              
+
               <div className="text-center space-y-5">
                  <h1 className="text-4xl sm:text-6xl font-heading font-extrabold royal-gradient-text tracking-tight drop-shadow-md pb-2 px-6">
                    {isFirstSession ? "Majestic Baseline" : "Majestic Analysis"}
@@ -629,7 +672,7 @@ export function Result() {
             </div>
           )}
         </div>
-        
+
         {!isRoyal && (
           <>
             <h1 className="mt-2 text-2xl sm:text-3xl font-heading font-bold text-ink-900">
@@ -853,21 +896,102 @@ export function Result() {
                       ([, v]) => v === result.angle_type,
                     )?.[0] || result.angle_type;
                   const ql = angleQualityLabel(result.angle_quality_score);
+                  const overallScore = aggregateQualityScore(result.image_quality);
+                  const status = qualityStatus(overallScore);
+
+                  // Per-image quality details
+                  const qualityDetails = result.image_quality?.length ? (
+                    <div className="space-y-1 pt-2 text-xs text-ink-700">
+                      {result.image_quality.map((q, i) => {
+                        const blur =
+                          q.blur_score != null
+                            ? `blur ${(q.blur_score * 100).toFixed(0)}%`
+                            : null;
+                        const brightness =
+                          q.brightness_score != null
+                            ? `brightness ${(q.brightness_score * 100).toFixed(0)}%`
+                            : null;
+                        const confidence =
+                          q.confidence_score != null
+                            ? `confidence ${(q.confidence_score * 100).toFixed(0)}%`
+                            : null;
+                        const parts = [blur, brightness, confidence].filter(
+                          Boolean,
+                        );
+                        return (
+                          <p key={i} className="font-mono tabular-nums">
+                            Image {i + 1}
+                            {parts.length > 0 ? `: ${parts.join(" · ")}` : ""}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  ) : null;
+
+                  // Determine recapture warning using per-image quality when present,
+                  // otherwise fall back to the aggregate angle_quality_score.
+                  const showRecaptureWarning =
+                    (result.image_quality &&
+                      result.image_quality.some(
+                        (q) =>
+                          (q.blur_score != null && q.blur_score < 0.5) ||
+                          (q.brightness_score != null && q.brightness_score < 0.4),
+                      )) ||
+                    (result.angle_quality_score != null &&
+                      result.angle_quality_score < 0.6);
+
                   return (
                     <div
                       key={result.angle_type}
                       className="rounded-2xl border border-sand-100 bg-sand-50 p-4"
                     >
-                      <p className="text-sm font-semibold text-ink-900">
-                        {title}
-                      </p>
-                      <p className={`mt-1 text-xs font-semibold ${ql.color}`}>
-                        Image quality: {ql.text}
-                        {result.angle_quality_score != null &&
-                          ` (${(result.angle_quality_score * 100).toFixed(
-                            0,
-                          )}%)`}
-                      </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-ink-900">
+                            {title}
+                          </p>
+                          <p className={`mt-1 text-xs font-semibold ${ql.color}`}>
+                            Image quality: {ql.text}
+                            {result.angle_quality_score != null &&
+                              ` (${(result.angle_quality_score * 100).toFixed(
+                                0,
+                              )}%)`}
+                          </p>
+                        </div>
+                        <div className="group relative flex items-center gap-2">
+                          <span
+                            className={`inline-block h-3 w-3 rounded-full ${status.colorClass} ring-2 ${status.ringClass}`}
+                            aria-label={`Quality: ${status.label}`}
+                            title={`Quality: ${status.label}`}
+                          />
+                          {/* Tooltip with metrics */}
+                          <div className="pointer-events-none absolute right-0 top-5 z-10 w-52 rounded-xl border border-sand-200 bg-white p-3 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 sm:w-56">
+                            <p className="text-xs font-semibold text-ink-900">
+                              Quality metrics
+                            </p>
+                            {qualityDetails ? (
+                              qualityDetails
+                            ) : (
+                              <p className="pt-1 text-xs text-ink-500">
+                                No detailed metrics available.
+                              </p>
+                            )}
+                            {overallScore != null && (
+                              <p className="mt-2 border-t border-sand-100 pt-2 text-xs font-semibold text-ink-800">
+                                Overall: {(overallScore * 100).toFixed(0)}%
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {showRecaptureWarning && (
+                        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                          <AlertCircle className="h-3 w-3" />
+                          Consider recapturing this angle
+                        </div>
+                      )}
+
                       <details className="mt-3">
                         <summary className="cursor-pointer text-xs font-semibold text-ink-900">
                           View image
