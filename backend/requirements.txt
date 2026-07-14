@@ -13,6 +13,14 @@ torchvision==0.16.0
 opencv-python-headless==4.8.1.78
 pillow==10.1.0
 numpy==1.24.3
+
+# Issue #149: secure local encrypted storage
+# Native SQLCipher bindings require libsqlcipher-dev; they are optional.
+# The fallback in app/services/local_db.py uses cryptography (already required)
+# for per-row AES-256-GCM encryption on top of stdlib sqlite3.
+pysqlcipher3; sys_platform != "win32"
+sqlcipher3; sys_platform != "win32"
+
 # Phase 9: pHash fast pre-check (hybrid approach)
 imagehash==4.3.1
 
