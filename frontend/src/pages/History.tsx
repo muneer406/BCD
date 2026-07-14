@@ -5,6 +5,7 @@ import {
   TrendingUp,
   Calendar,
   Camera,
+  Clock,
   AlertCircle,
   Loader,
   Sparkles,
@@ -314,17 +315,30 @@ export function History() {
         </Card>
       ) : (
         <div className="grid gap-6">
-          {sessions.map((session) => {
+          {sessions.map((session, idx) => {
             const dateLabel = new Date(session.created_at).toLocaleDateString(
               "en-US",
               {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
               },
             );
+            const timeLabel = new Date(session.created_at).toLocaleTimeString(
+              "en-US",
+              { hour: "2-digit", minute: "2-digit" },
+            );
+
+            // Date grouping header
+            const prevDate = idx > 0
+              ? new Date(sessions[idx - 1].created_at).toLocaleDateString("en-US", {
+                  year: "numeric", month: "short", day: "numeric",
+                })
+              : null;
+            const showDateHeader = idx === 0 || dateLabel !== prevDate;
+
+            // Same-day indicator
+            const sameDayAsPrev = idx > 0 && dateLabel === prevDate;
 
             const isRoyal = ROYAL_RESULT_IDS.includes(session.id);
             if (isRoyal) {
@@ -376,6 +390,13 @@ export function History() {
                           <Calendar className="h-5 w-5 sm:h-7 sm:w-7 flex-shrink-0 text-amber-600" />
                           {dateLabel}
                         </h3>
+                        {sameDayAsPrev && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-tide-300 bg-tide-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-tide-700">
+                            <Clock className="h-3 w-3" />
+                            Same-day
+                          </span>
+                        )}
+                        <p className="text-xs text-ink-500 mt-0.5">{timeLabel}</p>
                       </div>
                       
                       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 pt-2">
