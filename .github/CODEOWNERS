@@ -1,0 +1,16 @@
+# Default owners for all files
+* @Muneer320
+
+# Security-critical paths
+backend/app/utils/security.py @Muneer320
+backend/app/processing/embedding.py @Muneer320
+
+# AI/ML pipeline
+backend/app/processing/ @Muneer320
+
+# Database migrations
+SUPABASE_MIGRATIONS.sql @Muneer320
+backend/docs/adr/ @Muneer320
+
+# Infrastructure
+.github/workflows/ @Muneer320
