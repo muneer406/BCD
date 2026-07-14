@@ -1,17 +1,28 @@
-name: Sync backend → HF Space
+name: Reusable backend → HF Space sync
+
 on:
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - "backend/**"
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      verify_deployment:
+        description: "Whether to poll the HF Space /health endpoint after sync"
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      space_url:
+        description: "URL of the Hugging Face Space"
+        value: ${{ jobs.sync.outputs.space_url }}
+      deployed:
+        description: "Whether the sync actually pushed changes"
+        value: ${{ jobs.sync.outputs.deployed }}
 
 jobs:
   sync:
     name: Push backend/ to Hugging Face Space
     runs-on: ubuntu-latest
+    outputs:
+      space_url: ${{ steps.meta.outputs.space_url }}
+      deployed: ${{ steps.push.outputs.deployed }}
 
     steps:
       # ── 1. Checkout the full repo ──────────────────────────────────────────
@@ -32,45 +43,40 @@ jobs:
           chmod 600 ~/.git-credentials
           echo "Credentials stored."
 
-      # ── 3. Clone the HF Space repo ─────────────────────────────────────────
-      - name: Clone HF Space
+      # ── 3. Export metadata for downstream jobs ─────────────────────────────
+      - name: Export Space metadata
+        id: meta
         env:
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+        run: |
+          echo "space_url=https://${HF_SPACE_ID}.hf.space" >> "$GITHUB_OUTPUT"
+          echo "HF_SPACE_ID=${HF_SPACE_ID}" >> "$GITHUB_ENV"
+
+      # ── 4. Clone the HF Space repo ─────────────────────────────────────────
+      - name: Clone HF Space
         run: |
           echo "HF_SPACE_ID: ${HF_SPACE_ID}"
           # Use plain HTTPS URL — credentials come from ~/.git-credentials
           git clone "https://huggingface.co/spaces/${HF_SPACE_ID}" hf-space
           echo "Clone succeeded."
 
-      # ── 4. Sync backend/ → root of the HF Space ───────────────────────────
+      # ── 5. Sync backend/ → root of the HF Space ───────────────────────────
       - name: Sync files
         run: |
           rsync -av --delete --exclude='.git' backend/ hf-space/
           echo "Rsync complete."
 
-      # ── 5. Create HF Spaces README with frontmatter ─────────────────────────
+      # ── 6. Create HF Spaces README with frontmatter ─────────────────────────
       #     This must run AFTER rsync so --delete doesn't remove it.
       - name: Create HF README
         run: |
-          cat > hf-space/README.md << 'READMEOF'
----
-title: BCD Backend
-emoji: 🩺
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-sdk_version: "1.0"
-python_version: "3.11"
-app_file: app/main.py
-pinned: false
----
-
-READMEOF
+          printf '%s\n' '---' 'title: BCD Backend' 'emoji: stethoscope' 'colorFrom: indigo' 'colorTo: blue' 'sdk: docker' 'sdk_version: "1.0"' 'python_version: "3.11"' 'app_file: app/main.py' 'pinned: false' '---' '' > hf-space/README.md
           cat backend/README.md >> hf-space/README.md
           echo "HF README created."
 
-      # ── 6. Commit & push (only if something actually changed) ─────────────
+      # ── 7. Commit & push (only if something actually changed) ─────────────
       - name: Push to HF Space
+        id: push
         env:
           HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
         run: |
@@ -79,9 +85,30 @@ READMEOF
           git add -A
           if git diff --cached --quiet; then
             echo "No changes to sync – skipping push."
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "sync: GitHub ${SHORT_SHA}"
             # Credentials from store — no token in the URL
             git push "https://huggingface.co/spaces/${HF_SPACE_ID}" main
             echo "Push succeeded."
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # ── 8. Optionally wait for Space to be healthy ─────────────────────────
+      - name: Verify HF Space deployment
+        if: ${{ inputs.verify_deployment && steps.push.outputs.deployed == 'true' }}
+        env:
+          SPACE_URL: ${{ steps.meta.outputs.space_url }}
+        run: |
+          echo "Polling ${SPACE_URL}/health ..."
+          for i in {1..30}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${SPACE_URL}/health" || true)
+            echo "Attempt ${i}: HTTP ${code}"
+            if [ "$code" = "200" ]; then
+              echo "HF Space is healthy."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "HF Space did not become healthy in time."
+          exit 1
