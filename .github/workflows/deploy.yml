@@ -1,0 +1,50 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.vercel.outputs.preview-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        id: vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-comment: false
+          working-directory: frontend
+
+      - name: Verify frontend deployment
+        env:
+          URL: ${{ steps.vercel.outputs.preview-url }}
+        run: |
+          echo "Verifying ${URL} ..."
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || true)
+          if [ "$code" != "200" ]; then
+            echo "Frontend returned HTTP ${code}"
+            exit 1
+          fi
+          echo "Frontend is healthy (HTTP 200)."
+
+  deploy-backend:
+    name: Deploy Backend to Hugging Face Spaces
+    uses: ./.github/workflows/sync-hf-space.yml
+    secrets: inherit
+    with:
+      verify_deployment: true
