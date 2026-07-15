@@ -23,7 +23,8 @@ create table if not exists public.sessions (
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   notes text,
-  status text default 'completed' -- 'in_progress', 'completed', 'reviewed'
+  status text default 'completed', -- 'in_progress', 'completed', 'reviewed'
+  session_type text default 'full' -- 'quick', 'full'
 );
 
 -- Images table: stores metadata for each captured image
@@ -61,7 +62,18 @@ create table if not exists public.session_analysis (
   session_id uuid not null references public.sessions(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   overall_change_score float,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  trend_score float,
+  rolling_baseline_score float,
+  monthly_baseline_score float,
+  lifetime_baseline_score float,
+  analysis_confidence_score float,
+  session_quality_score float,
+  angle_aware_score float,
+  analysis_version text default 'v0.7',
+  localized_insights jsonb,
+  symmetry_score float,
+  change_confidence_interval float[]
 );
 
 -- Angle analysis: stores per-angle scores and summaries
@@ -73,6 +85,7 @@ create table if not exists public.angle_analysis (
   change_score float,
   summary text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  angle_quality_score float,
 
   constraint angle_type_valid check (angle_type in ('front', 'left', 'right', 'up', 'down', 'raised'))
 );
@@ -81,8 +94,36 @@ create table if not exists public.angle_analysis (
 create table if not exists public.session_embeddings (
   id uuid primary key default uuid_generate_v4(),
   session_id uuid not null references public.sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
   embedding vector,
+  embedding_vector jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Angle embeddings: stores per-angle embedding vectors
+create table if not exists public.angle_embeddings (
+  id uuid primary key default uuid_generate_v4(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  angle_type text not null,
+  embedding jsonb,
+  embedding_vector jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+
+  constraint angle_embeddings_type_valid check (angle_type in ('front', 'left', 'right', 'up', 'down', 'raised'))
+);
+
+-- Region embeddings: stores 3x3 grid region vectors per angle
+create table if not exists public.region_embeddings (
+  id uuid primary key default uuid_generate_v4(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  angle_type text not null,
+  region_index integer not null check (region_index >= 0 and region_index < 9),
+  embedding jsonb not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+
+  constraint region_embeddings_type_valid check (angle_type in ('front', 'left', 'right', 'up', 'down', 'raised'))
 );
 
 -- analysis_logs: per-analysis processing metadata for monitoring and debugging.
@@ -99,6 +140,16 @@ create table if not exists public.session_embeddings (
 -- Example pg_cron job:
 --   SELECT cron.schedule('cleanup-analysis-logs', '0 2 * * *',
 --          $$ DELETE FROM analysis_logs WHERE created_at < now() - interval '90 days' $$);
+create table if not exists public.analysis_logs (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid references public.sessions(id) on delete set null,
+  user_id uuid references auth.users(id) on delete set null,
+  processing_time_ms integer,
+  status text not null check (status in ('completed', 'failed')),
+  error_message text,
+  created_at timestamp with time zone default now() not null,
+  confidence_score float
+);
 
 
 -- ============================================================================
@@ -119,6 +170,12 @@ create index if not exists session_analysis_user_id_idx on public.session_analys
 create index if not exists angle_analysis_session_id_idx on public.angle_analysis(session_id);
 create index if not exists angle_analysis_user_id_idx on public.angle_analysis(user_id);
 create index if not exists session_embeddings_session_id_idx on public.session_embeddings(session_id);
+create index if not exists session_embeddings_user_id_idx on public.session_embeddings(user_id);
+create index if not exists angle_embeddings_session_id_idx on public.angle_embeddings(session_id);
+create index if not exists angle_embeddings_user_id_idx on public.angle_embeddings(user_id);
+create index if not exists region_embeddings_session_id_idx on public.region_embeddings(session_id);
+create index if not exists region_embeddings_user_id_idx on public.region_embeddings(user_id);
+create index if not exists analysis_logs_session_id_idx on public.analysis_logs(session_id);
 
 
 -- ============================================================================
@@ -133,6 +190,9 @@ alter table public.user_profiles enable row level security;
 alter table public.session_analysis enable row level security;
 alter table public.angle_analysis enable row level security;
 alter table public.session_embeddings enable row level security;
+alter table public.angle_embeddings enable row level security;
+alter table public.region_embeddings enable row level security;
+alter table public.analysis_logs enable row level security;
 
 -- Sessions: users can only see their own sessions
 drop policy if exists sessions_select_own on public.sessions;
