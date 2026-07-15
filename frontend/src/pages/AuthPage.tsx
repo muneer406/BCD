@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
+import { Spinner } from "../components/Spinner";
 import { supabase } from "../lib/supabaseClient";
 
 type AuthMode = "login" | "signup";
@@ -18,6 +19,8 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
 
   const isLogin = mode === "login";
   const heading = isLogin ? "Welcome back" : "Create your space";
@@ -25,24 +28,69 @@ export function AuthPage({ mode }: AuthPageProps) {
     ? "Log in to continue your visual change tracking."
     : "Sign up to start building your personal baseline.";
 
+  const clearFeedback = () => {
+    setMessage(null);
+    setNeedsVerification(false);
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) return;
+    setResendingVerification(true);
+    clearFeedback();
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+      if (error) throw error;
+      setMessage("Verification email sent. Check your inbox.");
+    } catch (error) {
+      const messageText =
+        error instanceof Error
+          ? error.message
+          : "Could not resend verification email. Try again.";
+      setMessage(messageText);
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
-    setMessage(null);
+    clearFeedback();
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
+
+        if (!data.user?.email_confirmed_at) {
+          setNeedsVerification(true);
+          setMessage(
+            "Your email is not verified. Please check your inbox and verify your account before logging in.",
+          );
+          setLoading(false);
+          return;
+        }
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
+
+        if (!data.user?.email_confirmed_at) {
+          setMessage(
+            "Check your email to verify your account. Didn't receive it?",
+          );
+          setLoading(false);
+          return;
+        }
       }
 
       const from = (location.state as { from?: Location })?.from?.pathname;
@@ -78,7 +126,10 @@ export function AuthPage({ mode }: AuthPageProps) {
               type="email"
               required
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                clearFeedback();
+              }}
               className="mt-2 w-full rounded-2xl border border-sand-200 bg-white px-4 py-3 text-sm focus:border-tide-300 focus:outline-none"
               placeholder="you@example.com"
             />
@@ -89,14 +140,58 @@ export function AuthPage({ mode }: AuthPageProps) {
               type="password"
               required
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                clearFeedback();
+              }}
               className="mt-2 w-full rounded-2xl border border-sand-200 bg-white px-4 py-3 text-sm focus:border-tide-300 focus:outline-none"
               placeholder="Enter a secure password"
             />
           </label>
-          {message ? <p className="text-sm text-ink-700">{message}</p> : null}
+          {isLogin ? (
+            <div className="text-right">
+              <Link
+                to="/reset-password"
+                className="text-sm font-semibold text-ink-900 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          ) : null}
+          {message ? (
+            <div className="rounded-2xl border border-tide-200 bg-tide-50 p-4 text-sm text-ink-900">
+              <p>{message}</p>
+              {needsVerification ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={handleResendVerification}
+                  disabled={resendingVerification}
+                >
+                  {resendingVerification ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner />
+                      Resending...
+                    </span>
+                  ) : (
+                    "Resend verification"
+                  )}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           <Button type="submit" fullWidth disabled={loading}>
-            {loading ? "Please wait..." : isLogin ? "Log in" : "Create account"}
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner />
+                Please wait...
+              </span>
+            ) : isLogin ? (
+              "Log in"
+            ) : (
+              "Create account"
+            )}
           </Button>
         </form>
 

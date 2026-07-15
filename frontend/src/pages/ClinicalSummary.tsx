@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import {
   CalendarDays,
   Camera,
@@ -15,6 +15,7 @@ import { PageShell } from "../components/PageShell";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 import { apiClient } from "../lib/apiClient";
+import { validateAndConsumeShareToken } from "../lib/shareLink";
 
 type ImagePreviewMap = Record<
   string,
@@ -146,8 +147,12 @@ async function sha256Hex(input: string): Promise<string> {
 export function ClinicalSummary() {
   const { user } = useAuth();
   const { sessionId } = useParams();
+  const location = useLocation();
+  const isShareMode = location.pathname.startsWith("/share/");
 
-  const [loading, setLoading] = useState(true);
+  const [shareStatus, setShareStatus] = useState<
+    "validating" | "valid" | "invalid" | "used" | "expired"
+  >("validating");
   const [error, setError] = useState<string | null>(null);
   const [sessionCreatedAt, setSessionCreatedAt] = useState<string | null>(null);
   const [sessionType, setSessionType] = useState<string | null>("full");
@@ -159,6 +164,29 @@ export function ClinicalSummary() {
   const [isPrinting, setIsPrinting] = useState(false);
 
   const dataLoadedRef = useRef(false);
+
+  // Validate share token on mount (single-use, 7-day expiry)
+  useEffect(() => {
+    if (!isShareMode) {
+      setShareStatus("valid");
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    const token = searchParams.get("token");
+    if (!sessionId) {
+      setShareStatus("invalid");
+      return;
+    }
+
+    const result = validateAndConsumeShareToken(sessionId, token);
+    if (result.valid) {
+      setShareStatus("valid");
+    } else {
+      setShareStatus(result.reason === "expired" ? "expired" : "invalid");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isShareMode, sessionId]);
 
   const sessionDate = sessionCreatedAt ? new Date(sessionCreatedAt) : null;
   const createdAtDate = sessionDate ?? new Date();
@@ -186,7 +214,7 @@ export function ClinicalSummary() {
     let active = true;
 
     const loadSummaryData = async () => {
-      if (!user || !sessionId) {
+      if (!sessionId) {
         setLoading(false);
         return;
       }
@@ -196,24 +224,26 @@ export function ClinicalSummary() {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token || "";
-        if (!token) throw new Error("Not authenticated");
 
         const API_URL = import.meta.env.VITE_API_URL || "";
 
         const sessionInfoPromise = apiClient.getSessionInfo(sessionId, token);
 
-        const sessionRowPromise = supabase
+        const sessionRowQuery = supabase
           .from("sessions")
           .select("id, created_at, session_type")
-          .eq("id", sessionId)
-          .eq("user_id", user.id)
-          .single();
+          .eq("id", sessionId);
+        const sessionRowPromise = isShareMode
+          ? sessionRowQuery.single()
+          : sessionRowQuery.eq("user_id", user?.id || "").single();
 
-        const profilePromise = supabase
-          .from("user_profiles")
-          .select("id, age_range, last_menstrual_period, created_at, updated_at")
-          .eq("id", user.id)
-          .single();
+        const profilePromise = user?.id
+          ? supabase
+              .from("user_profiles")
+              .select("id, age_range, last_menstrual_period, created_at, updated_at")
+              .eq("id", user.id)
+              .single()
+          : Promise.resolve({ data: null, error: null });
 
         const analysisPromise = fetch(
           `${API_URL}/api/analyze-session/${sessionId}`,
@@ -318,7 +348,7 @@ export function ClinicalSummary() {
       dataLoadedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, sessionId]);
+  }, [user?.id, sessionId, isShareMode]);
 
   const handlePrint = () => {
     setIsPrinting(true);
@@ -328,7 +358,7 @@ export function ClinicalSummary() {
     }, 100);
   };
 
-  if (loading) {
+  if (loading || shareStatus === "validating") {
     return (
       <PageShell className="max-w-4xl space-y-8">
         <div className="space-y-4">
@@ -347,6 +377,24 @@ export function ClinicalSummary() {
             <Skeleton key={i} className="aspect-[4/3] w-full" />
           ))}
         </div>
+      </PageShell>
+    );
+  }
+
+  if (shareStatus === "invalid" || shareStatus === "expired") {
+    return (
+      <PageShell className="max-w-4xl">
+        <Card className="text-center">
+          <div className="flex flex-col items-center gap-3">
+            <AlertCircle className="h-10 w-10 text-red-600" />
+            <h1 className="text-lg font-heading font-semibold text-ink-900">
+              This share link has expired or is invalid
+            </h1>
+            <p className="text-sm text-ink-700 max-w-md">
+              Please generate a new one from the BCD app.
+            </p>
+          </div>
+        </Card>
       </PageShell>
     );
   }

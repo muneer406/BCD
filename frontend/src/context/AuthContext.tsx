@@ -17,6 +17,7 @@ type AuthContextValue = {
   refreshDisclaimer: () => Promise<void>;
   signOut: () => Promise<void>;
   isSessionValid: boolean;
+  isVerified: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -209,6 +210,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const isVerified = useMemo(() => Boolean(user?.email_confirmed_at), [user?.email_confirmed_at]);
+
   const value = useMemo(
     () => ({
       session,
@@ -218,8 +221,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshDisclaimer,
       signOut,
       isSessionValid,
+      isVerified,
     }),
-    [session, user, loading, disclaimerAccepted, refreshDisclaimer, isSessionValid],
+    [session, user, loading, disclaimerAccepted, refreshDisclaimer, isSessionValid, isVerified],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
