@@ -138,8 +138,6 @@ export function predictPhaseForDate(
   const cycleDay = getCycleDayForDate(targetDate, startDate, cycleLength);
   if (cycleDay === null) return null;
 
-  const cycleLengthVal = cycleLength === "unknown" ? 28 : cycleLength;
-
   // Approximate phase ranges:
   // Menstrual: days 1-5
   // Follicular: days 6-13
@@ -206,7 +204,7 @@ export function getCycleContextForDate(date: string): {
       }
 
       if (daysUntil <= 0) daysUntil = 1;
-      predictedNextPhase = `${daysUntil}d → ${PHASE_LABELS_ENG[next]}`;
+      predictedNextPhase = `${daysUntil}d → ${PHASE_LABELS[next]}`;
     }
   }
 
