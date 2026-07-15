@@ -219,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       isSessionValid,
     }),
-    [session, user, loading, disclaimerAccepted, isSessionValid],
+    [session, user, loading, disclaimerAccepted, refreshDisclaimer, isSessionValid],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
