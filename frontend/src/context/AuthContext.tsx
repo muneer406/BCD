@@ -163,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch disclaimer when user changes
   useEffect(() => {
     if (!user) {
+      // eslint-disable-next-line react-compiler/react-compiler
       setDisclaimerAccepted(false);
       return;
     }
