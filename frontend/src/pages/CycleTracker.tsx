@@ -22,7 +22,6 @@ import {
   getMonthStartOffset,
   PHASE_COLORS,
   PHASE_LABELS,
-  PHASE_RING_COLORS,
   saveCycleLog,
   SYMPTOM_LABELS,
   type CycleLog,

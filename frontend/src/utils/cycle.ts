@@ -101,9 +101,6 @@ export function getCycleLogForDate(date: string): CycleLog | null {
   return getCycleLogs()[date] ?? null;
 }
 
-function formatISODate(date: Date): string {
-  return date.toISOString().split("T")[0];
-}
 
 export function getCycleDayForDate(
   targetDate: string | Date,
