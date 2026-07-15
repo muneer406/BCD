@@ -54,7 +54,6 @@ export function CycleTracker() {
   const today = useMemo(() => new Date(), []);
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(toISODate(today));
-  const [logs, setLogs] = useState<Record<string, CycleLog>>({});
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<CyclePhase>("unknown");
@@ -68,28 +67,28 @@ export function CycleTracker() {
   const month = viewDate.getMonth();
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
   const startOffset = useMemo(() => getMonthStartOffset(year, month), [year, month]);
+  const [logs, setLogs] = useState<Record<string, CycleLog>>(getCycleLogs());
 
   useEffect(() => {
-    setLogs(getCycleLogs());
-  }, []);
-
-  useEffect(() => {
-    const log = logs[selectedDate];
-    if (log) {
-      setPhase(log.phase);
-      setStartDate(log.startDate || selectedDate);
-      setCycleLength(log.cycleLength ?? 28);
-      setSymptoms(log.symptoms?.length ? log.symptoms : ["none"]);
-      setOtherSymptom(log.otherSymptom || "");
-      setNotes(log.notes || "");
-    } else {
-      setPhase("unknown");
-      setStartDate(selectedDate);
-      setCycleLength(28);
-      setSymptoms(["none"]);
-      setOtherSymptom("");
-      setNotes("");
-    }
+    const timer = setTimeout(() => {
+      const log = logs[selectedDate];
+      if (log) {
+        setPhase(log.phase);
+        setStartDate(log.startDate || selectedDate);
+        setCycleLength(log.cycleLength ?? 28);
+        setSymptoms(log.symptoms?.length ? log.symptoms : ["none"]);
+        setOtherSymptom(log.otherSymptom || "");
+        setNotes(log.notes || "");
+      } else {
+        setPhase("unknown");
+        setStartDate(selectedDate);
+        setCycleLength(28);
+        setSymptoms(["none"]);
+        setOtherSymptom("");
+        setNotes("");
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [selectedDate, logs]);
 
   const { cycleDay, phase: contextPhase, predictedNextPhase } = useMemo(

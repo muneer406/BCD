@@ -348,8 +348,7 @@ export function ClinicalSummary() {
       active = false;
       dataLoadedRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, sessionId, isShareMode]);
+  }, []);
 
   const handlePrint = () => {
     setIsPrinting(true);
