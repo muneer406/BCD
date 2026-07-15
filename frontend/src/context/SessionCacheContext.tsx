@@ -81,6 +81,7 @@ export function SessionCacheProvider({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSessionCache() {
   const context = useContext(SessionCacheContext);
   if (!context) {

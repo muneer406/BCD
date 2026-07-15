@@ -105,7 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMountedRef.current = false;
       authListenerRef.current?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Activity tracking effect - consolidated timeout management
