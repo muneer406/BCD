@@ -8,6 +8,7 @@ import {
   RequireDisclaimer,
 } from "./components/RouteGuards";
 import { Capture } from "./pages/Capture";
+import { ClinicalSummary } from "./pages/ClinicalSummary";
 import { ConsentFlow } from "./pages/ConsentFlow";
 import { Disclaimer } from "./pages/Disclaimer";
 import { History } from "./pages/History";
@@ -34,6 +35,7 @@ function App() {
               <Route path="/signup" element={<Signup />} />
             </Route>
             <Route element={<RequireAuth />}>
+              <Route path="/share/:sessionId" element={<ClinicalSummary />} />
               <Route path="/consent" element={<ConsentFlow />} />
               <Route element={<RequireConsent />}>
                 <Route path="/disclaimer" element={<Disclaimer />} />
