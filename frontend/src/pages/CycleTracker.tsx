@@ -17,7 +17,6 @@ import {
   CYCLE_LENGTH_OPTIONS,
   deleteCycleLog,
   getCycleContextForDate,
-  getCycleLogForDate,
   getCycleLogs,
   getDaysInMonth,
   getMonthStartOffset,

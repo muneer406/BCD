@@ -154,6 +154,7 @@ export function ClinicalSummary() {
     "validating" | "valid" | "invalid" | "used" | "expired"
   >("validating");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [sessionCreatedAt, setSessionCreatedAt] = useState<string | null>(null);
   const [sessionType, setSessionType] = useState<string | null>("full");
   const [previewMap, setPreviewMap] = useState<ImagePreviewMap>({});
