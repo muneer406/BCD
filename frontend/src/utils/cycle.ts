@@ -138,7 +138,7 @@ export function predictPhaseForDate(
   const cycleDay = getCycleDayForDate(targetDate, startDate, cycleLength);
   if (cycleDay === null) return null;
 
-  const length = cycleLength === "unknown" ? 28 : cycleLength;
+  const cycleLengthVal = cycleLength === "unknown" ? 28 : cycleLength;
 
   // Approximate phase ranges:
   // Menstrual: days 1-5
@@ -183,31 +183,30 @@ export function getCycleContextForDate(date: string): {
   const phase = log?.phase ?? getPhaseForDate(date);
 
   let predictedNextPhase: string | null = null;
-  if (phase && cycleDay !== null && log?.cycleLength !== "unknown") {
-    const length = log?.cycleLength === "unknown" ? 28 : (log?.cycleLength ?? 28);
-    let daysUntil = 0;
-    let next: CyclePhase = phase;
-
-    if (phase === "menstrual") {
-      next = "follicular";
-      daysUntil = 6 - cycleDay;
-    } else if (phase === "follicular") {
-      next = "ovulation";
-      daysUntil = 14 - cycleDay;
-    } else if (phase === "ovulation") {
-      next = "luteal";
-      daysUntil = 17 - cycleDay;
-    } else if (phase === "luteal") {
-      next = "menstrual";
-      daysUntil = length + 1 - cycleDay;
-    }
-
-    if (daysUntil === 0 && phase !== "unknown") {
-      predictedNextPhase = `Transitioning to ${PHASE_LABELS[next].toLowerCase()} today`;
-    } else if (daysUntil > 0) {
-      predictedNextPhase = `${PHASE_LABELS[next]} phase in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`;
+  if (phase && cycleDay !== null && log?.cycleLength) {
+    if (log.cycleLength === "unknown") {
+      // Can't predict next phase without knowing cycle length
     } else {
-      predictedNextPhase = `${PHASE_LABELS[next]} phase soon`;
+      const length = log.cycleLength;
+      let daysUntil = 0;
+      let next: CyclePhase = phase;
+
+      if (phase === "menstrual") {
+        next = "follicular";
+        daysUntil = 6 - cycleDay;
+      } else if (phase === "follicular") {
+        next = "ovulation";
+        daysUntil = 14 - cycleDay;
+      } else if (phase === "ovulation") {
+        next = "luteal";
+        daysUntil = 17 - cycleDay;
+      } else {
+        next = "menstrual";
+        daysUntil = length - cycleDay + 1;
+      }
+
+      if (daysUntil <= 0) daysUntil = 1;
+      predictedNextPhase = `${daysUntil}d → ${PHASE_LABELS_ENG[next]}`;
     }
   }
 
