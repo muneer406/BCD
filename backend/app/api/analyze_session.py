@@ -90,6 +90,8 @@ def _persist_analysis(session_id: str, user_id: str, analysis: dict) -> bool:
         .limit(1)
         .execute()
     )
+    if existing.data:
+        return True  # Already analyzed, skip overwrite
     overwritten = bool(existing.data)
     supabase.table("angle_analysis").delete().eq(
         "session_id", session_id).execute()
