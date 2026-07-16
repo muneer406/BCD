@@ -19,6 +19,17 @@ from .limiter import limiter as _shared_limiter
 # Logging configuration (Phase 5 Part 8)
 # ---------------------------------------------------------------------------
 
+# Download ONNX model from GitHub Releases at startup
+import urllib.request, os
+_model_path = os.path.join(os.path.dirname(__file__), "models", "mobilenetv3_small_embedding_int8.onnx")
+if not os.path.exists(_model_path) or os.path.getsize(_model_path) < 1000000:
+    os.makedirs(os.path.dirname(_model_path), exist_ok=True)
+    try:
+        _url = "https://github.com/muneer406/BCD/releases/download/v0.1.0-models/mobilenetv3_small_embedding_int8.onnx"
+        urllib.request.urlretrieve(_url, _model_path)
+    except Exception:
+        pass  # Non-fatal — model check happens later in embedding module
+
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
