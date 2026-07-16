@@ -1,48 +1,49 @@
-import os, urllib.request, json
+import os, urllib.request
 from huggingface_hub import HfApi
 
 api = HfApi(token=os.environ["HF_TOKEN"])
 space = "Muneer320/bcd-backend"
 
-# Files to always skip
-SKIP_PREFIXES = ("__pycache__", ".pyc", ".gitignore", "README.md")
-SKIP_FILES = {"models/mobilenetv3_small_embedding_int8.onnx"}
+# Ensure README has proper HF Space frontmatter
+readme_content = """---
+title: BCD Backend
+emoji: stethoscope
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+sdk_version: "1.0"
+python_version: "3.11"
+app_file: app/main.py
+pinned: false
+---
 
-uploads = []
+"""
+try:
+    existing = api.read_file(repo_id=space, path_in_repo="README.md", repo_type="space")
+    if "sdk: docker" not in existing:
+        print("  FIXING README.md")
+        api.upload_file(path_or_fileobj=readme_content.encode(), path_in_repo="README.md", repo_id=space, repo_type="space")
+except Exception:
+    print("  CREATING README.md")
+    api.upload_file(path_or_fileobj=readme_content.encode(), path_in_repo="README.md", repo_id=space, repo_type="space")
 
-# Walk backend/ and collect non-binary files
+# Upload files one by one
 for root, dirs, files in os.walk("backend"):
     for f in files:
         local = os.path.join(root, f)
         remote = os.path.relpath(local, "backend")
-        if any(remote.startswith(p) for p in SKIP_PREFIXES):
+        if remote.endswith((".pyc", ".onnx")):
             continue
-        if remote in SKIP_FILES:
+        if remote.startswith("__pycache__"):
             continue
-        # Skip non-essential files
-        if f.endswith((".pyc", ".onnx")):
+        if remote == "README.md":
             continue
-        uploads.append((local, remote))
-
-# Download model from GitHub Releases and upload separately
-model_url = "https://github.com/muneer406/BCD/releases/download/v0.1.0-models/mobilenetv3_small_embedding_int8.onnx"
-model_local = "/tmp/model.onnx"
-
-if not os.path.exists(model_local):
-    print("Downloading model from GitHub Releases...")
-    urllib.request.urlretrieve(model_url, model_local)
-    print(f"  {os.path.getsize(model_local):,} bytes")
-
-# Upload in batches to avoid too many commits
-batch = []
-for local, remote in uploads:
-    print(f"  {remote}")
-    batch.append({"local": local, "remote": remote})
-    if len(batch) >= 50:
-        api.upload_file(path_or_fileobj=batch[0]["local"], path_in_repo=batch[0]["remote"], repo_id=space, repo_type="space")
-        batch = []
-
-if batch:
-    api.upload_file(path_or_fileobj=batch[0]["local"], path_in_repo=batch[0]["remote"], repo_id=space, repo_type="space")
+        print(f"  {remote}")
+        api.upload_file(
+            path_or_fileobj=local,
+            path_in_repo=remote,
+            repo_id=space,
+            repo_type="space",
+        )
 
 print("Upload complete")
