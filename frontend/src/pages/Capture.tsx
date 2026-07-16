@@ -440,13 +440,13 @@ export function Capture() {
           onClick={() => setMode("quick")}
           className={`relative flex items-start gap-4 rounded-2xl border p-4 text-left transition ${
             mode === "quick"
-              ? "border-amber-300 bg-amber-50/70 ring-1 ring-amber-300"
+              ? "border-ink-900 bg-ink-50/70 ring-1 ring-ink-900"
               : "border-sand-200 bg-white/70 hover:bg-sand-50"
           }`}
         >
           <div
             className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
-              mode === "quick" ? "bg-amber-200 text-amber-900" : "bg-sand-100 text-ink-700"
+              mode === "quick" ? "bg-ink-900 text-white" : "bg-sand-100 text-ink-700"
             }`}
           >
             <Zap className="h-5 w-5" />
@@ -461,7 +461,7 @@ export function Capture() {
             </p>
           </div>
           {mode === "quick" && (
-            <span className="absolute right-3 top-3 flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+            <span className="absolute right-3 top-3 flex h-2.5 w-2.5 rounded-full bg-ink-500" />
           )}
         </button>
 
@@ -470,13 +470,13 @@ export function Capture() {
           onClick={() => setMode("full")}
           className={`relative flex items-start gap-4 rounded-2xl border p-4 text-left transition ${
             mode === "full"
-              ? "border-tide-300 bg-tide-50/70 ring-1 ring-tide-300"
+              ? "border-ink-900 bg-ink-50/70 ring-1 ring-ink-900"
               : "border-sand-200 bg-white/70 hover:bg-sand-50"
           }`}
         >
           <div
             className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
-              mode === "full" ? "bg-tide-200 text-tide-900" : "bg-sand-100 text-ink-700"
+              mode === "full" ? "bg-ink-900 text-white" : "bg-sand-100 text-ink-700"
             }`}
           >
             <ClipboardList className="h-5 w-5" />

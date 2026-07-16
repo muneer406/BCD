@@ -15,6 +15,7 @@ import {
   TrendingUp,
   ArrowLeftRight,
   Columns2,
+  Lock,
   Maximize2,
 } from "lucide-react";
 import { Button } from "../components/Button";
@@ -197,6 +198,7 @@ export function Result() {
   );
   const [comparisonView, setComparisonView] = useState<"side" | "swipe">("side");
   const [imagesCollapsed, setImagesCollapsed] = useState(true);
+  const [unlockedAngles, setUnlockedAngles] = useState<Set<string>>(new Set());
   const [selectedAngle, setSelectedAngle] = useState<string>("front");
   const [baselinePreviewMap, setBaselinePreviewMap] = useState<ImagePreviewMap>({});
   const [baselineImagesLoading, setBaselineImagesLoading] = useState(true);
@@ -1136,34 +1138,38 @@ export function Result() {
                             0,
                           )}%)`}
                       </p>
-                      <details className="mt-3" onToggle={(e) => {
-                        if (!(e.target as HTMLDetailsElement).open) return;
-                        const storedPin = sessionStorage.getItem("bcd_pin");
-                        if (!storedPin) {
-                          const newPin = prompt("Set a 4-digit PIN to protect your images:");
-                          if (newPin && newPin.length >= 4) {
-                            sessionStorage.setItem("bcd_pin", newPin);
-                          } else {
-                            (e.target as HTMLDetailsElement).open = false;
-                          }
-                        } else {
-                          const pageVerified = sessionStorage.getItem("bcd_pin_page");
-                          if (!pageVerified) {
-                            const entered = prompt("Enter your PIN to view images:");
-                            if (entered === storedPin) {
-                              sessionStorage.setItem("bcd_pin_page", "true");
-                            } else {
-                              alert("Incorrect PIN. Images remain hidden.");
-                              (e.target as HTMLDetailsElement).open = false;
-                            }
-                          }
-                        }
-                      }}>
-                        <summary className="cursor-pointer text-xs font-semibold text-ink-900">
-                          View image
-                        </summary>
+                      {unlockedAngles.has(title) ? (
                         <div className="mt-3">{renderPreview(title)}</div>
-                      </details>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const storedPin = sessionStorage.getItem("bcd_pin");
+                            if (!storedPin) {
+                              const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                              if (newPin && newPin.length >= 4) {
+                                sessionStorage.setItem("bcd_pin", newPin);
+                                setUnlockedAngles(prev => new Set(prev).add(title));
+                              }
+                            } else {
+                              const pageVerified = sessionStorage.getItem("bcd_pin_page");
+                              if (pageVerified || sessionStorage.getItem("bcd_pin_page") === "true") {
+                                setUnlockedAngles(prev => new Set(prev).add(title));
+                              } else {
+                                const entered = prompt("Enter your PIN to view images:");
+                                if (entered === storedPin) {
+                                  sessionStorage.setItem("bcd_pin_page", "true");
+                                  setUnlockedAngles(prev => new Set(prev).add(title));
+                                } else {
+                                  alert("Incorrect PIN. Images remain hidden.");
+                                }
+                              }
+                            }
+                          }}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sand-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-900 hover:bg-sand-50 transition-colors"
+                        >
+                          🔒 View image
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1227,21 +1233,24 @@ export function Result() {
             </div>
           )}
 
-          {!analysisLoading && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleReanalyze}
-                disabled={reanalyzing}
-                className="inline-flex items-center gap-1.5 text-xs text-ink-600 hover:text-ink-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Re-run the full ML analysis against your current baseline"
-              >
-                <RefreshCw
-                  className={`h-3 w-3 ${reanalyzing ? "animate-spin" : ""}`}
-                />
-                {reanalyzing ? "Re-analyzing..." : "Re-analyze"}
-              </button>
-            </div>
-          )}
+          {!analysisLoading && !isFirstSession && interpretation && (
+              <div className="flex items-center gap-3 pt-3 border-t border-sand-200">
+                <button
+                  onClick={handleReanalyze}
+                  disabled={reanalyzing}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-ink-900 bg-ink-900 px-4 py-2 text-xs font-semibold text-white hover:bg-ink-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Re-run the full ML analysis against your current baseline"
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${reanalyzing ? "animate-spin" : ""}`}
+                  />
+                  {reanalyzing ? "Re-analyzing..." : "Refresh analysis"}
+                </button>
+                <span className="text-xs text-ink-500">
+                  Re-analyzes this session with latest model improvements
+                </span>
+              </div>
+            )}
         </Card>
       </div>
 
