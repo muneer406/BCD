@@ -1,6 +1,5 @@
 import os, urllib.request
-from huggingface_hub import HfApi
-from huggingface_hub import CommitOperationAdd
+from huggingface_hub import HfApi, CommitOperationAdd, CommitOperationDelete
 
 api = HfApi(token=os.environ["HF_TOKEN"])
 space = "Muneer320/bcd-backend"
