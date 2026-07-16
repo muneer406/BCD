@@ -15,7 +15,7 @@ for root, dirs, files in os.walk("backend"):
             continue
         if remote.startswith("__pycache__"):
             continue
-        if remote in ("Dockerfile", "scripts/upload_hf.py"):
+        if remote in ("Dockerfile", "scripts/upload_hf.py", "README.md"):
             continue
         print(f"  {remote}")
         with open(local, "rb") as fh:
