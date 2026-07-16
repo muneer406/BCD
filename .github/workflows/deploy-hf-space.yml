@@ -1,0 +1,16 @@
+name: Deploy Backend to HF Space
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/sync-hf-space.yml"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    uses: ./.github/workflows/sync-hf-space.yml
+    secrets: inherit
+    with:
+      verify_deployment: true
