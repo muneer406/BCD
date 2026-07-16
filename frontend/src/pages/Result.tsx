@@ -1303,7 +1303,28 @@ export function Result() {
                 </div>
 
                 <button
-                  onClick={() => setImagesCollapsed(!imagesCollapsed)}
+                  onClick={() => {
+                    if (imagesCollapsed) {
+                      const storedPin = sessionStorage.getItem("bcd_pin");
+                      if (storedPin) {
+                        const entered = prompt("Enter your PIN to view images:");
+                        if (entered === storedPin) {
+                          setImagesCollapsed(false);
+                        } else {
+                          alert("Incorrect PIN. Images remain hidden.");
+                        }
+                      } else {
+                        const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                        if (newPin && newPin.length >= 4) {
+                          sessionStorage.setItem("bcd_pin", newPin);
+                          sessionStorage.setItem("bcd_pin_verified", "true");
+                          setImagesCollapsed(false);
+                        }
+                      }
+                    } else {
+                      setImagesCollapsed(true);
+                    }
+                  }}
                   className="inline-flex items-center gap-2 text-sm font-medium text-ink-600 hover:text-ink-900 transition-colors py-1"
                 >
                   {imagesCollapsed ? "▶" : "▼"} {imagesCollapsed ? "Show images" : "Hide images"}
