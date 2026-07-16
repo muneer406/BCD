@@ -9,6 +9,40 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 const signedUrlCache = new Map<string, { data: unknown; expires: number }>();
 const CACHE_TTL = 4 * 60 * 1000;
 
+// localStorage-backed cache for session data (1-hour TTL)
+const STORAGE_CACHE_PREFIX = "bcd_cache_";
+const STORAGE_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getStorageCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (Date.now() < entry.expires) return entry.data as T;
+    localStorage.removeItem(STORAGE_CACHE_PREFIX + key);
+  } catch { /* ignore corrupt cache */ }
+  return null;
+}
+
+function setStorageCache(key: string, data: unknown): void {
+  try {
+    localStorage.setItem(
+      STORAGE_CACHE_PREFIX + key,
+      JSON.stringify({ data, expires: Date.now() + STORAGE_CACHE_TTL })
+    );
+  } catch { /* storage full — ignore */ }
+}
+
+function clearStorageCache(): void {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(STORAGE_CACHE_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
+
+export { clearStorageCache };
+
 if (!import.meta.env.VITE_API_URL) {
   console.warn(
     "[apiClient] VITE_API_URL is not set. " +
@@ -97,7 +131,7 @@ export const apiClient = {
     token: string,
   ) {
     const cacheKey = `info:${sessionId}`;
-    const cached = getCached<{
+    const cached = getStorageCache<{
       session_id: string; is_first_session: boolean; is_current: boolean;
       total_sessions: number; created_at: string; previous_session_id: string | null;
     }>(cacheKey);
@@ -106,7 +140,7 @@ export const apiClient = {
       session_id: string; is_first_session: boolean; is_current: boolean;
       total_sessions: number; created_at: string; previous_session_id: string | null;
     };
-    setCache(cacheKey, data);
+    setStorageCache(cacheKey, data);
     return data;
   },
 
