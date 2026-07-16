@@ -1,9 +1,11 @@
 import logging
 import os
 from threading import Lock
-from typing import Optional
+from typing import Optional, Set
 
 import numpy as np
+
+from supabase import Client
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
@@ -30,42 +32,24 @@ router = APIRouter(tags=["analysis"])
 _analysis_jobs: dict = {}
 _analysis_lock = Lock()
 
-
-def _get_table_columns(supabase, table_name: str, schema: str = "public") -> set[str]:
-    """Return the set of column names for a given table by querying information_schema."""
-    try:
-        response = supabase.rpc(
-            "get_columns",
-            {
-                "p_table_name": table_name,
-                "p_schema_name": schema,
-            },
-        ).execute()
-        if response.data:
-            return {row["column_name"] for row in response.data}
-    except Exception as exc:
-        logger.warning(
-            "Could not query columns for %s.%s via RPC: %s", schema, table_name, exc
-        )
-
-    # Fallback to a direct information_schema query if the RPC helper is unavailable.
-    try:
-        response = (
-            supabase.schema("information_schema")
-            .table("columns")
-            .select("column_name")
-            .eq("table_schema", schema)
-            .eq("table_name", table_name)
-            .execute()
-        )
-        if response.data:
-            return {row["column_name"] for row in response.data}
-    except Exception as exc:
-        logger.warning(
-            "Could not query information_schema for %s.%s: %s", schema, table_name, exc
-        )
-
-    return set()
+def _get_table_columns(supabase: Client, table_name: str,
+                        schema: str = "public") -> Set[str]:
+    """Return known columns for session_analysis and angle_analysis tables."""
+    # Hardcoded column lists — the runtime information_schema query is
+    # blocked by Supabase's schema restrictions.
+    known = {
+        "session_analysis": {
+            "session_id", "user_id", "overall_change_score", "trend_score",
+            "angle_aware_score", "analysis_version", "analysis_confidence_score",
+            "session_quality_score", "localized_insights", "symmetry_score",
+            "is_first_session", "change_confidence_interval",
+        },
+        "angle_analysis": {
+            "session_id", "user_id", "angle_type", "change_score",
+            "summary", "angle_quality_score",
+        },
+    }
+    return known.get(table_name, set())
 
 
 def _interpretation_payload(
