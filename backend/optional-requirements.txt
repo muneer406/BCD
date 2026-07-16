@@ -1,0 +1,5 @@
+# Optional native SQLCipher bindings for encrypted local storage.
+# Requires libsqlcipher-dev system package.
+# Without these, app/services/local_db.py falls back to AES-256-GCM on stdlib sqlite3.
+pysqlcipher3; sys_platform != "win32"
+sqlcipher3; sys_platform != "win32"

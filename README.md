@@ -1,7 +1,7 @@
 # BCD - Breast Changes Detection
 
 <p align="center">
-  <img src="frontend/public/image.png" alt="BCD Logo" width="120">  <a href="https://github.com/muneer406/BCD/blob/master/backend/docs/adr/ADR-001-to-010.md">Architecture Decisions</a>
+  <img src="frontend/public/image.png" alt="BCD Logo" width="120">
 </p>
 
 [![CI](https://github.com/muneer406/BCD/actions/workflows/ci.yml/badge.svg)](https://github.com/muneer406/BCD/actions/workflows/ci.yml)
@@ -325,6 +325,7 @@ Full documentation: **[BACKEND_DOCS.md](backend/BACKEND_DOCS.md)**
 | **[frontend/README.md](frontend/README.md)** | Frontend setup and development |
 | **[backend/README.md](backend/README.md)** | Backend quick-start |
 | **[SUPABASE_MIGRATIONS.sql](SUPABASE_MIGRATIONS.sql)** | Database schema with RLS policies |
+| **[ADRs](backend/docs/adr/ADR-001-to-010.md)** | Architecture Decision Records — key design decisions and tradeoffs |
 | **[SECURITY.md](SECURITY.md)** | Security practices and privacy roadmap |
 | **[API Docs](http://localhost:8000/api/docs)** | Interactive Swagger UI (local dev) |
 
