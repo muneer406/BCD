@@ -292,6 +292,18 @@ export function Capture() {
       }
 
       clearDraft();
+
+      // Pre-compute analysis in background so results are ready immediately
+      const API_URL = import.meta.env.VITE_API_URL || "";
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (API_URL && token) {
+        fetch(`${API_URL}/api/analyze-session/${sessionId}?async_process=true`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId }),
+        }).catch(() => {}); // fire-and-forget
+      }
+
       navigate(`/result/${sessionId}`, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "An error occurred";

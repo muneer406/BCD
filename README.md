@@ -9,10 +9,9 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase)](https://supabase.com)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.1-EE4C2C?logo=pytorch)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel)](https://vercel.com)
-[![HF Spaces](https://img.shields.io/badge/HF%20Spaces-FFD21E?logo=huggingface)](https://huggingface.co/spaces)
+|[![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-1.21-005CED?logo=onnx)](https://onnxruntime.ai/)|
+|[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+|[![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel)](https://vercel.com)
 
 > **A privacy-first visual change awareness tool** that helps individuals track breast health changes over time through standardized self-monitoring. Compares you against your own history - not population averages.
 
@@ -159,7 +158,7 @@ Each session requires captures from **all 6 standardized angles**:
 |---|---|---|
 | Python | 3.11 | Runtime |
 | FastAPI | 0.110 | Web framework |
-| PyTorch | 2.1 | ML inference (EfficientNetV2-S) |
+| ONNX Runtime | 1.21 | ML inference (MobileNetV3-Small, 576-dim) |
 | OpenCV | 4.8 | Image preprocessing (CLAHE, denoise, crop) |
 | Supabase Python | 2.10 | Database & storage client |
 | PyJWT | 2.8 | JWT verification (JWKS) |
@@ -170,7 +169,7 @@ Each session requires captures from **all 6 standardized angles**:
 | Component | Platform |
 |---|---|
 | Frontend | [Vercel](https://vercel.com) |
-| Backend | [Hugging Face Spaces](https://huggingface.co/spaces) (Docker) |
+| Backend | Azure VM (via nginx + systemd) |
 | Database | [Supabase](https://supabase.com) PostgreSQL |
 | Storage | Supabase Storage (S3-compatible, private bucket) |
 
