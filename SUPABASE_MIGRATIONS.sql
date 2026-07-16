@@ -73,6 +73,7 @@ create table if not exists public.session_analysis (
   analysis_version text default 'v0.7',
   localized_insights jsonb,
   symmetry_score float,
+  is_first_session boolean,
   change_confidence_interval float[]
 );
 

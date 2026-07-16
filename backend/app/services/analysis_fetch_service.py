@@ -11,8 +11,7 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
         .select(
             "overall_change_score, trend_score, created_at, "
             "angle_aware_score, analysis_version, "
-            "analysis_confidence_score, session_quality_score, localized_insights, "
-            "is_first_session"
+            "analysis_confidence_score, session_quality_score, localized_insights"
         )
         .eq("session_id", session_id)
         .eq("user_id", user_id)
@@ -33,6 +32,18 @@ def get_session_analysis(session_id: str, user_id: str) -> Dict[str, object]:
     angle_rows: List[Dict[str, object]] = angle_result.data or []
 
     row = session_rows[0]
+    # Determine is_first_session safely (column may not exist or be None)
+    is_first = row.get("is_first_session")
+    if is_first is None:
+        # Fall back to counting sessions
+        all_sessions = (
+            supabase.table("sessions")
+            .select("id", count="exact", head=True)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        is_first = int(getattr(all_sessions, "count", 0)) <= 1
+
     return {
         "session_id": session_id,
         "overall_change_score": row.get("overall_change_score", 0.0),
