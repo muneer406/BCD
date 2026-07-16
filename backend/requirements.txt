@@ -17,6 +17,7 @@ numpy==1.24.3
 # Issue #149: secure local encrypted storage
 # Native SQLCipher bindings in optional-requirements.txt (need libsqlcipher-dev).
 # Fallback in app/services/local_db.py uses cryptography for AES-256-GCM.
+cryptography==41.0.7
 
 # Phase 9: pHash fast pre-check (hybrid approach)
 imagehash==4.3.1
