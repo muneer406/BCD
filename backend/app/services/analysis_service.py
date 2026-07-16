@@ -64,8 +64,9 @@ def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
 
 def _load_user_baseline(user_id: str, exclude_session_id: str) -> Optional[np.ndarray]:
     """
-    Rolling lifetime baseline: mean of ALL stored session embeddings for user,
-    excluding the current session (so baseline is always prior sessions only).
+    Fixed lifetime baseline: the FIRST session's session-level embedding.
+    All subsequent sessions are compared against this initial baseline,
+    giving a stable reference point that doesn't drift over time.
     Returns None for first session (no prior data).
     """
     supabase = get_supabase_client()
@@ -73,18 +74,13 @@ def _load_user_baseline(user_id: str, exclude_session_id: str) -> Optional[np.nd
         supabase.table("session_embeddings")
         .select("embedding")
         .eq("user_id", user_id)
-        .neq("session_id", exclude_session_id)
+        .order("created_at", desc=False)  # oldest first
+        .limit(1)
         .execute()
     )
     if not result.data:
         return None
-
-    rows: list = result.data or []
-    embeddings = [_parse_embedding(row["embedding"]) for row in rows]
-    embeddings = [e for e in embeddings if e is not None]
-    if not embeddings:
-        return None
-    return np.mean(embeddings, axis=0)
+    return _parse_embedding(result.data[0].get("embedding"))
 
 
 def _load_per_angle_baselines(user_id: str, exclude_session_id: str) -> Dict[str, np.ndarray]:
@@ -96,24 +92,38 @@ def _load_per_angle_baselines(user_id: str, exclude_session_id: str) -> Dict[str
     """
     try:
         supabase = get_supabase_client()
+        # First, get the first session_id for this user
+        first_result = (
+            supabase.table("sessions")
+            .select("id")
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if not first_result.data:
+            return {}
+        first_session_id = first_result.data[0]["id"]
+        if first_session_id == exclude_session_id:
+            return {}  # current session IS the first session
+
+        # Load angle embeddings only from the first session
         result = (
             supabase.table("angle_embeddings")
             .select("angle_type, embedding")
             .eq("user_id", user_id)
-            .neq("session_id", exclude_session_id)
+            .eq("session_id", first_session_id)
             .execute()
         )
         if not result.data:
             return {}
 
-        groups: Dict[str, List[np.ndarray]] = {}
+        baselines: Dict[str, np.ndarray] = {}
         for row in result.data:
             emb = _parse_embedding(row["embedding"])
             if emb is not None:
-                atype = row["angle_type"]
-                groups.setdefault(atype, []).append(emb)
-
-        return {atype: np.mean(embs, axis=0) for atype, embs in groups.items()}
+                baselines[row["angle_type"]] = emb
+        return baselines
     except Exception as e:
         logger.warning("Per-angle baseline load failed: %s", e, exc_info=e)
         return {}
