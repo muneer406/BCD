@@ -1,105 +1,94 @@
 """
 BCD Backend - embedding.py
-Phase 6: Feature extraction using EfficientNetV2-S (1280-dim output).
-         Also provides pHash-based fast pre-check (hybrid approach).
+Feature extraction using ONNX Runtime with MobileNetV3-Small (576-dim).
+Replaces the previous PyTorch+EfficientNetV2-S pipeline for lighter memory.
 
-Model: EfficientNetV2-S (torchvision 0.14+, available in the project's
-       torchvision==0.16.0 requirement).
-
-Output: 1280-dimensional float32 vector.
-        Previous ResNet50 output was 2048-dim — all stored embeddings must be
-        cleared / migrated (see PHASE6_MIGRATION.sql).
-
-Weights: ImageNet pre-trained only.  No domain-specific fine-tuned weights
-         are used.  The application domain (visible-light phone photos of
-         the external chest surface) has no public labelled dataset suitable
-         for supervised fine-tuning.  ImageNet weights transfer adequately
-         for surface-appearance embedding tasks.
+Model: mobilenetv3_small_embedding_int8.onnx (576-dim output, int8 quantized).
+Weights: Downloaded from GitHub Releases at startup.
 """
 
 import logging
+import os
 from typing import List
 
 import numpy as np
-import torch
-import torchvision.models as models
-import torchvision.transforms as transforms
+import onnxruntime
+
 from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-EMBEDDING_DIM = 1280
-INTERMEDIATE_SIZE = 384
+EMBEDDING_DIM = 576
 TARGET_SIZE = 224
 
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
-
-_transform = transforms.Compose([
-    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-])
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 # Model singleton
-_encoder: "ImageEncoder | None" = None
+_encoder: "OnnxEncoder | None" = None
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "models",
+                           "mobilenetv3_small_embedding.onnx")
 
 
-class ImageEncoder:
-    """EfficientNetV2-S wrapped for 1280-dim embedding extraction."""
+class OnnxEncoder:
+    """MobileNetV3-Small via ONNX Runtime for 576-dim embedding extraction."""
 
     def __init__(self) -> None:
-        self.device = DEVICE
-        self.model = models.efficientnet_v2_s(weights=models.EfficientNet_V2_S_Weights.IMAGENET1K_V1)
-        self.model = self.model.eval().to(self.device)
-        # Remove classifier head — output is pooled features
-        self.model.classifier = torch.nn.Identity()
-        logger.info("EfficientNetV2-S loaded on %s (params: %dM)",
-                     self.device,
-                     sum(p.numel() for p in self.model.parameters()) // 1_000_000)
+        path = os.path.abspath(_MODEL_PATH)
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"ONNX model not found at {path}. "
+                "Run the startup download or place the model file."
+            )
+        so = onnxruntime.SessionOptions()
+        so.log_severity_level = 3
+        self.session = onnxruntime.InferenceSession(
+            path, sess_options=so,
+            providers=["CPUExecutionProvider"])
+        self.input_name = self.session.get_inputs()[0].name
+        logger.info("ONNX model loaded from %s (576-dim, %s)",
+                     path, self.session.get_inputs()[0].type)
 
-    @torch.no_grad()
+    def _preprocess(self, image: np.ndarray) -> np.ndarray:
+        """float32 [0,1] HWC RGB -> (1, 3, 224, 224) BCHW normalized."""
+        # Resize
+        h, w = image.shape[:2]
+        if h != TARGET_SIZE or w != TARGET_SIZE:
+            pil = Image.fromarray((image * 255).astype(np.uint8))
+            pil = pil.resize((TARGET_SIZE, TARGET_SIZE), 2)
+            image = np.array(pil).astype(np.float32) / 255.0
+        # Normalize
+        image = (image - IMAGENET_MEAN) / IMAGENET_STD
+        # HWC -> BCHW
+        return image.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
+
     def extract(self, image: np.ndarray) -> np.ndarray:
-        """Single image: float32 [0,1] HWC RGB -> 1280-dim vector."""
-        tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float().to(self.device)
-        tensor = _transform(tensor)
-        embedding = self.model(tensor).cpu().numpy().flatten()
-        return embedding.astype(np.float32)
+        """Single image: float32 [0,1] HWC RGB -> 576-dim vector."""
+        tensor = self._preprocess(image)
+        embedding = self.session.run(None, {self.input_name: tensor})[0]
+        return embedding.flatten().astype(np.float32)
 
-    @torch.no_grad()
     def extract_batch(self, images: List[np.ndarray]) -> np.ndarray:
-        """N images: list of float32 [0,1] HWC RGB -> (N, 1280) matrix."""
-        tensors = [torch.from_numpy(img).permute(2, 0, 1).float() for img in images]
-        batch = torch.stack(tensors).to(self.device)
-        batch = _transform(batch)
-        embeddings = self.model(batch).cpu().numpy()
+        """N images -> (N, 576) matrix."""
+        tensors = [self._preprocess(img) for img in images]
+        batch = np.concatenate(tensors, axis=0)
+        embeddings = self.session.run(None, {self.input_name: batch})[0]
         return embeddings.astype(np.float32)
 
 
-def get_encoder() -> ImageEncoder:
+def get_encoder() -> OnnxEncoder:
     global _encoder
     if _encoder is None:
-        _encoder = ImageEncoder()
+        _encoder = OnnxEncoder()
     return _encoder
 
 
 def extract_embedding(image: np.ndarray) -> np.ndarray:
-    """Extract a single 1280-dim embedding.
-
-    Args:
-        image: float32 numpy array of shape (H, W, 3) with values in [0, 1].
-
-    Returns:
-        1D float32 numpy array, length EMBEDDING_DIM (1280).
-    """
     encoder = get_encoder()
     return encoder.extract(image)
 
 
 def extract_embeddings_batch(images: List[np.ndarray]) -> np.ndarray:
-    """Extract embeddings for N images in one batched forward pass.
-    Returns shape (N, EMBEDDING_DIM).
-    """
     encoder = get_encoder()
     return encoder.extract_batch(images)
 
@@ -107,10 +96,6 @@ def extract_embeddings_batch(images: List[np.ndarray]) -> np.ndarray:
 # pHash fast pre-check (hybrid approach)
 
 def compute_phash(image: np.ndarray) -> str:
-    """Compute perceptual hash of a preprocessed image (float32 [0,1] HWC RGB).
-
-    Returns hex string of the 64-bit hash (suitable for DB storage).
-    """
     import imagehash
     img_uint8 = (image * 255).astype(np.uint8)
     pil_img = Image.fromarray(img_uint8)
@@ -118,6 +103,5 @@ def compute_phash(image: np.ndarray) -> str:
 
 
 def phash_hamming_distance(hash_a: str, hash_b: str) -> int:
-    """Hamming distance between two pHash hex strings."""
     import imagehash
     return imagehash.hex_to_hash(hash_a) - imagehash.hex_to_hash(hash_b)
