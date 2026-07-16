@@ -74,7 +74,7 @@ jobs:
           cat backend/README.md >> hf-space/README.md
           echo "HF README created."
 
-      # ── 7. Commit & push (only if something actually changed) ─────────────
+      # ── 7. Commit & push unconditionally (with marker to guarantee a change) ──
       - name: Push to HF Space
         id: push
         env:
@@ -82,17 +82,13 @@ jobs:
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           cd hf-space
+          # Touch a marker so we always have a change to commit
+          echo "${SHORT_SHA} $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .hf-sync-marker
           git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to sync – skipping push."
-            echo "deployed=false" >> "$GITHUB_OUTPUT"
-          else
-            git commit -m "sync: GitHub ${SHORT_SHA}"
-            # Credentials from store — no token in the URL
-            git push "https://huggingface.co/spaces/${HF_SPACE_ID}" main
-            echo "Push succeeded."
-            echo "deployed=true" >> "$GITHUB_OUTPUT"
-          fi
+          git commit --allow-empty -m "sync: GitHub ${SHORT_SHA}"
+          git push "https://huggingface.co/spaces/${HF_SPACE_ID}" main
+          echo "Push succeeded."
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
 
       # ── 8. Optionally wait for Space to be healthy ─────────────────────────
       - name: Verify HF Space deployment
