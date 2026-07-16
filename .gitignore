@@ -90,4 +90,5 @@ Thumbs.db
 *ignore*
 # Evaluation tools and test data (not in repo)
 backend/evaluation/
-backend/models/
+# Uncomment next line to exclude ONNX model from deployment
+# backend/models/
