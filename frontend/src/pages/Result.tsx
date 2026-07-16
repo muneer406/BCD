@@ -15,7 +15,6 @@ import {
   TrendingUp,
   ArrowLeftRight,
   Columns2,
-  Lock,
   Maximize2,
 } from "lucide-react";
 import { Button } from "../components/Button";

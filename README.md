@@ -8,10 +8,10 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-1.21-005CED?logo=onnx)](https://onnxruntime.ai/)
 [![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase)](https://supabase.com)
-|[![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-1.21-005CED?logo=onnx)](https://onnxruntime.ai/)|
-|[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-|[![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel)](https://vercel.com)
+[![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel)](https://vercel.com)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **A privacy-first visual change awareness tool** that helps individuals track breast health changes over time through standardized self-monitoring. Compares you against your own history - not population averages.
 
@@ -68,17 +68,17 @@ flowchart TB
         D[Supabase JS Client]
     end
 
-    subgraph Backend["Backend - Hugging Face Spaces"]
+    subgraph Backend["Backend - Azure VM"]
         E[FastAPI + Uvicorn]
-        F[EfficientNetV2-S<br/>1280-dim Embeddings]
-        G[OpenCV Pipeline<br/>CLAHE → Denoise → Crop]
-        H[JWT Auth<br/>PyJWT + JWKS]
+        F[MobileNetV3-Small - 576-dim ONNX]
+        G[OpenCV Pipeline - CLAHE + Denoise + Crop]
+        H[JWT Auth - PyJWT + JWKS]
     end
 
     subgraph Storage["Storage - Supabase"]
-        I[(PostgreSQL<br/>Sessions + Analysis)]
-        J[(Storage Bucket<br/>bcd-images)]
-        K[Row-Level Security<br/>Per-user isolation]
+        I[(PostgreSQL - Sessions + Analysis)]
+        J[(Storage Bucket - bcd-images)]
+        K[Row-Level Security - Per-user isolation]
     end
 
     A -->|Auth + Storage| D
@@ -104,7 +104,7 @@ sequenceDiagram
     F->>B: POST /analyze-session/{id}
     B->>S: Fetch images
     B->>M: Preprocess + Embed
-    M->>M: EfficientNetV2-S
+    M->>M: MobileNetV3-Small (ONNX)
     M->>B: Change scores
     B->>S: Store analysis
     B->>F: Return results
