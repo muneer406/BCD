@@ -7,7 +7,7 @@ space = "Muneer320/bcd-backend"
 # Ensure README has proper HF Space frontmatter
 readme_content = """---
 title: BCD Backend
-emoji: stethoscope
+emoji: 🩺
 colorFrom: indigo
 colorTo: blue
 sdk: docker

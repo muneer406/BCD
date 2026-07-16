@@ -70,7 +70,7 @@ jobs:
       #     This must run AFTER rsync so --delete doesn't remove it.
       - name: Create HF README
         run: |
-          printf '%s\n' '---' 'title: BCD Backend' 'emoji: stethoscope' 'colorFrom: indigo' 'colorTo: blue' 'sdk: docker' 'sdk_version: "1.0"' 'python_version: "3.11"' 'app_file: app/main.py' 'pinned: false' '---' '' > hf-space/README.md
+          printf '%s\n' '---' 'title: BCD Backend' 'emoji: 🩺' 'colorFrom: indigo' 'colorTo: blue' 'sdk: docker' 'sdk_version: "1.0"' 'python_version: "3.11"' 'app_file: app/main.py' 'pinned: false' '---' '' > hf-space/README.md
           cat backend/README.md >> hf-space/README.md
           echo "HF README created."
 
