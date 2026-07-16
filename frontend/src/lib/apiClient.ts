@@ -43,7 +43,7 @@ export const apiClient = {
           "in your .env.local file.",
       );
     }
-    const url = `${API_URL}${API_PREFIX}${endpoint}`;
+    const url = `${API_URL.replace(/\/+$/, "")}${API_PREFIX}${endpoint}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
