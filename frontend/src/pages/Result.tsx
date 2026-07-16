@@ -196,6 +196,7 @@ export function Result() {
     null,
   );
   const [comparisonView, setComparisonView] = useState<"side" | "swipe">("side");
+  const [imagesCollapsed, setImagesCollapsed] = useState(true);
   const [selectedAngle, setSelectedAngle] = useState<string>("front");
   const [baselinePreviewMap, setBaselinePreviewMap] = useState<ImagePreviewMap>({});
   const [baselineImagesLoading, setBaselineImagesLoading] = useState(true);
@@ -1301,7 +1302,14 @@ export function Result() {
                   )}
                 </div>
 
-                {renderComparison()}
+                <button
+                  onClick={() => setImagesCollapsed(!imagesCollapsed)}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-ink-600 hover:text-ink-900 transition-colors py-1"
+                >
+                  {imagesCollapsed ? "▶" : "▼"} {imagesCollapsed ? "Show images" : "Hide images"}
+                </button>
+
+                {!imagesCollapsed && renderComparison()}
               </>
             )}
           </Card>
