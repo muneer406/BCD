@@ -42,7 +42,7 @@ def _get_table_columns(supabase: Client, table_name: str,
             "session_id", "user_id", "overall_change_score", "trend_score",
             "angle_aware_score", "analysis_version", "analysis_confidence_score",
             "session_quality_score", "localized_insights", "symmetry_score",
-            "is_first_session", "change_confidence_interval",
+            "change_confidence_interval",
         },
         "angle_analysis": {
             "session_id", "user_id", "angle_type", "change_score",

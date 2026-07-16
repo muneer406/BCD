@@ -1029,7 +1029,7 @@ export function Result() {
                   <div className="flex justify-between gap-4 pt-1">
                     <span className="text-ink-600">Model version</span>
                     <span className="text-ink-900 text-right">
-                      {analysisVersion ?? "—"} · EfficientNetV2-S
+                      {analysisVersion ?? "—"} · MobileNetV3-Small (ONNX)
                     </span>
                   </div>
                   {processingTimeMs !== null && (
@@ -1069,8 +1069,8 @@ export function Result() {
             </ul>
           ) : (
             <p className="text-sm text-ink-700">
-              No areas crossed the reporting threshold for this session, or
-              comparison data is still accumulating.
+              No areas crossed the reporting threshold for this session.
+              Additional comparisons will become available as your baseline data grows.
             </p>
           )}
           <p className="text-xs text-ink-500 leading-relaxed">
@@ -1136,7 +1136,29 @@ export function Result() {
                             0,
                           )}%)`}
                       </p>
-                      <details className="mt-3">
+                      <details className="mt-3" onToggle={(e) => {
+                        if (!(e.target as HTMLDetailsElement).open) return;
+                        const storedPin = sessionStorage.getItem("bcd_pin");
+                        if (!storedPin) {
+                          const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                          if (newPin && newPin.length >= 4) {
+                            sessionStorage.setItem("bcd_pin", newPin);
+                          } else {
+                            (e.target as HTMLDetailsElement).open = false;
+                          }
+                        } else {
+                          const pageVerified = sessionStorage.getItem("bcd_pin_page");
+                          if (!pageVerified) {
+                            const entered = prompt("Enter your PIN to view images:");
+                            if (entered === storedPin) {
+                              sessionStorage.setItem("bcd_pin_page", "true");
+                            } else {
+                              alert("Incorrect PIN. Images remain hidden.");
+                              (e.target as HTMLDetailsElement).open = false;
+                            }
+                          }
+                        }
+                      }}>
                         <summary className="cursor-pointer text-xs font-semibold text-ink-900">
                           View image
                         </summary>
@@ -1307,17 +1329,23 @@ export function Result() {
                     if (imagesCollapsed) {
                       const storedPin = sessionStorage.getItem("bcd_pin");
                       if (storedPin) {
-                        const entered = prompt("Enter your PIN to view images:");
-                        if (entered === storedPin) {
+                        const pageVerified = sessionStorage.getItem("bcd_pin_page");
+                        if (pageVerified) {
                           setImagesCollapsed(false);
                         } else {
-                          alert("Incorrect PIN. Images remain hidden.");
+                          const entered = prompt("Enter your PIN to view images:");
+                          if (entered === storedPin) {
+                            sessionStorage.setItem("bcd_pin_page", "true");
+                            setImagesCollapsed(false);
+                          } else {
+                            alert("Incorrect PIN. Images remain hidden.");
+                          }
                         }
                       } else {
                         const newPin = prompt("Set a 4-digit PIN to protect your images:");
                         if (newPin && newPin.length >= 4) {
                           sessionStorage.setItem("bcd_pin", newPin);
-                          sessionStorage.setItem("bcd_pin_verified", "true");
+                          sessionStorage.setItem("bcd_pin_page", "true");
                           setImagesCollapsed(false);
                         }
                       }
