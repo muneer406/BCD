@@ -78,12 +78,18 @@ def load_image_from_storage(storage_path: str, supabase: Client) -> np.ndarray:
     # Guard storage downloads with a 30-second SIGALRM-based timeout on Unix.
     # The Supabase Python SDK does not expose request timeouts directly for
     # storage operations, so this prevents unbounded hangs on network issues.
-    signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(30)
-    try:
-        response = supabase.storage.from_("bcd-images").download(storage_path)
-    finally:
-        signal.alarm(0)  # disable the alarm
+    import threading
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(30)
+        try:
+            response = supabase.storage.from_("bcd-images").download(storage_path)
+        finally:
+            signal.alarm(0)
+    else:
+        # Running in a background thread — signal.setitimer/ualarm isn't available,
+        # but the Supabase download has its own internal timeout.
+        response = supabase.storage.from_("bcd-images").download(storage_path)  # disable the alarm
 
     # Check magic bytes
     if response[:4] == b'\xff\xd8\xff\xe0' or response[:4] == b'\xff\xd8\xff\xe1':
