@@ -23,20 +23,12 @@ for root, dirs, files in os.walk("backend"):
             operations.append(CommitOperationAdd(path_in_repo=remote, path_or_fileobj=fh.read()))
 
 # Restore the working Dockerfile
-dockerfile_content = b"""# -- Stage 1: Build
-FROM python:3.11-slim AS builder
-WORKDIR /install
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir torch==2.1.2 torchvision==0.16.2 --extra-index-url https://download.pytorch.org/whl/cpu
-COPY requirements.txt .
-RUN grep -vE "^torch==|^torchvision==" requirements.txt > requirements_no_torch.txt && \
-    pip install --no-cache-dir -r requirements_no_torch.txt
-FROM python:3.11-slim
+dockerfile_content = b"""FROM pytorch/pytorch:2.1.2-cpu
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN grep -vE "^torch==|^torchvision==" requirements.txt | pip install --no-cache-dir -r /dev/stdin
 COPY app/ ./app/
 ENV API_PORT=7860
 ENV API_HOST=0.0.0.0
