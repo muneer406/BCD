@@ -17,11 +17,10 @@ const STEPS = [
   {
     title: "Your data and privacy",
     content: [
-      "Your photos stay on YOUR device. We cannot see them.",
-      "They are processed on your phone and never uploaded anywhere.",
-      "You can optionally back them up encrypted — only you hold the key.",
+      "Your photos are stored securely and used only for your personal baseline comparisons.",
+      "They are processed on secure servers and never shared without your permission.",
       "You can export or delete all your data at any time.",
-      "We never sell, share, or use your photos for any purpose without your permission.",
+      "We never sell, share, or use your photos for any purpose without your explicit consent.",
     ],
   },
   {
