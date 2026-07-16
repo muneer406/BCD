@@ -125,9 +125,13 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 @app.middleware("http")
-async def add_csp_header(request: Request, call_next):
+async def add_csp_and_cors(request: Request, call_next):
     response = await call_next(request)
-    # Allow dev (localhost:8000), Supabase Auth, Sentry, and HF Spaces
+    # Allow all origins for API responses (CORS)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    # Content-Security-Policy
     csp_connect = (
         "connect-src 'self' "
         "http://localhost:8000 ws://localhost:8000 "

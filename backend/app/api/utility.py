@@ -183,6 +183,7 @@ def get_session_info(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Session not found",
             )
+        session_created_at = session.get("created_at")
 
         # Optimized: single query for count + most recent 2 sessions
         # Uses Supabase's count=exact to get total_sessions alongside data
@@ -208,10 +209,17 @@ def get_session_info(
             oldest_rows = oldest_response.data or []
             is_first_session = bool(oldest_rows and oldest_rows[0].get("id") == session_id)
 
-        # Previous session is the second most recent (if not first session)
+        # Previous session is the session JUST BEFORE this one chronologically
         previous_session_id = None
-        if not is_first_session and len(session_rows) >= 2:
-            previous_session_id = session_rows[1].get("id")
+        if not is_first_session and total_sessions > 1:
+            # Fetch the session immediately before this one chronologically
+            prev_session = supabase.table("sessions").select(
+                "id"
+            ).eq("user_id", user_id).lt("created_at", session_created_at) \
+                .order("created_at", desc=True).limit(1).execute()
+            prev_rows = prev_session.data or []
+            if prev_rows:
+                previous_session_id = prev_rows[0].get("id")
 
         return {
             "session_id": session_id,
