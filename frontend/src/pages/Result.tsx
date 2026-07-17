@@ -1083,14 +1083,23 @@ export function Result() {
 
       {/* ===== THIS SESSION SECTION ===== */}
       <div className="space-y-6 border-t-2 border-sand-200 pt-8">
-        <div>
-          <h2 className="text-2xl font-heading font-semibold text-ink-900">
-            This session
-          </h2>
-          <p className="mt-1 text-sm text-ink-700">
-            Image quality check for each angle — how well-captured are these
-            photos?
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-heading font-semibold text-ink-900">
+              This session
+            </h2>
+            <p className="mt-1 text-sm text-ink-700">
+              Image quality check for each angle — how well-captured are these photos?
+            </p>
+          </div>
+          {unlockedAngles.size > 0 && (
+            <button
+              onClick={() => setUnlockedAngles(new Set())}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-600 hover:text-ink-900 transition-colors whitespace-nowrap"
+            >
+              ▼ Hide all
+            </button>
+          )}
         </div>
 
         <Card className="space-y-5">
@@ -1137,7 +1146,7 @@ export function Result() {
                             0,
                           )}%)`}
                       </p>
-                      {unlockedAngles.size > 0 || sessionStorage.getItem("bcd_pin_page") === "true" ? (
+                      {unlockedAngles.has(title) ? (
                         <div className="mt-3">{renderPreview(title)}</div>
                       ) : (
                         <button
@@ -1146,14 +1155,6 @@ export function Result() {
                             const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
                             if (pageVerified) {
                               setUnlockedAngles(prev => new Set(prev).add(title));
-                              // Load remaining angles in background after clicked one renders
-                              setTimeout(() => {
-                                setUnlockedAngles(prev => {
-                                  const next = new Set(prev);
-                                  captureOrder.forEach(a => next.add(a));
-                                  return next;
-                                });
-                              }, 100);
                               return;
                             }
                             if (!storedPin) {
@@ -1162,26 +1163,12 @@ export function Result() {
                                 sessionStorage.setItem("bcd_pin", newPin);
                                 sessionStorage.setItem("bcd_pin_page", "true");
                                 setUnlockedAngles(prev => new Set(prev).add(title));
-                                setTimeout(() => {
-                                  setUnlockedAngles(prev => {
-                                    const next = new Set(prev);
-                                    captureOrder.forEach(a => next.add(a));
-                                    return next;
-                                  });
-                                }, 100);
                               }
                             } else {
                               const entered = prompt("Enter your PIN to view images:");
                               if (entered === storedPin) {
                                 sessionStorage.setItem("bcd_pin_page", "true");
                                 setUnlockedAngles(prev => new Set(prev).add(title));
-                                setTimeout(() => {
-                                  setUnlockedAngles(prev => {
-                                    const next = new Set(prev);
-                                    captureOrder.forEach(a => next.add(a));
-                                    return next;
-                                  });
-                                }, 100);
                               } else {
                                 alert("Incorrect PIN. Images remain hidden.");
                               }
@@ -1290,50 +1277,6 @@ export function Result() {
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              if (imagesCollapsed) {
-                const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
-                if (pageVerified) {
-                  setImagesCollapsed(false);
-                  return;
-                }
-                const storedPin = sessionStorage.getItem("bcd_pin");
-                if (!storedPin) {
-                  const newPin = prompt("Set a 4-digit PIN to protect your images:");
-                  if (newPin && newPin.length >= 4) {
-                    sessionStorage.setItem("bcd_pin", newPin);
-                    sessionStorage.setItem("bcd_pin_page", "true");
-                    setUnlockedAngles(prev => {
-                      const next = new Set(prev);
-                      captureOrder.forEach(a => next.add(a));
-                      return next;
-                    });
-                    setImagesCollapsed(false);
-                  }
-                } else {
-                  const entered = prompt("Enter your PIN to view images:");
-                  if (entered === storedPin) {
-                    sessionStorage.setItem("bcd_pin_page", "true");
-                    setUnlockedAngles(prev => {
-                      const next = new Set(prev);
-                      captureOrder.forEach(a => next.add(a));
-                      return next;
-                    });
-                    setImagesCollapsed(false);
-                  } else {
-                    alert("Incorrect PIN. Images remain hidden.");
-                  }
-                }
-              } else {
-                setImagesCollapsed(true);
-              }
-            }}
-            className="inline-flex items-center gap-2 text-sm font-medium text-ink-700 hover:text-ink-900 transition-colors mb-2"
-          >
-            {imagesCollapsed ? "▶ Show images" : "▼ Hide images"}
-          </button>
-
           <Card className="space-y-5">
             {imagesLoading || baselineImagesLoading ? (
               <div className="space-y-4">
@@ -1346,6 +1289,39 @@ export function Result() {
               </div>
             ) : (
               <>
+                <button
+                  onClick={() => {
+                    if (imagesCollapsed) {
+                      const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
+                      if (pageVerified) {
+                        setImagesCollapsed(false);
+                        return;
+                      }
+                      const storedPin = sessionStorage.getItem("bcd_pin");
+                      if (!storedPin) {
+                        const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                        if (newPin && newPin.length >= 4) {
+                          sessionStorage.setItem("bcd_pin", newPin);
+                          sessionStorage.setItem("bcd_pin_page", "true");
+                          setImagesCollapsed(false);
+                        }
+                      } else {
+                        const entered = prompt("Enter your PIN to view images:");
+                        if (entered === storedPin) {
+                          sessionStorage.setItem("bcd_pin_page", "true");
+                          setImagesCollapsed(false);
+                        } else {
+                          alert("Incorrect PIN. Images remain hidden.");
+                        }
+                      }
+                    } else {
+                      setImagesCollapsed(true);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-ink-700 hover:text-ink-900 transition-colors"
+                >
+                  {imagesCollapsed ? "▶ Show images" : "▼ Hide images"}
+                </button>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     {angleOptions.map((angle) => {
