@@ -1137,30 +1137,53 @@ export function Result() {
                             0,
                           )}%)`}
                       </p>
-                      {unlockedAngles.has(title) ? (
+                      {unlockedAngles.size > 0 || sessionStorage.getItem("bcd_pin_page") === "true" ? (
                         <div className="mt-3">{renderPreview(title)}</div>
                       ) : (
                         <button
                           onClick={() => {
                             const storedPin = sessionStorage.getItem("bcd_pin");
+                            const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
+                            if (pageVerified) {
+                              setUnlockedAngles(prev => new Set(prev).add(title));
+                              // Load remaining angles in background after clicked one renders
+                              setTimeout(() => {
+                                setUnlockedAngles(prev => {
+                                  const next = new Set(prev);
+                                  captureOrder.forEach(a => next.add(a));
+                                  return next;
+                                });
+                              }, 100);
+                              return;
+                            }
                             if (!storedPin) {
                               const newPin = prompt("Set a 4-digit PIN to protect your images:");
                               if (newPin && newPin.length >= 4) {
                                 sessionStorage.setItem("bcd_pin", newPin);
+                                sessionStorage.setItem("bcd_pin_page", "true");
                                 setUnlockedAngles(prev => new Set(prev).add(title));
+                                setTimeout(() => {
+                                  setUnlockedAngles(prev => {
+                                    const next = new Set(prev);
+                                    captureOrder.forEach(a => next.add(a));
+                                    return next;
+                                  });
+                                }, 100);
                               }
                             } else {
-                              const pageVerified = sessionStorage.getItem("bcd_pin_page");
-                              if (pageVerified || sessionStorage.getItem("bcd_pin_page") === "true") {
+                              const entered = prompt("Enter your PIN to view images:");
+                              if (entered === storedPin) {
+                                sessionStorage.setItem("bcd_pin_page", "true");
                                 setUnlockedAngles(prev => new Set(prev).add(title));
+                                setTimeout(() => {
+                                  setUnlockedAngles(prev => {
+                                    const next = new Set(prev);
+                                    captureOrder.forEach(a => next.add(a));
+                                    return next;
+                                  });
+                                }, 100);
                               } else {
-                                const entered = prompt("Enter your PIN to view images:");
-                                if (entered === storedPin) {
-                                  sessionStorage.setItem("bcd_pin_page", "true");
-                                  setUnlockedAngles(prev => new Set(prev).add(title));
-                                } else {
-                                  alert("Incorrect PIN. Images remain hidden.");
-                                }
+                                alert("Incorrect PIN. Images remain hidden.");
                               }
                             }
                           }}
@@ -1267,6 +1290,50 @@ export function Result() {
             </p>
           </div>
 
+          <button
+            onClick={() => {
+              if (imagesCollapsed) {
+                const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
+                if (pageVerified) {
+                  setImagesCollapsed(false);
+                  return;
+                }
+                const storedPin = sessionStorage.getItem("bcd_pin");
+                if (!storedPin) {
+                  const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                  if (newPin && newPin.length >= 4) {
+                    sessionStorage.setItem("bcd_pin", newPin);
+                    sessionStorage.setItem("bcd_pin_page", "true");
+                    setUnlockedAngles(prev => {
+                      const next = new Set(prev);
+                      captureOrder.forEach(a => next.add(a));
+                      return next;
+                    });
+                    setImagesCollapsed(false);
+                  }
+                } else {
+                  const entered = prompt("Enter your PIN to view images:");
+                  if (entered === storedPin) {
+                    sessionStorage.setItem("bcd_pin_page", "true");
+                    setUnlockedAngles(prev => {
+                      const next = new Set(prev);
+                      captureOrder.forEach(a => next.add(a));
+                      return next;
+                    });
+                    setImagesCollapsed(false);
+                  } else {
+                    alert("Incorrect PIN. Images remain hidden.");
+                  }
+                }
+              } else {
+                setImagesCollapsed(true);
+              }
+            }}
+            className="inline-flex items-center gap-2 text-sm font-medium text-ink-700 hover:text-ink-900 transition-colors mb-2"
+          >
+            {imagesCollapsed ? "▶ Show images" : "▼ Hide images"}
+          </button>
+
           <Card className="space-y-5">
             {imagesLoading || baselineImagesLoading ? (
               <div className="space-y-4">
@@ -1331,40 +1398,6 @@ export function Result() {
                     </div>
                   )}
                 </div>
-
-                <button
-                  onClick={() => {
-                    if (imagesCollapsed) {
-                      const storedPin = sessionStorage.getItem("bcd_pin");
-                      if (storedPin) {
-                        const pageVerified = sessionStorage.getItem("bcd_pin_page");
-                        if (pageVerified) {
-                          setImagesCollapsed(false);
-                        } else {
-                          const entered = prompt("Enter your PIN to view images:");
-                          if (entered === storedPin) {
-                            sessionStorage.setItem("bcd_pin_page", "true");
-                            setImagesCollapsed(false);
-                          } else {
-                            alert("Incorrect PIN. Images remain hidden.");
-                          }
-                        }
-                      } else {
-                        const newPin = prompt("Set a 4-digit PIN to protect your images:");
-                        if (newPin && newPin.length >= 4) {
-                          sessionStorage.setItem("bcd_pin", newPin);
-                          sessionStorage.setItem("bcd_pin_page", "true");
-                          setImagesCollapsed(false);
-                        }
-                      }
-                    } else {
-                      setImagesCollapsed(true);
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-ink-600 hover:text-ink-900 transition-colors py-1"
-                >
-                  {imagesCollapsed ? "▶" : "▼"} {imagesCollapsed ? "Show images" : "Hide images"}
-                </button>
 
                 {!imagesCollapsed && renderComparison()}
               </>
