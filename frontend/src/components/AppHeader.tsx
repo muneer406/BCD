@@ -41,7 +41,7 @@ export function AppHeader() {
                 }
               >
                 <Camera className="h-4 w-4" />
-                Capture
+                <span className="hidden sm:inline">Capture</span>
               </NavLink>
               <NavLink
                 to="/cycle"
@@ -50,7 +50,7 @@ export function AppHeader() {
                 }
               >
                 <Droplets className="h-4 w-4" />
-                Cycle
+                <span className="hidden sm:inline">Cycle</span>
               </NavLink>
               <NavLink
                 to="/dashboard"
@@ -59,7 +59,7 @@ export function AppHeader() {
                 }
               >
                 <LayoutDashboard className="h-4 w-4" />
-                Dashboard
+                <span className="hidden sm:inline">Dashboard</span>
               </NavLink>
               <NavLink
                 to="/history"
@@ -68,7 +68,7 @@ export function AppHeader() {
                 }
               >
                 <History className="h-4 w-4" />
-                History
+                <span className="hidden sm:inline">History</span>
               </NavLink>
               <button
                 type="button"
@@ -76,7 +76,7 @@ export function AppHeader() {
                 onClick={signOut}
               >
                 <LogOut className="h-4 w-4" />
-                Sign out
+                <span className="hidden sm:inline">Sign out</span>
               </button>
             </>
           ) : (
