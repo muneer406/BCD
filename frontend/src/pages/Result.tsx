@@ -691,6 +691,7 @@ export function Result() {
             <img
               src={image.preview_url}
               alt={title}
+              loading="lazy"
               className="h-40 sm:h-48 w-full rounded-lg sm:rounded-2xl object-cover"
             />
             <button
@@ -1092,17 +1093,17 @@ export function Result() {
               Image quality check for each angle — how well-captured are these photos?
             </p>
           </div>
-          {unlockedAngles.size > 0 && (
-            <button
-              onClick={() => setUnlockedAngles(new Set())}
-              className="w-full rounded-xl border border-sand-200 bg-white py-2.5 text-sm font-semibold text-ink-700 hover:bg-sand-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <span>▲</span> Hide all images<span className="text-ink-500 font-normal">({unlockedAngles.size} open)</span>
-            </button>
-          )}
         </div>
 
         <Card className="space-y-5">
+          {unlockedAngles.size > 0 && (
+            <button
+              onClick={() => setUnlockedAngles(new Set())}
+              className="w-full rounded-xl border border-ink-200 bg-white py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50 transition-colors flex items-center justify-center gap-2"
+            >
+              ▲ Hide images
+            </button>
+          )}
           {analysisLoading ? (
             // Skeleton grid while analysis loads
             <div className="grid gap-4 md:grid-cols-2">

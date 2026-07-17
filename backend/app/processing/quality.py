@@ -84,15 +84,13 @@ def compute_image_quality(image: np.ndarray) -> ImageQuality:
 def compute_session_quality(angle_quality_scores: Dict[str, float]) -> float:
     """
     Aggregate per-angle quality scores into a session-level score.
-
-    Penalises incomplete sessions (expected 6 angles).
+    Simple average of available angles — coverage penalty is applied
+    separately in compute_analysis_confidence.
     """
     if not angle_quality_scores:
         return 0.0
     scores = list(angle_quality_scores.values())
-    mean_quality = float(np.mean(scores))
-    coverage = min(1.0, len(scores) / 6.0)
-    return round(mean_quality * coverage, 4)
+    return round(float(np.mean(scores)), 4)
 
 
 def compute_consistency_score(angle_change_scores: List[float]) -> float:
