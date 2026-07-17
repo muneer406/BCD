@@ -1147,18 +1147,21 @@ export function Result() {
                           )}%)`}
                       </p>
                       {unlockedAngles.has(title) ? (
-                        <div
-                          className="mt-3 cursor-pointer"
-                          onClick={() => {
-                            setUnlockedAngles(prev => {
-                              const next = new Set(prev);
-                              next.delete(title);
-                              return next;
-                            });
-                          }}
-                        >
+                        <div className="mt-3 relative">
                           {renderPreview(title)}
-                          <p className="mt-1 text-xs text-ink-500 text-center">Click image to hide</p>
+                          <button
+                            onClick={() => {
+                              setUnlockedAngles(prev => {
+                                const next = new Set(prev);
+                                next.delete(title);
+                                return next;
+                              });
+                            }}
+                            className="absolute top-2 right-2 h-6 w-6 rounded-full bg-white/80 border border-sand-200 flex items-center justify-center text-xs text-ink-600 hover:bg-sand-100 transition-colors shadow-sm"
+                            title="Hide image"
+                          >
+                            ▲
+                          </button>
                         </div>
                       ) : (
                         <button
