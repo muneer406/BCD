@@ -165,63 +165,74 @@ export default function Dashboard() {
           </p>
 
           {(() => {
-            const currentPin = localStorage.getItem("bcd_pin");
-            if (!currentPin) {
-              return (
-                <p className="text-sm text-ink-500 italic">
-                  No PIN set. View any session and click 🔒 to set one.
-                </p>
-              );
+            // Migrate PIN from old sessionStorage if present
+            const ssPin = sessionStorage.getItem("bcd_pin");
+            if (ssPin && !localStorage.getItem("bcd_pin")) {
+              localStorage.setItem("bcd_pin", ssPin);
+              sessionStorage.removeItem("bcd_pin");
             }
+            const currentPin = localStorage.getItem("bcd_pin");
+            const hasPin = !!currentPin;
             return (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-green-700">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  PIN is set
-                </div>
+                {hasPin ? (
+                  <div className="flex items-center gap-2 text-sm text-green-700">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    PIN is set
+                  </div>
+                ) : (
+                  <p className="text-sm text-ink-500 italic">
+                    No PIN set. Your session images are visible to anyone with access.
+                  </p>
+                )}
                 <button
                   onClick={() => {
-                    const current = prompt("Enter your current PIN:");
-                    if (current !== localStorage.getItem("bcd_pin")) {
-                      alert("Incorrect PIN.");
-                      return;
+                    if (hasPin) {
+                      const current = prompt("Enter your current PIN:");
+                      if (current !== localStorage.getItem("bcd_pin")) {
+                        alert("Incorrect PIN.");
+                        return;
+                      }
                     }
-                    const newPin = prompt("Enter a new 4-digit PIN:");
+                    const newPin = prompt(hasPin ? "Enter a new 4-digit PIN:" : "Set a 4-digit PIN to protect your images:");
                     if (newPin && newPin.length >= 4) {
                       localStorage.setItem("bcd_pin", newPin);
-                      sessionStorage.removeItem("bcd_pin_page");
-                      alert("PIN updated successfully.");
+                      if (hasPin) sessionStorage.removeItem("bcd_pin_page");
+                      alert(hasPin ? "PIN updated successfully." : "PIN set successfully! Use it when viewing session images.");
+                      window.location.reload();
                     } else {
                       alert("PIN must be at least 4 characters.");
                     }
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl border border-sand-200 p-3 text-sm text-ink-700 hover:bg-sand-50 transition-colors"
+                  className="flex w-full items-center gap-3 rounded-xl border border-ink-900 bg-ink-900 p-3 text-sm font-semibold text-white hover:bg-ink-800 transition-colors"
                 >
-                  <Lock className="h-4 w-4 text-ink-500" />
-                  Change PIN
+                  <Lock className="h-4 w-4" />
+                  {hasPin ? "Change PIN" : "Set a PIN"}
                 </button>
-                <button
-                  onClick={async () => {
-                    const pw = prompt("Enter your account password to reset the image PIN:");
-                    if (!pw) return;
-                    const { error: signInError } = await supabase.auth.signInWithPassword({
-                      email: user?.email || "",
-                      password: pw,
-                    });
-                    if (signInError) {
-                      alert("Incorrect password. PIN not reset.");
-                      return;
-                    }
-                    localStorage.removeItem("bcd_pin");
-                    sessionStorage.removeItem("bcd_pin_page");
-                    alert("PIN has been reset. View any session to set a new one.");
-                    window.location.reload();
-                  }}
-                  className="flex w-full items-center gap-3 rounded-xl border border-red-200 p-3 text-sm text-red-700 hover:bg-red-50 transition-colors"
-                >
-                  <Lock className="h-4 w-4 text-red-500" />
-                  Forgot PIN — reset with password
-                </button>
+                {hasPin && (
+                  <button
+                    onClick={async () => {
+                      const pw = prompt("Enter your account password to reset the image PIN:");
+                      if (!pw) return;
+                      const { error: signInError } = await supabase.auth.signInWithPassword({
+                        email: user?.email || "",
+                        password: pw,
+                      });
+                      if (signInError) {
+                        alert("Incorrect password. PIN not reset.");
+                        return;
+                      }
+                      localStorage.removeItem("bcd_pin");
+                      sessionStorage.removeItem("bcd_pin_page");
+                      alert("PIN has been reset. Set a new one above or when viewing images.");
+                      window.location.reload();
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl border border-red-200 p-3 text-sm text-red-700 hover:bg-red-50 transition-colors"
+                  >
+                    <Lock className="h-4 w-4 text-red-500" />
+                    Forgot PIN — reset with password
+                  </button>
+                )}
               </div>
             );
           })()}

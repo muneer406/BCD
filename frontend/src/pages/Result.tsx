@@ -956,7 +956,7 @@ export function Result() {
         {analysisLoading ? "Analysis in progress" : analysisData ? "Analysis complete" : ""}
       </div>
 
-      {!isFirstSession && analysisLoading && (
+      {analysisLoading && (
         <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-3">
           <Skeleton className="h-8 w-full max-w-lg" />
           <Skeleton className="h-20 w-full" />
@@ -965,7 +965,7 @@ export function Result() {
       )}
 
       {/* Interpretation — shown after first session (backend-generated copy) */}
-      {!isFirstSession && !analysisLoading && analysisData?.data?.scores && (
+      {!analysisLoading && analysisData?.data?.scores && (
         <div className="rounded-2xl sm:rounded-3xl border border-sand-200 bg-sand-50 p-4 sm:p-6 space-y-4">
           {interpretation ? (
             <>
@@ -1095,9 +1095,9 @@ export function Result() {
           {unlockedAngles.size > 0 && (
             <button
               onClick={() => setUnlockedAngles(new Set())}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-600 hover:text-ink-900 transition-colors whitespace-nowrap"
+              className="w-full rounded-xl border border-sand-200 bg-white py-2.5 text-sm font-semibold text-ink-700 hover:bg-sand-50 transition-colors flex items-center justify-center gap-2"
             >
-              ▼ Hide all
+              <span>▲</span> Hide all images<span className="text-ink-500 font-normal">({unlockedAngles.size} open)</span>
             </button>
           )}
         </div>
@@ -1147,7 +1147,19 @@ export function Result() {
                           )}%)`}
                       </p>
                       {unlockedAngles.has(title) ? (
-                        <div className="mt-3">{renderPreview(title)}</div>
+                        <div
+                          className="mt-3 cursor-pointer"
+                          onClick={() => {
+                            setUnlockedAngles(prev => {
+                              const next = new Set(prev);
+                              next.delete(title);
+                              return next;
+                            });
+                          }}
+                        >
+                          {renderPreview(title)}
+                          <p className="mt-1 text-xs text-ink-500 text-center">Click image to hide</p>
+                        </div>
                       ) : (
                         <button
                           onClick={() => {
@@ -1242,7 +1254,7 @@ export function Result() {
             </div>
           )}
 
-          {!analysisLoading && !isFirstSession && interpretation && (
+          {!analysisLoading && interpretation && (
               <div className="flex items-center gap-3 pt-3 border-t border-sand-200">
                 <button
                   onClick={handleReanalyze}
@@ -1289,39 +1301,6 @@ export function Result() {
               </div>
             ) : (
               <>
-                <button
-                  onClick={() => {
-                    if (imagesCollapsed) {
-                      const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
-                      if (pageVerified) {
-                        setImagesCollapsed(false);
-                        return;
-                      }
-                      const storedPin = localStorage.getItem("bcd_pin");
-                        if (!storedPin) {
-                          const newPin = prompt("Set a 4-digit PIN to protect your images:");
-                          if (newPin && newPin.length >= 4) {
-                            localStorage.setItem("bcd_pin", newPin);
-                            sessionStorage.setItem("bcd_pin_page", "true");
-                            setImagesCollapsed(false);
-                          }
-                        } else {
-                          const entered = prompt("Enter your PIN to view images:");
-                          if (entered === storedPin) {
-                            sessionStorage.setItem("bcd_pin_page", "true");
-                            setImagesCollapsed(false);
-                          } else {
-                          alert("Incorrect PIN. Images remain hidden.");
-                        }
-                      }
-                    } else {
-                      setImagesCollapsed(true);
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-ink-700 hover:text-ink-900 transition-colors"
-                >
-                  {imagesCollapsed ? "▶ Show images" : "▼ Hide images"}
-                </button>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     {angleOptions.map((angle) => {
@@ -1347,8 +1326,7 @@ export function Result() {
                     })}
                   </div>
 
-                  {!isFirstSession && (
-                    <div className="inline-flex rounded-full border border-sand-200 bg-sand-50 p-1">
+                  <div className="inline-flex rounded-full border border-sand-200 bg-sand-50 p-1">
                       <button
                         onClick={() => setComparisonView("side")}
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -1372,8 +1350,38 @@ export function Result() {
                         Swipe overlay
                       </button>
                     </div>
-                  )}
                 </div>
+
+                <button
+                  onClick={() => {
+                    if (imagesCollapsed) {
+                      const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
+                      if (pageVerified) { setImagesCollapsed(false); return; }
+                      const storedPin = localStorage.getItem("bcd_pin");
+                      if (!storedPin) {
+                        const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                        if (newPin && newPin.length >= 4) {
+                          localStorage.setItem("bcd_pin", newPin);
+                          sessionStorage.setItem("bcd_pin_page", "true");
+                          setImagesCollapsed(false);
+                        }
+                      } else {
+                        const entered = prompt("Enter your PIN to view images:");
+                        if (entered === storedPin) {
+                          sessionStorage.setItem("bcd_pin_page", "true");
+                          setImagesCollapsed(false);
+                        } else {
+                          alert("Incorrect PIN.");
+                        }
+                      }
+                    } else {
+                      setImagesCollapsed(true);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-sand-200 bg-white py-2.5 text-sm font-semibold text-ink-700 hover:bg-sand-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  {imagesCollapsed ? "▶ Show images" : "▲ Hide images"}
+                </button>
 
                 {!imagesCollapsed && renderComparison()}
               </>
@@ -1383,8 +1391,7 @@ export function Result() {
       )}
 
       {/* ===== OVER TIME SECTION ===== */}
-      {!isFirstSession && (
-        <div className="space-y-6 border-t-2 border-sand-200 pt-8">
+      <div className="space-y-6 border-t-2 border-sand-200 pt-8">
           <div>
             <h2 className="text-2xl font-heading font-semibold text-ink-900">
               Over time
@@ -1566,7 +1573,6 @@ export function Result() {
             )}
           </Card>
         </div>
-      )}
 
       {/* Health recommendation */}
       <Card tone="soft" className="space-y-4">
