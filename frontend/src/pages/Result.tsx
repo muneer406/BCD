@@ -1151,7 +1151,7 @@ export function Result() {
                       ) : (
                         <button
                           onClick={() => {
-                            const storedPin = sessionStorage.getItem("bcd_pin");
+                            const storedPin = localStorage.getItem("bcd_pin");
                             const pageVerified = sessionStorage.getItem("bcd_pin_page") === "true";
                             if (pageVerified) {
                               setUnlockedAngles(prev => new Set(prev).add(title));
@@ -1160,7 +1160,7 @@ export function Result() {
                             if (!storedPin) {
                               const newPin = prompt("Set a 4-digit PIN to protect your images:");
                               if (newPin && newPin.length >= 4) {
-                                sessionStorage.setItem("bcd_pin", newPin);
+                                localStorage.setItem("bcd_pin", newPin);
                                 sessionStorage.setItem("bcd_pin_page", "true");
                                 setUnlockedAngles(prev => new Set(prev).add(title));
                               }
@@ -1297,20 +1297,20 @@ export function Result() {
                         setImagesCollapsed(false);
                         return;
                       }
-                      const storedPin = sessionStorage.getItem("bcd_pin");
-                      if (!storedPin) {
-                        const newPin = prompt("Set a 4-digit PIN to protect your images:");
-                        if (newPin && newPin.length >= 4) {
-                          sessionStorage.setItem("bcd_pin", newPin);
-                          sessionStorage.setItem("bcd_pin_page", "true");
-                          setImagesCollapsed(false);
-                        }
-                      } else {
-                        const entered = prompt("Enter your PIN to view images:");
-                        if (entered === storedPin) {
-                          sessionStorage.setItem("bcd_pin_page", "true");
-                          setImagesCollapsed(false);
+                      const storedPin = localStorage.getItem("bcd_pin");
+                        if (!storedPin) {
+                          const newPin = prompt("Set a 4-digit PIN to protect your images:");
+                          if (newPin && newPin.length >= 4) {
+                            localStorage.setItem("bcd_pin", newPin);
+                            sessionStorage.setItem("bcd_pin_page", "true");
+                            setImagesCollapsed(false);
+                          }
                         } else {
+                          const entered = prompt("Enter your PIN to view images:");
+                          if (entered === storedPin) {
+                            sessionStorage.setItem("bcd_pin_page", "true");
+                            setImagesCollapsed(false);
+                          } else {
                           alert("Incorrect PIN. Images remain hidden.");
                         }
                       }

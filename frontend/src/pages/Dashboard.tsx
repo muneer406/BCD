@@ -153,6 +153,80 @@ export default function Dashboard() {
           </button>
         </Card>
 
+        {/* Image PIN settings */}
+        <Card className="p-5 space-y-4">
+          <h2 className="text-lg font-heading font-semibold text-ink-900 flex items-center gap-2">
+            <Lock className="h-4 w-4 text-tide-500" />
+            Image PIN
+          </h2>
+          <p className="text-xs text-ink-600">
+            A PIN protects your session images. Set one when you first view an image,
+            then manage it here.
+          </p>
+
+          {(() => {
+            const currentPin = localStorage.getItem("bcd_pin");
+            if (!currentPin) {
+              return (
+                <p className="text-sm text-ink-500 italic">
+                  No PIN set. View any session and click 🔒 to set one.
+                </p>
+              );
+            }
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-green-700">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  PIN is set
+                </div>
+                <button
+                  onClick={() => {
+                    const current = prompt("Enter your current PIN:");
+                    if (current !== localStorage.getItem("bcd_pin")) {
+                      alert("Incorrect PIN.");
+                      return;
+                    }
+                    const newPin = prompt("Enter a new 4-digit PIN:");
+                    if (newPin && newPin.length >= 4) {
+                      localStorage.setItem("bcd_pin", newPin);
+                      sessionStorage.removeItem("bcd_pin_page");
+                      alert("PIN updated successfully.");
+                    } else {
+                      alert("PIN must be at least 4 characters.");
+                    }
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border border-sand-200 p-3 text-sm text-ink-700 hover:bg-sand-50 transition-colors"
+                >
+                  <Lock className="h-4 w-4 text-ink-500" />
+                  Change PIN
+                </button>
+                <button
+                  onClick={async () => {
+                    const pw = prompt("Enter your account password to reset the image PIN:");
+                    if (!pw) return;
+                    const { error: signInError } = await supabase.auth.signInWithPassword({
+                      email: user?.email || "",
+                      password: pw,
+                    });
+                    if (signInError) {
+                      alert("Incorrect password. PIN not reset.");
+                      return;
+                    }
+                    localStorage.removeItem("bcd_pin");
+                    sessionStorage.removeItem("bcd_pin_page");
+                    alert("PIN has been reset. View any session to set a new one.");
+                    window.location.reload();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border border-red-200 p-3 text-sm text-red-700 hover:bg-red-50 transition-colors"
+                >
+                  <Lock className="h-4 w-4 text-red-500" />
+                  Forgot PIN — reset with password
+                </button>
+              </div>
+            );
+          })()}
+        </Card>
+
         {/* Legal links */}
         <div className="text-center text-xs text-ink-500 space-x-4">
           <Link to="/terms" className="underline hover:text-ink-700">Terms of Service</Link>
