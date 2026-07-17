@@ -36,22 +36,34 @@ export default function Terms() {
               <li>BCD does not replace breast self-exams, clinical exams, mammograms, or any other medical screening</li>
               <li>Change scores and visualizations are for <strong>informational purposes only</strong></li>
               <li>Any visual changes detected should be discussed with a healthcare professional</li>
+              <li>The ML model may produce inaccurate or misleading results and should never be used as the sole basis for health decisions</li>
             </ul>
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold text-ink-900">4. User Responsibilities</h2>
+            <h2 className="text-lg font-semibold text-ink-900">4. AI Accuracy & Limitations</h2>
+            <p>The machine learning model that powers BCD's change detection is an experimental tool. It is not clinically validated and may produce false positives, false negatives, or inconsistent results. The model's accuracy depends on image quality, consistent camera positioning, and lighting conditions. You acknowledge that:</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>Analysis results are estimates, not measurements</li>
+              <li>The model has not been approved or cleared by any regulatory body (FDA, CE, CDSCO, etc.)</li>
+              <li>You use the analysis at your own risk</li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-ink-900">5. User Responsibilities</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>Provide accurate account information</li>
               <li>Maintain the confidentiality of your login credentials</li>
               <li>Use the service responsibly and in accordance with applicable laws</li>
-              <li>Not upload images that contain identifying metadata where prohibited</li>
+              <li>You must be at least 18 years old to use this service</li>
               <li>Not attempt to access other users' data</li>
+              <li>Not upload images that contain nudity unrelated to the intended use of the service</li>
             </ul>
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold text-ink-900">5. Privacy & Data</h2>
+            <h2 className="text-lg font-semibold text-ink-900">6. Privacy & Data</h2>
             <p>Your use of BCD is governed by our <Link to="/privacy" className="text-blue-600 underline">Privacy Policy</Link>.
             You retain ownership of your images and data. We claim no intellectual property rights over your content.</p>
           </div>
@@ -77,7 +89,17 @@ export default function Terms() {
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold text-ink-900">9. Contact</h2>
+            <h2 className="text-lg font-semibold text-ink-900">10. Governing Law</h2>
+            <p>These terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the courts of India.</p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-ink-900">11. Account Termination</h2>
+            <p>We reserve the right to suspend or terminate accounts that violate these terms. You may stop using the service at any time. Upon termination, your data will be deleted in accordance with our Privacy Policy.</p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-ink-900">12. Contact</h2>
             <p className="font-medium">muneer.alam320@gmail.com</p>
           </div>
         </section>

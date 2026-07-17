@@ -51,7 +51,7 @@ export default function Privacy() {
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li><strong>Supabase</strong> — Authentication, database, and object storage. <a href="https://supabase.com/privacy" className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">Supabase Privacy Policy</a></li>
               <li><strong>Vercel</strong> — Frontend hosting. <a href="https://vercel.com/legal/privacy" className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">Vercel Privacy Policy</a></li>
-              <li><strong>Hugging Face</strong> — Backend model serving. <a href="https://huggingface.co/privacy" className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">HF Privacy Policy</a></li>
+              <li><strong>Azure VM</strong> — Backend analysis server. No additional data sharing.</li>
             </ul>
           </div>
 

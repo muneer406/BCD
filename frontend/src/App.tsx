@@ -12,6 +12,7 @@ import { Capture } from "./pages/Capture";
 import { ClinicalSummary } from "./pages/ClinicalSummary";
 import { ConsentFlow } from "./pages/ConsentFlow";
 import { CycleTracker } from "./pages/CycleTracker";
+import { Dashboard } from "./pages/Dashboard";
 import { Disclaimer } from "./pages/Disclaimer";
 import { History } from "./pages/History";
 import { Landing } from "./pages/Landing";
@@ -47,6 +48,7 @@ function App() {
                 <Route path="/disclaimer" element={<Disclaimer />} />
                 <Route element={<RequireDisclaimer />}>
                   <Route path="/capture" element={<Capture />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/cycle" element={<CycleTracker />} />
                   <Route path="/history" element={<History />} />
                   <Route path="/result" element={<Result />} />

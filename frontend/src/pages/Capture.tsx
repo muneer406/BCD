@@ -627,7 +627,7 @@ export function Capture() {
               <div className="flex gap-4">
                 {/* Pose guide silhouette */}
                 {step.guideSvg && (
-                  <div className="hidden sm:flex flex-shrink-0 w-16 h-24 text-tide-500/60 items-center justify-center">
+                  <div className="flex flex-shrink-0 w-12 h-18 sm:w-16 sm:h-24 text-tide-500/60 items-center justify-center">
                     <div
                       className="w-full h-full"
                       dangerouslySetInnerHTML={{ __html: step.guideSvg }}

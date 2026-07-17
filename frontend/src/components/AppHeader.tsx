@@ -1,4 +1,4 @@
-import { Camera, Droplets, History, LogIn, LogOut, UserPlus } from "lucide-react";
+import { Camera, Droplets, History, LayoutDashboard, LogIn, LogOut, UserPlus } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -51,6 +51,15 @@ export function AppHeader() {
               >
                 <Droplets className="h-4 w-4" />
                 Cycle
+              </NavLink>
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) =>
+                  `${navBase} ${isActive ? navActive : navIdle}`
+                }
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
               </NavLink>
               <NavLink
                 to="/history"
