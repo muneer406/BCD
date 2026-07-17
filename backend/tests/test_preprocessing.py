@@ -311,38 +311,25 @@ class TestPHashFunctions:
 # ---------------------------------------------------------------------------
 
 class TestExtractEmbedding:
-    @mock.patch("app.processing.embedding.models.efficientnet_v2_s")
-    @mock.patch("app.processing.embedding.torch.load")
-    @mock.patch("app.processing.embedding.torch.hub.load")
-    def test_extract_embedding_mocks_torchvision_model(
+    @mock.patch("app.processing.embedding.get_encoder")
+    def test_extract_embedding_mocks_onnx_model(
         self,
-        mock_hub_load,
-        mock_torch_load,
-        mock_efficientnet,
+        mock_get_encoder,
     ):
         fake_embedding = np.random.rand(EMBEDDING_DIM).astype(np.float32)
 
-        # Build a fake tensor whose .cpu().numpy().flatten().astype(...) returns the embedding.
-        fake_numpy = mock.MagicMock()
-        fake_numpy.flatten.return_value.astype.return_value = fake_embedding
-        fake_cpu = mock.MagicMock()
-        fake_cpu.numpy.return_value = fake_numpy
-        fake_model_output = mock.MagicMock()
-        fake_model_output.cpu.return_value = fake_cpu
+        fake_session = mock.MagicMock()
+        fake_session.run.return_value = [fake_embedding.reshape(1, -1)]
 
-        fake_model = mock.MagicMock()
-        fake_model.return_value = fake_model_output
-        fake_model.eval.return_value = fake_model
-        fake_model.to.return_value = fake_model
-        fake_model.classifier = mock.MagicMock()
-        mock_efficientnet.return_value = fake_model
+        fake_encoder = mock.MagicMock()
+        fake_encoder.extract.return_value = fake_embedding
+        fake_encoder.extract_batch.return_value = fake_embedding.reshape(1, -1)
+        mock_get_encoder.return_value = fake_encoder
+
+        from app.processing.embedding import extract_embedding
 
         img = np.random.rand(224, 224, 3).astype(np.float32)
-        result = extract_embedding(img)
-
-        assert isinstance(result, np.ndarray)
-        assert result.shape == (EMBEDDING_DIM,)
-        assert result.dtype == np.float32
-        mock_efficientnet.assert_called_once()
-        mock_hub_load.assert_not_called()
-        mock_torch_load.assert_not_called()
+        emb = extract_embedding(img)
+        assert emb.shape == (EMBEDDING_DIM,)
+        assert emb.dtype == np.float32
+        np.testing.assert_array_equal(emb, fake_embedding)
