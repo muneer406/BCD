@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Camera, History, Lock, User, CalendarDays, TrendingUp } from "lucide-react";
+import { Camera, History, Lock, User as UserIcon, CalendarDays, TrendingUp } from "lucide-react";
 import { Card } from "../components/Card";
 import { PageShell } from "../components/PageShell";
 import { SectionHeading } from "../components/SectionHeading";
 import { supabase } from "../lib/supabaseClient";
+import type { User } from "@supabase/supabase-js";
 
 export default function Dashboard() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
   const [firstDate, setFirstDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +98,7 @@ export default function Dashboard() {
             <p className="text-xs text-ink-600">Status</p>
           </Card>
           <Card className="p-4 text-center space-y-1">
-            <User className="h-5 w-5 mx-auto text-tide-500" />
+            <UserIcon className="h-5 w-5 mx-auto text-tide-500" />
             <p className="text-2xl font-bold text-ink-900">{sessionCount > 0 ? "✓" : "—"}</p>
             <p className="text-xs text-ink-600">Onboarded</p>
           </Card>
