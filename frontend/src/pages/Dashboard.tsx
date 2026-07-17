@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
   const [firstDate, setFirstDate] = useState<string | null>(null);
+  const [daysSinceFirst, setDaysSinceFirst] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,9 +29,11 @@ export default function Dashboard() {
         if (sessions) {
           setSessionCount(sessions.length);
           if (sessions.length > 0) {
-            setFirstDate(new Date(sessions[0].created_at).toLocaleDateString("en-US", {
+            const fd = new Date(sessions[0].created_at);
+            setFirstDate(fd.toLocaleDateString("en-US", {
               year: "numeric", month: "long", day: "numeric",
             }));
+            setDaysSinceFirst(Math.floor((Date.now() - fd.getTime()) / 86400000));
           }
         }
       }
@@ -38,19 +41,6 @@ export default function Dashboard() {
     };
     load();
   }, []);
-
-  const handleResetPassword = async () => {
-    const email = user?.email;
-    if (!email) return;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
-    if (error) {
-      alert("Could not send reset link. Configure SMTP in Supabase settings.");
-    } else {
-      alert("Password reset link sent to your email.");
-    }
-  };
 
   if (loading) {
     return (
@@ -65,18 +55,27 @@ export default function Dashboard() {
     );
   }
 
-  const daysSinceFirst = firstDate
-    ? Math.floor((Date.now() - new Date(firstDate).getTime()) / 86400000)
-    : 0;
-
   const initial = user?.email?.[0]?.toUpperCase() || "?";
+
+  const handleResetPassword = async () => {
+    const email = user?.email;
+    if (!email) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    if (error) {
+      alert("Could not send reset link. Configure SMTP in Supabase settings.");
+    } else {
+      alert("Password reset link sent to your email.");
+    }
+  };
 
   return (
     <PageShell>
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 space-y-8">
         {/* Welcome header */}
         <div>
-          <SectionHeading eyebrow="Dashboard" title={`Welcome back`} />
+          <SectionHeading eyebrow="Dashboard" title="Welcome back" />
           <p className="mt-1 text-sm text-ink-700">{user?.email}</p>
         </div>
 
@@ -94,12 +93,12 @@ export default function Dashboard() {
           </Card>
           <Card className="p-4 text-center space-y-1">
             <TrendingUp className="h-5 w-5 mx-auto text-tide-500" />
-            <p className="text-2xl font-bold text-ink-900">{firstDate ? "Active" : "—"}</p>
+            <p className="text-2xl font-bold text-ink-900">{firstDate ? "Active" : "\u2014"}</p>
             <p className="text-xs text-ink-600">Status</p>
           </Card>
           <Card className="p-4 text-center space-y-1">
             <UserIcon className="h-5 w-5 mx-auto text-tide-500" />
-            <p className="text-2xl font-bold text-ink-900">{sessionCount > 0 ? "✓" : "—"}</p>
+            <p className="text-2xl font-bold text-ink-900">{sessionCount > 0 ? "\u2713" : "\u2014"}</p>
             <p className="text-xs text-ink-600">Onboarded</p>
           </Card>
         </div>
