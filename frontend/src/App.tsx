@@ -12,7 +12,7 @@ import { Capture } from "./pages/Capture";
 import { ClinicalSummary } from "./pages/ClinicalSummary";
 import { ConsentFlow } from "./pages/ConsentFlow";
 import { CycleTracker } from "./pages/CycleTracker";
-import { Dashboard } from "./pages/Dashboard";
+import Dashboard from "./pages/Dashboard";
 import { Disclaimer } from "./pages/Disclaimer";
 import { History } from "./pages/History";
 import { Landing } from "./pages/Landing";
