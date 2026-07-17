@@ -300,11 +300,11 @@ def analyze_session(
     present_types = {image.get("image_type") for image in images}
     missing = required_types - present_types
 
-    # Allow analysis with partial images (at least 3 angles)
-    if len(present_types) < 3:
+    # Allow analysis with partial images (at least 2 angles — supports quick check)
+    if len(present_types) < 2:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Need at least 3 angles. Found: {', '.join(sorted(present_types))} (missing: {', '.join(sorted(missing))})",
+            detail=f"Need at least 2 angles (quick check). Found: {', '.join(sorted(present_types))}",
         )
 
     if async_process:
